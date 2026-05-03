@@ -3,12 +3,19 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // FIREBASE - hardcoded, no setup needed
 const FB = "https://wochenessenplan-default-rtdb.europe-west1.firebasedatabase.app";
 
-// DESIGN
+// DESIGN - mid-dark theme
 const C = {
-  bg:"#F7F6F3", white:"#FFFFFF", border:"#E8E6E1",
-  text:"#1A1917", muted:"#8A8780", subtle:"#C4C2BC",
-  accent:"#C17D3C", abg:"#FBF3EA", dark:"#1A1917",
-  ok:"#3A7D52", err:"#C0392B",
+  bg:"#1E1E24",
+  white:"#2A2A32",
+  border:"#3A3A46",
+  text:"#F0EEE9",
+  muted:"#9A9898",
+  subtle:"#5A5A64",
+  accent:"#D4904A",
+  abg:"#2E2820",
+  dark:"#13131A",
+  ok:"#4CAF7D",
+  err:"#E05555",
 };
 const SF = "system-ui,-apple-system,Helvetica Neue,Arial,sans-serif";
 const SER = "Georgia,'Times New Roman',serif";
@@ -226,6 +233,7 @@ export default function App() {
   const [recipeText,setRecipeText]   = useState("");
   const [recipeImg,setRecipeImg]     = useState(null);
   const [recipeB64,setRecipeB64]     = useState(null);
+  const [recipeImgType,setRecipeImgType] = useState("image/jpeg");
   const [extracting,setExtracting]   = useState(false);
   const [extracted,setExtracted]     = useState(null);
   const [importErr,setImportErr]     = useState("");
@@ -403,23 +411,33 @@ export default function App() {
     try{
       const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"cuisine\":\"Italienisch\",\"meal\":\"Ab\"}. Für meal verwende: Fr (Frühstück), Mi (Mittagessen), Ab (Abendessen). Für cuisine wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
       let messages;
-      if(importMode==="photo"&&recipeB64){
+      if(importMode==="photo"&&recipeB64&&recipeImgType){
         messages=[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:"image/jpeg",data:recipeB64}},
-          {type:"text",text:"Extrahiere bitte den vollständigen Rezeptnamen, alle Zutaten mit Mengenangaben und eine detaillierte Schritt-für-Schritt-Kochanleitung aus diesem Bild. Falls die Kochanleitung nicht vollständig sichtbar ist, ergänze sie sinnvoll basierend auf dem Rezeptnamen und den Zutaten."}
+          {type:"image",source:{type:"base64",media_type:recipeImgType,data:recipeB64}},
+          {type:"text",text:"Extrahiere bitte den vollstaendigen Rezeptnamen, alle Zutaten mit Mengenangaben und eine detaillierte Schritt-fuer-Schritt-Kochanleitung aus diesem Bild. Antworte ausschliesslich mit dem JSON-Objekt, kein anderer Text."}
         ]}];
       }else{
         messages=[{role:"user",content:"Extrahiere und vervollständige dieses Rezept:\n\n"+recipeText}];
       }
       const raw=await callClaude(messages,system);
-      const parsed=JSON.parse(raw.replace(/```json/g,"").replace(/```/g,"").trim());
+      // Robust JSON extraction - find the first { ... } block
+      const jsonMatch=raw.match(/\{[\s\S]*\}/);
+      if(!jsonMatch) throw new Error("Kein JSON in Antwort: "+raw.slice(0,200));
+      const parsed=JSON.parse(jsonMatch[0]);
+      if(!parsed.name) throw new Error("Kein Rezeptname erkannt");
+      if(!parsed.ingredients||parsed.ingredients.length===0) throw new Error("Keine Zutaten erkannt");
+      // Auto-generate steps if missing
       if(!parsed.steps||parsed.steps.length===0){
-        const stepSystem="Erstelle eine detaillierte Schritt-für-Schritt-Kochanleitung für dieses Rezept. Antworte NUR mit einem JSON-Array: [\"Schritt 1\",\"Schritt 2\"]";
+        const stepSystem="Erstelle eine detaillierte Schritt-fuer-Schritt-Kochanleitung. Antworte NUR mit JSON-Array ohne Markdown: [\"Schritt 1\",\"Schritt 2\"]";
         const stepRaw=await callClaude([{role:"user",content:"Rezept: "+parsed.name+"\nZutaten: "+parsed.ingredients.join(", ")}],stepSystem);
-        parsed.steps=JSON.parse(stepRaw.replace(/```json/g,"").replace(/```/g,"").trim());
+        const stepMatch=stepRaw.match(/\[[\s\S]*\]/);
+        parsed.steps=stepMatch?JSON.parse(stepMatch[0]):["Zubereitung laut Rezept."];
       }
       setExtracted(parsed);
-    }catch(e){setImportErr("Fehler beim Lesen. Bitte Text oder Foto prüfen.");}
+    }catch(e){
+      console.error("Extract error:",e);
+      setImportErr("Fehler: "+e.message+". Bitte Text oder Foto pruefen und erneut versuchen.");
+    }
     setExtracting(false);
   };
 
@@ -708,9 +726,9 @@ export default function App() {
         </div>
 
         {/* SYNC */}
-        <div style={{background:syncOk?"#F0F7F3":"#FDF3F2",borderBottom:"1px solid "+(syncOk?"#C8E6C9":"#FFCDD2"),padding:"4px 16px",display:"flex",alignItems:"center",gap:"6px"}}>
+        <div style={{background:syncOk?"#1A2620":"#261A1A",borderBottom:"1px solid "+(syncOk?"#2E5040":"#502020"),padding:"4px 16px",display:"flex",alignItems:"center",gap:"6px"}}>
           <div style={{width:"6px",height:"6px",borderRadius:"50%",background:syncOk?C.ok:C.err}} />
-          <span style={{fontSize:"10px",color:syncOk?"#2E7D52":C.err}}>{syncOk?(lastSync?"Sync "+new Date(lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"Verbunden"):"Verbindungsfehler"}</span>
+          <span style={{fontSize:"10px",color:syncOk?"#4CAF7D":C.err}}>{syncOk?(lastSync?"Sync "+new Date(lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"Verbunden"):"Verbindungsfehler"}</span>
           <span style={{marginLeft:"auto",fontSize:"9px",color:C.subtle}}>alle 10 Sek.</span>
         </div>
 
@@ -882,7 +900,7 @@ export default function App() {
 
                 {/* Add custom */}
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"9px",display:"flex",gap:"8px",marginTop:"4px"}}>
-                  <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." style={{flex:1,border:"1px solid "+C.border,padding:"9px 12px",fontSize:"13px",outline:"none",color:C.text,fontFamily:SF,background:C.bg}} />
+                  <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." style={{flex:1,border:"1px solid "+C.border,padding:"9px 12px",fontSize:"13px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C"}} />
                   <button onClick={addCustom} style={{background:C.dark,border:"none",color:"#fff",padding:"9px 16px",cursor:"pointer",fontSize:"18px",fontWeight:"700"}}>+</button>
                 </div>
               </div>
@@ -906,14 +924,14 @@ export default function App() {
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"12px"}}>
               <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"10px"}}>{importMode==="text"?"REZEPTTEXT EINFUEGEN":"REZEPTFOTO HOCHLADEN"}</div>
               {importMode==="text"
-                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Fehlende Kochanleitung wird automatisch ergänzt..." style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.bg}} />
+                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Fehlende Kochanleitung wird automatisch ergänzt..." style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
                 :(
                   <div>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;setRecipeImg(URL.createObjectURL(f));const r=new FileReader();r.onload=()=>setRecipeB64(r.result.split(",")[1]);r.readAsDataURL(f);}} style={{display:"none"}} />
-                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:recipeImg?"12px":"28px 16px",border:"1px dashed "+C.border,background:C.bg,cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
+                    <input ref={fileRef} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const mt=f.type||"image/jpeg";setRecipeImgType(mt);setRecipeImg(URL.createObjectURL(f));const r=new FileReader();r.onload=()=>setRecipeB64(r.result.split(",")[1]);r.readAsDataURL(f);}} style={{display:"none"}} />
+                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:recipeImg?"12px":"28px 16px",border:"1px dashed "+C.border,background:"#16161C",cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
                       {recipeImg?<img src={recipeImg} alt="Rezept" style={{maxHeight:"140px",maxWidth:"100%",objectFit:"contain"}} />:<span style={{fontSize:"14px"}}>Foto auswaehlen (Kochbuchseite, Screenshot, Foto)</span>}
                     </button>
-                    {recipeImg&&<button onClick={()=>{setRecipeImg(null);setRecipeB64(null);}} style={{marginTop:"6px",background:"none",border:"none",color:C.err,cursor:"pointer",fontSize:"12px",fontFamily:SF}}>Bild entfernen</button>}
+                    {recipeImg&&<button onClick={()=>{setRecipeImg(null);setRecipeB64(null);setRecipeImgType("image/jpeg");}} style={{marginTop:"6px",background:"none",border:"none",color:C.err,cursor:"pointer",fontSize:"12px",fontFamily:SF}}>Bild entfernen</button>}
                   </div>
                 )
               }
