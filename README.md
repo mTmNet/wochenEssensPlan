@@ -18,6 +18,20 @@ npm run dev
 
 Dann http://localhost:5173 im Browser öffnen.
 
+## KI-Extraktion lokal testen (wichtig)
+
+Die Rezept-KI nutzt den Endpoint `/api/gemini` aus dem Ordner `api/`.
+Dieser Endpoint wird mit reinem `npm run dev` (Vite) lokal nicht bereitgestellt.
+
+Wenn du KI-Extraktion lokal testen willst:
+
+1. Vercel CLI installieren: `npm i -g vercel`
+2. Im Projekt anmelden: `vercel login`
+3. Umgebungsvariable setzen: `GEMINI_API_KEY` in Vercel Project Settings (oder lokal via Vercel env)
+4. Lokal mit Vercel starten: `vercel dev`
+
+Ohne `GEMINI_API_KEY` liefert der Endpoint einen 500-Fehler.
+
 ## Deployment auf Vercel
 
 ### Schritt 1 — GitHub Repository erstellen

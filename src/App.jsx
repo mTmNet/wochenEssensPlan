@@ -179,6 +179,59 @@ const makePDF = (recipes) => {
     sectionsHTML+'</body></html>';
 };
 
+// IMAGE PREP FOR AI IMPORT
+const compressImageToBase64 = (file, opts = {}) => {
+  const { maxEdge = 1600, quality = 0.82 } = opts;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Bild konnte nicht gelesen werden."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Bild konnte nicht verarbeitet werden."));
+      img.onload = () => {
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas-Kontext nicht verfügbar."));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Bildkomprimierung fehlgeschlagen."));
+              return;
+            }
+            const outReader = new FileReader();
+            outReader.onerror = () => reject(new Error("Komprimiertes Bild konnte nicht gelesen werden."));
+            outReader.onload = () => {
+              const dataUrl = String(outReader.result || "");
+              const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : "";
+              resolve({
+                base64,
+                mimeType: "image/jpeg",
+                previewUrl: URL.createObjectURL(blob),
+              });
+            };
+            outReader.readAsDataURL(blob);
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 // AI API - Anthropic in Claude artifact, Gemini on Vercel
 const callClaude = async (messages, system) => {
   const isArtifact = window.location.hostname.includes("claude.ai") ||
@@ -261,6 +314,15 @@ export default function App() {
   const [codeCopied,setCodeCopied]   = useState(false);
   const [filterMeal,setFilterMeal]   = useState("all");
 
+  const isLocalDev =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+  const canExtract = extracting
+    ? false
+    : importMode === "text"
+      ? !!recipeText.trim()
+      : !!recipeB64;
+
   const fileRef      = useRef(null);
   const syncTimer    = useRef(null);
   const pushTimer    = useRef(null);
@@ -268,6 +330,8 @@ export default function App() {
   const cellRef      = useRef(null);
   const cookRef      = useRef(null);
   const dropRef      = useRef(null);
+
+  useEffect(()=>()=>{ if(recipeImg) URL.revokeObjectURL(recipeImg); },[recipeImg]);
 
   // LOAD & SYNC
   useEffect(()=>{
@@ -427,6 +491,7 @@ export default function App() {
 
   // RECIPE EXTRACT
   const extractRecipe=async()=>{
+    if(!canExtract) return;
     setExtracting(true);setImportErr("");setExtracted(null);
     try{
       const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"cuisine\":\"Italienisch\",\"meal\":\"Ab\"}. Für meal verwende: Fr (Frühstück), Mi (Mittagessen), Ab (Abendessen). Für cuisine wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
@@ -456,7 +521,18 @@ export default function App() {
       setExtracted(parsed);
     }catch(e){
       console.error("Extract error:",e);
-      setImportErr("Fehler: "+e.message+". Bitte Text oder Foto pruefen und erneut versuchen.");
+      const msg = (e && e.message) ? e.message : "Unbekannter Fehler";
+      if(msg.includes("404")){
+        setImportErr("Die KI-API ist nicht erreichbar (404). Lokal mit npm run dev gibt es /api/gemini nicht. Starte mit vercel dev oder nutze die deployte App.");
+      }else if(msg.includes("413")){
+        setImportErr("Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.");
+      }else if(msg.includes("GEMINI_API_KEY not configured")){
+        setImportErr("Server-Konfiguration fehlt: GEMINI_API_KEY ist nicht gesetzt.");
+      }else if(msg.includes("500")){
+        setImportErr("Serverfehler bei der KI-Anfrage (500). Bitte Vercel-Logs und Umgebungsvariablen pruefen.");
+      }else{
+        setImportErr("Fehler: "+msg+". Bitte Text oder Foto pruefen und erneut versuchen.");
+      }
     }
     setExtracting(false);
   };
@@ -943,11 +1019,40 @@ export default function App() {
             {/* Import area */}
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"12px"}}>
               <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"10px"}}>{importMode==="text"?"REZEPTTEXT EINFUEGEN":"REZEPTFOTO HOCHLADEN"}</div>
+              {isLocalDev&&(
+                <div style={{marginBottom:"10px",padding:"8px 10px",background:"#FFF8EC",border:"1px solid #F1D5AE",color:"#8C5A22",fontSize:"12px",lineHeight:"1.45"}}>
+                  Hinweis: Lokal mit npm run dev ist /api/gemini oft nicht verfuegbar. Nutze vercel dev oder die deployte Vercel-App fuer KI-Extraktion.
+                </div>
+              )}
               {importMode==="text"
                 ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Fehlende Kochanleitung wird automatisch ergänzt..." style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
                 :(
                   <div>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const mt=f.type||"image/jpeg";setRecipeImgType(mt);setRecipeImg(URL.createObjectURL(f));const r=new FileReader();r.onload=()=>setRecipeB64(r.result.split(",")[1]);r.readAsDataURL(f);}} style={{display:"none"}} />
+                    <input ref={fileRef} type="file" accept="image/*" onChange={async e=>{
+                      const f=e.target.files[0];
+                      if(!f)return;
+                      setImportErr("");
+                      try{
+                        const prevUrl = recipeImg;
+                        const compressed = await compressImageToBase64(f,{maxEdge:1600,quality:0.82});
+                        if(prevUrl) URL.revokeObjectURL(prevUrl);
+                        if(!compressed.base64) throw new Error("Bilddaten fehlen nach Komprimierung.");
+                        if(compressed.base64.length > 3500000) throw new Error("413 Bild zu gross nach Komprimierung.");
+                        setRecipeImgType(compressed.mimeType || "image/jpeg");
+                        setRecipeImg(compressed.previewUrl);
+                        setRecipeB64(compressed.base64);
+                      }catch(err){
+                        console.error("Image import error:",err);
+                        setRecipeImg(null);
+                        setRecipeB64(null);
+                        setRecipeImgType("image/jpeg");
+                        const m = err && err.message ? err.message : "Bild konnte nicht verarbeitet werden";
+                        if(m.includes("413")) setImportErr("Bild weiterhin zu gross. Bitte ein kleineres Foto oder Screenshot verwenden.");
+                        else setImportErr("Bildfehler: "+m);
+                      }finally{
+                        if(e.target) e.target.value = "";
+                      }
+                    }} style={{display:"none"}} />
                     <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:recipeImg?"12px":"28px 16px",border:"1px dashed "+C.border,background:"#16161C",cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
                       {recipeImg?<img src={recipeImg} alt="Rezept" style={{maxHeight:"140px",maxWidth:"100%",objectFit:"contain"}} />:<span style={{fontSize:"14px"}}>Foto auswaehlen (Kochbuchseite, Screenshot, Foto)</span>}
                     </button>
@@ -956,7 +1061,7 @@ export default function App() {
                 )
               }
               {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:"#FDF3F2",border:"1px solid #FFCDD2",color:C.err,fontSize:"12px"}}>{importErr}</div>}
-              <button onClick={extractRecipe} style={{width:"100%",marginTop:"10px",padding:"12px",background:extracting?C.subtle:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:extracting?"default":"pointer",fontFamily:SF,opacity:(importMode==="text"?!recipeText.trim():!recipeB64)?0.4:1}}>
+              <button disabled={!canExtract} onClick={extractRecipe} style={{width:"100%",marginTop:"10px",padding:"12px",background:extracting?C.subtle:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:canExtract?"pointer":"default",fontFamily:SF,opacity:canExtract?1:0.4}}>
                 {extracting?"KI ANALYSIERT (fehlende Schritte werden generiert)...":"REZEPT MIT KI EXTRAHIEREN"}
               </button>
             </div>
