@@ -3,73 +3,63 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+    return res.status(500).json({ error: "XAI_API_KEY not configured" });
   }
 
   const { system, messages } = req.body;
 
-  // Convert Anthropic message format to Gemini format
-  const geminiContents = messages.map(msg => {
+  // Convert Anthropic message format to OpenAI/Grok format
+  const grokMessages = [];
+
+  if (system) {
+    grokMessages.push({ role: "system", content: system });
+  }
+
+  messages.forEach(msg => {
     if (Array.isArray(msg.content)) {
-      // Handle image + text messages
+      // Handle image + text messages (OpenAI vision format)
       const parts = msg.content.map(part => {
         if (part.type === "text") {
-          return { text: part.text };
+          return { type: "text", text: part.text };
         } else if (part.type === "image") {
+          const mimeType = part.source.media_type || "image/jpeg";
           return {
-            inlineData: {
-              mimeType: part.source.media_type,
-              data: part.source.data,
-            }
+            type: "image_url",
+            image_url: { url: "data:" + mimeType + ";base64," + part.source.data }
           };
         }
-        return { text: "" };
+        return { type: "text", text: "" };
       });
-      return { role: msg.role === "assistant" ? "model" : "user", parts };
+      grokMessages.push({ role: msg.role, content: parts });
     } else {
-      return {
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }]
-      };
+      grokMessages.push({ role: msg.role, content: msg.content });
     }
   });
 
-  // Add system prompt as first user message if present
-  if (system) {
-    geminiContents.unshift({
-      role: "user",
-      parts: [{ text: "Systemanweisung: " + system }]
-    });
-    geminiContents.splice(1, 0, {
-      role: "model",
-      parts: [{ text: "Verstanden. Ich folge diesen Anweisungen." }]
-    });
-  }
-
   try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
-
-    const response = await fetch(url, {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + apiKey,
+      },
       body: JSON.stringify({
-        contents: geminiContents,
-        generationConfig: {
-          maxOutputTokens: 2000,
-          temperature: 0.3,
-        }
+        model: "grok-2-vision-1212",
+        messages: grokMessages,
+        max_tokens: 2000,
+        temperature: 0.3,
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(response.status).json({ error: "Gemini API Fehler: " + errText.slice(0, 200) });
+      return res.status(response.status).json({ error: "Grok API Fehler: " + errText.slice(0, 200) });
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = data.choices?.[0]?.message?.content || "";
 
     return res.status(200).json({ text });
   } catch (error) {

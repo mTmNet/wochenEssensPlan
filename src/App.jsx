@@ -526,11 +526,11 @@ export default function App() {
       if(msg.includes("404")){
         setImportErr("Die KI-API ist nicht erreichbar (404). Lokal mit npm run dev gibt es /api/gemini nicht. Starte mit vercel dev oder nutze die deployte App.");
       }else if(msg.includes("429")){
-        setImportErr("KI-Kontingent erschoepft (429). Das kostenlose Gemini-API-Limit ist erreicht. Bitte kurz warten (1-2 Min.) und erneut versuchen, oder in der Google AI Studio ein hoeheres Kontingent aktivieren.");
+        setImportErr("KI-Kontingent erschoepft (429). Das Grok-API-Limit ist erreicht. Bitte kurz warten (1-2 Min.) und erneut versuchen.");
       }else if(msg.includes("413")){
         setImportErr("Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.");
-      }else if(msg.includes("GEMINI_API_KEY not configured")){
-        setImportErr("Server-Konfiguration fehlt: GEMINI_API_KEY ist nicht gesetzt.");
+      }else if(msg.includes("XAI_API_KEY not configured")){
+        setImportErr("Server-Konfiguration fehlt: XAI_API_KEY ist nicht gesetzt. Bitte in Vercel Environment Variables eintragen.");
       }else if(msg.includes("500")){
         setImportErr("Serverfehler bei der KI-Anfrage (500). Bitte Vercel-Logs und Umgebungsvariablen pruefen.");
       }else{
