@@ -46,7 +46,7 @@ export default async function handler(req, res) {
         "Authorization": "Bearer " + apiKey,
       },
       body: JSON.stringify({
-        model: "grok-2-vision-1212",
+        model: "grok-2-vision-latest",
         messages: grokMessages,
         max_tokens: 2000,
         temperature: 0.3,
