@@ -255,6 +255,7 @@ const callClaude = async (messages, system) => {
     });
     if(!r.ok) {
       const errText = await r.text();
+      if(r.status === 429) throw new Error("Gemini Fehler 429: Quota ueberschritten");
       throw new Error("Gemini Fehler "+r.status+": "+errText.slice(0,200));
     }
     const d = await r.json();
@@ -524,6 +525,8 @@ export default function App() {
       const msg = (e && e.message) ? e.message : "Unbekannter Fehler";
       if(msg.includes("404")){
         setImportErr("Die KI-API ist nicht erreichbar (404). Lokal mit npm run dev gibt es /api/gemini nicht. Starte mit vercel dev oder nutze die deployte App.");
+      }else if(msg.includes("429")){
+        setImportErr("KI-Kontingent erschoepft (429). Das kostenlose Gemini-API-Limit ist erreicht. Bitte kurz warten (1-2 Min.) und erneut versuchen, oder in der Google AI Studio ein hoeheres Kontingent aktivieren.");
       }else if(msg.includes("413")){
         setImportErr("Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.");
       }else if(msg.includes("GEMINI_API_KEY not configured")){
