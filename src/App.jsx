@@ -179,15 +179,35 @@ const makePDF = (recipes) => {
     sectionsHTML+'</body></html>';
 };
 
-// CLAUDE API
+// AI API - Anthropic in Claude artifact, Gemini on Vercel
 const callClaude = async (messages, system) => {
-  const r = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,system,messages}),
-  });
-  const d = await r.json();
-  const b = d.content&&d.content.find(x=>x.type==="text");
-  return b?b.text:"";
+  const isArtifact = window.location.hostname.includes("claude.ai") ||
+                     window.location.protocol === "blob:";
+  if (isArtifact) {
+    // Direct Anthropic call in Claude.ai artifact
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,system,messages}),
+    });
+    if(!r.ok) throw new Error("Anthropic Fehler "+r.status);
+    const d = await r.json();
+    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+    const b = d.content&&d.content.find(x=>x.type==="text");
+    return b?b.text:"";
+  } else {
+    // Gemini via Vercel serverless function
+    const r = await fetch("/api/gemini", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({system, messages}),
+    });
+    if(!r.ok) {
+      const errText = await r.text();
+      throw new Error("Gemini Fehler "+r.status+": "+errText.slice(0,200));
+    }
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    return d.text||"";
+  }
 };
 
 // HELPERS
