@@ -3,23 +3,21 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = process.env.XAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "XAI_API_KEY not configured" });
+    return res.status(500).json({ error: "GROQ_API_KEY not configured" });
   }
 
   const { system, messages } = req.body;
 
-  // Convert Anthropic message format to OpenAI/Grok format
-  const grokMessages = [];
-
+  // Convert Anthropic message format to OpenAI format (Groq Vision)
+  const groqMessages = [];
   if (system) {
-    grokMessages.push({ role: "system", content: system });
+    groqMessages.push({ role: "system", content: system });
   }
-
   messages.forEach(msg => {
     if (Array.isArray(msg.content)) {
-      // Handle image + text messages (OpenAI vision format)
+      // OpenAI vision format: content is array of {type, text|image_url}
       const parts = msg.content.map(part => {
         if (part.type === "text") {
           return { type: "text", text: part.text };
@@ -32,22 +30,22 @@ export default async function handler(req, res) {
         }
         return { type: "text", text: "" };
       });
-      grokMessages.push({ role: msg.role, content: parts });
+      groqMessages.push({ role: msg.role, content: parts });
     } else {
-      grokMessages.push({ role: msg.role, content: msg.content });
+      groqMessages.push({ role: msg.role, content: msg.content });
     }
   });
 
   try {
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer " + apiKey,
       },
       body: JSON.stringify({
-        model: "grok-4.3",
-        messages: grokMessages,
+        model: "llava-llama-3-8b-8192",
+        messages: groqMessages,
         max_tokens: 2000,
         temperature: 0.3,
       }),
@@ -55,7 +53,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(response.status).json({ error: "Grok API Fehler: " + errText.slice(0, 200) });
+      return res.status(response.status).json({ error: "Groq API Fehler: " + errText.slice(0, 200) });
     }
 
     const data = await response.json();
