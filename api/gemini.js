@@ -3,61 +3,65 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = process.env.XAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "XAI_API_KEY not configured" });
+    return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
   }
 
   const { system, messages } = req.body;
 
-  // Convert Anthropic message format to OpenAI format (xAI is OpenAI-compatible)
-  const xaiMessages = [];
-  if (system) {
-    xaiMessages.push({ role: "system", content: system });
-  }
-  messages.forEach(msg => {
+  // Convert Anthropic message format to Gemini format
+  const contents = messages.map(msg => {
+    const role = msg.role === "assistant" ? "model" : "user";
     if (Array.isArray(msg.content)) {
-      // Vision format: content is array of {type, text|image_url}
       const parts = msg.content.map(part => {
         if (part.type === "text") {
-          return { type: "text", text: part.text };
+          return { text: part.text };
         } else if (part.type === "image") {
-          const mimeType = part.source.media_type || "image/jpeg";
           return {
-            type: "image_url",
-            image_url: { url: "data:" + mimeType + ";base64," + part.source.data }
+            inlineData: {
+              mimeType: part.source.media_type || "image/jpeg",
+              data: part.source.data,
+            },
           };
         }
-        return { type: "text", text: "" };
+        return { text: "" };
       });
-      xaiMessages.push({ role: msg.role, content: parts });
+      return { role, parts };
     } else {
-      xaiMessages.push({ role: msg.role, content: msg.content });
+      return { role, parts: [{ text: msg.content }] };
     }
   });
 
+  const body = {
+    contents,
+    generationConfig: {
+      maxOutputTokens: 2000,
+      temperature: 0.3,
+    },
+  };
+
+  if (system) {
+    body.systemInstruction = { parts: [{ text: system }] };
+  }
+
   try {
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + apiKey,
-      },
-      body: JSON.stringify({
-        model: "grok-4.3",
-        messages: xaiMessages,
-        max_tokens: 2000,
-        temperature: 0.3,
-      }),
-    });
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(response.status).json({ error: "xAI Fehler: " + errText.slice(0, 300) });
+      return res.status(response.status).json({ error: "Gemini Fehler: " + errText.slice(0, 300) });
     }
 
     const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || "";
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     return res.status(200).json({ text });
   } catch (error) {
