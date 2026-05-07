@@ -255,8 +255,7 @@ const callClaude = async (messages, system) => {
     });
     if(!r.ok) {
       const errText = await r.text();
-      if(r.status === 429) throw new Error("KI Fehler 429: Quota ueberschritten");
-      throw new Error("KI Fehler "+r.status+": "+errText.slice(0,200));
+      throw new Error("KI Fehler "+r.status+": "+errText.slice(0,300));
     }
     const d = await r.json();
     if(d.error) throw new Error(d.error);
@@ -526,7 +525,7 @@ export default function App() {
       if(msg.includes("404")){
         setImportErr("Die KI-API ist nicht erreichbar (404). Lokal mit npm run dev gibt es /api/gemini nicht. Starte mit vercel dev oder nutze die deployte App.");
       }else if(msg.includes("429")){
-        setImportErr("KI-Kontingent erschoepft (429). Gemini-Tageslimit erreicht. Bitte morgen erneut versuchen oder spaeter.");
+        setImportErr("Zu viele Anfragen (429). Bitte 1 Minute warten und erneut versuchen. Details: "+msg);
       }else if(msg.includes("413")){
         setImportErr("Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.");
       }else if(msg.includes("GEMINI_API_KEY not configured")){
