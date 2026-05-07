@@ -248,15 +248,15 @@ const callClaude = async (messages, system) => {
     const b = d.content&&d.content.find(x=>x.type==="text");
     return b?b.text:"";
   } else {
-    // Gemini via Vercel serverless function
+    // KI backend via Vercel serverless function
     const r = await fetch("/api/gemini", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({system, messages}),
     });
     if(!r.ok) {
       const errText = await r.text();
-      if(r.status === 429) throw new Error("Gemini Fehler 429: Quota ueberschritten");
-      throw new Error("Gemini Fehler "+r.status+": "+errText.slice(0,200));
+      if(r.status === 429) throw new Error("KI Fehler 429: Quota ueberschritten");
+      throw new Error("KI Fehler "+r.status+": "+errText.slice(0,200));
     }
     const d = await r.json();
     if(d.error) throw new Error(d.error);
@@ -526,11 +526,13 @@ export default function App() {
       if(msg.includes("404")){
         setImportErr("Die KI-API ist nicht erreichbar (404). Lokal mit npm run dev gibt es /api/gemini nicht. Starte mit vercel dev oder nutze die deployte App.");
       }else if(msg.includes("429")){
-        setImportErr("KI-Kontingent erschoepft (429). Das Grok-API-Limit ist erreicht. Bitte kurz warten (1-2 Min.) und erneut versuchen.");
+        setImportErr("KI-Kontingent erschoepft (429). Das xAI API-Limit ist erreicht. Bitte kurz warten (1-2 Min.) und erneut versuchen.");
       }else if(msg.includes("413")){
         setImportErr("Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.");
       }else if(msg.includes("XAI_API_KEY not configured")){
-        setImportErr("Server-Konfiguration fehlt: XAI_API_KEY ist nicht gesetzt. Bitte in Vercel Environment Variables eintragen.");
+        setImportErr("Server-Konfiguration fehlt: XAI_API_KEY ist nicht gesetzt. Bitte in Vercel unter Settings → Environment Variables eintragen und danach neu deployen.");
+      }else if(msg.includes("Incorrect API key") || msg.includes("invalid_api_key") || msg.includes("401")){
+        setImportErr("Der xAI API Key ist ungueltig oder abgelaufen. Bitte in Vercel einen gueltigen XAI_API_KEY von console.x.ai eintragen und danach neu deployen.");
       }else if(msg.includes("500")){
         setImportErr("Serverfehler bei der KI-Anfrage (500). Bitte Vercel-Logs und Umgebungsvariablen pruefen.");
       }else{
