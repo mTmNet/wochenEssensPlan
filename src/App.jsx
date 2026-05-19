@@ -523,7 +523,7 @@ export default function App() {
       console.error("Extract error:",e);
       const msg = (e && e.message) ? e.message : "Unbekannter Fehler";
       if(msg.includes("404")){
-        setImportErr("Die KI-API ist nicht erreichbar (404). Lokal mit npm run dev gibt es /api/gemini nicht. Starte mit vercel dev oder nutze die deployte App.");
+        setImportErr("Die KI-API ist nicht erreichbar (404). Das Gemini-Modell wurde nicht gefunden. Bitte den Vercel-Log pruefen.");
       }else if(msg.includes("429")){
         setImportErr("Zu viele Anfragen (429). Bitte 1 Minute warten und erneut versuchen. Details: "+msg);
       }else if(msg.includes("413")){
