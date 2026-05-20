@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const body = {
     contents,
     generationConfig: {
-      maxOutputTokens: 8000,
+      maxOutputTokens: 6000,
       temperature: 0.3,
     },
   };
@@ -73,6 +73,9 @@ export default async function handler(req, res) {
 
     if (!text) {
       const reason = candidate?.finishReason || "UNKNOWN";
+      if (reason === "RECITATION") {
+        return res.status(422).json({ error: "Dieses Rezept ist urheberrechtlich geschützt — Gemini darf es nicht reproduzieren. Bitte das Rezept manuell eintippen und den Text-Import nutzen." });
+      }
       return res.status(422).json({ error: `Gemini hat keine Antwort geliefert (finishReason: ${reason}). Bitte ein anderes Bild versuchen.` });
     }
 
