@@ -657,9 +657,8 @@ export default function App() {
             <div style={{color:"rgba(255,255,255,0.3)",fontSize:"13px"}}>Planen - Einkaufen - Geniessen</div>
           </div>
           <div style={{marginBottom:"24px",textAlign:"center"}}>
-            <div style={{color:"rgba(255,255,255,0.4)",fontSize:"13px",lineHeight:"1.6"}}>
-              Nie wieder der fragende Blick in den leeren Kühlschrank: <span style={{color:C.accent,fontStyle:"italic"}}>"Was kochen wir heute?"</span>
-            </div>
+            <div style={{color:"rgba(255,255,255,0.4)",fontSize:"13px",lineHeight:"1.6"}}>Nie wieder der fragende Blick in den leeren Kühlschrank:</div>
+            <div style={{color:C.accent,fontStyle:"italic",fontSize:"13px",lineHeight:"1.6"}}>"Was kochen wir heute?"</div>
           </div>
           <div style={{marginBottom:"12px"}}>
             <label style={{color:"rgba(255,255,255,0.4)",fontSize:"10px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"6px"}}>Dein Name</label>
