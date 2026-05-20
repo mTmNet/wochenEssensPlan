@@ -656,12 +656,9 @@ export default function App() {
             <div style={{color:"rgba(255,255,255,0.45)",fontSize:"26px",fontFamily:"'Dancing Script', 'Segoe Script', cursive",marginBottom:"8px"}}>by Mero</div>
             <div style={{color:"rgba(255,255,255,0.3)",fontSize:"13px"}}>Planen - Einkaufen - Geniessen</div>
           </div>
-          <div style={{marginBottom:"24px",textAlign:"left"}}>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"13px",lineHeight:"1.8"}}>
+          <div style={{marginBottom:"24px",textAlign:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.4)",fontSize:"13px",lineHeight:"1.6"}}>
               Nie wieder der fragende Blick in den leeren Kühlschrank: <span style={{color:C.accent,fontStyle:"italic"}}>"Was kochen wir heute?"</span>
-            </div>
-            <div style={{color:"rgba(255,255,255,0.3)",fontSize:"12px",lineHeight:"1.8",marginTop:"8px"}}>
-              Gemeinsamer Essensplaner für die ganze Familie — Plan-Code teilen, alle sehen in Echtzeit was auf den Tisch kommt. Rezepte per Foto oder Text mit KI importieren. Einkaufsliste wird automatisch erstellt und zyklisch aktualisiert — endlich!
             </div>
           </div>
           <div style={{marginBottom:"12px"}}>
