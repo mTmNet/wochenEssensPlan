@@ -656,20 +656,12 @@ export default function App() {
             <div style={{color:"rgba(255,255,255,0.45)",fontSize:"26px",fontFamily:"'Dancing Script', 'Segoe Script', cursive",marginBottom:"8px"}}>by Mero</div>
             <div style={{color:"rgba(255,255,255,0.3)",fontSize:"13px"}}>Planen - Einkaufen - Geniessen</div>
           </div>
-          <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",padding:"20px",marginBottom:"24px",textAlign:"left"}}>
-            <div style={{color:"rgba(255,255,255,0.7)",fontSize:"13px",lineHeight:"1.8",marginBottom:"14px"}}>
-              Nie wieder die Frage: <span style={{color:C.accent,fontStyle:"italic"}}>"Was kochen wir heute?"</span>
-              <br/>
-              Ein gemeinsamer Essensplaner für die ganze Familie — einfach den Plan-Code teilen und alle sehen in Echtzeit was auf den Tisch kommt.
+          <div style={{marginBottom:"24px",textAlign:"left"}}>
+            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"13px",lineHeight:"1.8"}}>
+              Nie wieder der fragende Blick in den leeren Kühlschrank: <span style={{color:C.accent,fontStyle:"italic"}}>"Was kochen wir heute?"</span>
             </div>
-            <div style={{color:"rgba(255,255,255,0.35)",fontSize:"11px",lineHeight:"2",borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:"12px"}}>
-              <div>&#8226; Wochenmenu planen — Frühstück, Mittag, Abend</div>
-              <div>&#8226; Rezepte per Foto oder Text mit KI importieren</div>
-              <div>&#8226; Einkaufsliste wird automatisch erstellt — nie wieder fragen wer kauft was</div>
-              <div>&#8226; Eigenes Kochbuch anlegen und teilen</div>
-            </div>
-            <div style={{color:"rgba(255,255,255,0.2)",fontSize:"11px",marginTop:"12px",borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:"12px"}}>
-              Foto machen → KI extrahiert Zutaten &amp; Anleitung → ins Menü ziehen → fertig.
+            <div style={{color:"rgba(255,255,255,0.3)",fontSize:"12px",lineHeight:"1.8",marginTop:"8px"}}>
+              Gemeinsamer Essensplaner für die ganze Familie — Plan-Code teilen, alle sehen in Echtzeit was auf den Tisch kommt. Rezepte per Foto oder Text mit KI importieren. Einkaufsliste wird automatisch erstellt und zyklisch aktualisiert — endlich!
             </div>
           </div>
           <div style={{marginBottom:"12px"}}>
