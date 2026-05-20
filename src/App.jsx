@@ -499,7 +499,7 @@ export default function App() {
       if(importMode==="photo"&&recipeB64&&recipeImgType){
         messages=[{role:"user",content:[
           {type:"image",source:{type:"base64",media_type:recipeImgType,data:recipeB64}},
-          {type:"text",text:"Extrahiere bitte den vollstaendigen Rezeptnamen, alle Zutaten mit Mengenangaben und eine detaillierte Schritt-fuer-Schritt-Kochanleitung aus diesem Bild. Antworte ausschliesslich mit dem JSON-Objekt, kein anderer Text."}
+          {type:"text",text:"Beschreibe das Gericht auf dem Bild und erstelle daraus ein eigenes Rezept mit Zutaten und Mengenangaben sowie einer detaillierten Schritt-fuer-Schritt-Kochanleitung. Antworte ausschliesslich mit dem JSON-Objekt, kein anderer Text."}
         ]}];
       }else{
         messages=[{role:"user",content:"Extrahiere und vervollständige dieses Rezept:\n\n"+recipeText}];
