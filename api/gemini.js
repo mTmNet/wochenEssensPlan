@@ -61,7 +61,13 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const candidate = data.candidates?.[0];
+    const text = candidate?.content?.parts?.[0]?.text || "";
+
+    if (!text) {
+      const reason = candidate?.finishReason || "UNKNOWN";
+      return res.status(422).json({ error: `Gemini hat keine Antwort geliefert (finishReason: ${reason}). Bitte ein anderes Bild versuchen.` });
+    }
 
     return res.status(200).json({ text });
   } catch (error) {
