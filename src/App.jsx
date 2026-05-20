@@ -650,8 +650,8 @@ export default function App() {
     content=(
       <div style={{minHeight:"100vh",background:C.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",fontFamily:SF}}>
         <div style={{width:"100%",maxWidth:"380px"}}>
-          <div style={{textAlign:"center",marginBottom:"48px"}}>
-            <div style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"3px",textTransform:"uppercase",marginBottom:"16px"}}>Wochenplan</div>
+          <div style={{textAlign:"center",marginBottom:"24px"}}>
+            <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px",textTransform:"uppercase",marginBottom:"16px"}}>Wochenplan</div>
             <div style={{color:"#fff",fontSize:"40px",fontFamily:SER,marginBottom:"4px",lineHeight:"1.1"}}>Gemeinsam kochen.</div>
             <div style={{color:"rgba(255,255,255,0.45)",fontSize:"26px",fontFamily:"'Dancing Script', 'Segoe Script', cursive",marginBottom:"8px"}}>by Mero</div>
             <div style={{color:"rgba(255,255,255,0.3)",fontSize:"13px"}}>Planen - Einkaufen - Geniessen</div>
