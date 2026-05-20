@@ -45,8 +45,11 @@ export default async function handler(req, res) {
     body.systemInstruction = { parts: [{ text: system }] };
   }
 
-  try {
-    const response = await fetch(
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  let response;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    response = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey,
       {
         method: "POST",
@@ -54,7 +57,11 @@ export default async function handler(req, res) {
         body: JSON.stringify(body),
       }
     );
+    if (response.status !== 503 || attempt === 3) break;
+    await sleep(3000);
+  }
 
+  try {
     if (!response.ok) {
       const errText = await response.text();
       return res.status(response.status).json({ error: "Gemini Fehler: " + errText.slice(0, 300) });
