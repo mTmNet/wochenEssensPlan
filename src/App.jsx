@@ -446,12 +446,28 @@ export default function App() {
     setScreen("join");
   };
 
-  // MEAL & COOK
-  const setMeal=(day,meal,val)=>{
+  // MEAL & COOK - ein Slot kann mehrere Rezepte enthalten (Array)
+  const addDish=(day,meal,name)=>{
+    const nm=(name||"").trim();
+    if(!nm)return;
     setPlan(prev=>{
       const n=JSON.parse(JSON.stringify(prev));
       if(!n[day])n[day]={meals:{},cook:""};
-      n[day].meals[meal]=val;
+      if(!n[day].meals)n[day].meals={};
+      const cur=n[day].meals[meal];
+      const arr=Array.isArray(cur)?cur.slice():(cur?[cur]:[]);   // alte Einzel-Strings migrieren
+      if(!arr.includes(nm))arr.push(nm);                          // keine Duplikate
+      n[day].meals[meal]=arr;
+      schedulePush(n,shopping,recipes,participants);
+      return n;
+    });
+  };
+  const removeDish=(day,meal,name)=>{
+    setPlan(prev=>{
+      const n=JSON.parse(JSON.stringify(prev));
+      const cur=n[day]&&n[day].meals&&n[day].meals[meal];
+      const arr=Array.isArray(cur)?cur.slice():(cur?[cur]:[]);
+      n[day].meals[meal]=arr.filter(d=>d!==name);
       schedulePush(n,shopping,recipes,participants);
       return n;
     });
@@ -486,11 +502,14 @@ export default function App() {
   const generateShopping=()=>{
     const rawIngs=[];const dishes=[];
     DAYS.forEach(day=>MEALS.forEach(meal=>{
-      const dish=plan[day]&&plan[day].meals&&plan[day].meals[meal];
-      if(!dish)return;
-      const rec=recipes[dish];
-      if(rec&&rec.ingredients&&rec.ingredients.length) rec.ingredients.forEach(i=>rawIngs.push(i));
-      else dishes.push(dn(dish)+" (Zutaten prüfen)");
+      const slot=plan[day]&&plan[day].meals&&plan[day].meals[meal];
+      const list=Array.isArray(slot)?slot:(slot?[slot]:[]);
+      list.forEach(dish=>{
+        if(!dish)return;
+        const rec=recipes[dish];
+        if(rec&&rec.ingredients&&rec.ingredients.length) rec.ingredients.forEach(i=>rawIngs.push(i));
+        else dishes.push(dn(dish)+" (Zutaten prüfen)");
+      });
     }));
     const agg=aggregateIngs(rawIngs);
     const next=[
@@ -694,7 +713,11 @@ export default function App() {
     return()=>window.removeEventListener("popstate",onPop);
   },[screen]);
 
-  const getDish=(day,meal)=>plan[day]&&plan[day].meals&&plan[day].meals[meal]||"";
+  const getDishes=(day,meal)=>{
+    const v=plan[day]&&plan[day].meals&&plan[day].meals[meal];
+    if(!v)return [];
+    return Array.isArray(v)?v:[v];
+  };
   const getCook=(day)=>plan[day]&&plan[day].cook||"";
   const unchecked=shopping.filter(x=>!x.checked).length;
   const curRec=detailRecipe?recipes[detailRecipe]:null;
@@ -988,30 +1011,34 @@ export default function App() {
                   {MEALS.map(meal=>{
                     const key=day+"-"+meal;
                     const isActive=activeCell===key;
-                    const dish=getDish(day,meal);
-                    const hasRec=dish&&!!recipes[dish];
+                    const dishes=getDishes(day,meal);
 
                     return(
                       <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
-                        <div style={{display:"flex",alignItems:"center",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
+                        <div style={{display:"flex",alignItems:"stretch",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
                           <div style={{width:"104px",padding:"10px 12px",flexShrink:0}}>
                             <div style={{fontSize:"10px",fontWeight:"700",color:isActive?C.accent:C.subtle,letterSpacing:"0.3px",textTransform:"uppercase",lineHeight:"1.25",overflowWrap:"anywhere"}}>{ML[meal]}</div>
                           </div>
                           <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
-                          <div style={{flex:1,padding:"0 10px"}}>
+                          <div style={{flex:1,padding:"4px 10px",minWidth:0}}>
+                            {/* zugewiesene Rezepte */}
+                            {dishes.map(d=>{
+                              const hasR=!!recipes[d];
+                              return(
+                                <div key={d} style={{display:"flex",alignItems:"center",gap:"4px",padding:"5px 0",borderBottom:"1px solid "+C.border}}>
+                                  <span style={{flex:1,fontSize:"13px",color:C.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(d)}</span>
+                                  {hasR&&<button onClick={()=>addIngsToList(d)} title="Zutaten zur Einkaufsliste" style={{color:C.ok,fontSize:"16px",background:"none",border:"none",cursor:"pointer",padding:"2px 5px",lineHeight:1,flexShrink:0}}>+</button>}
+                                  {hasR&&<button onClick={()=>{setDetailRecipe(d);setCookStep(0);setCookMode(false);setImgLoaded(false);}} style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontFamily:SF,flexShrink:0}}>REZEPT</button>}
+                                  <button onClick={()=>removeDish(day,meal,d)} title="Entfernen" style={{color:C.subtle,fontSize:"15px",background:"none",border:"none",cursor:"pointer",padding:"2px 5px",lineHeight:1,flexShrink:0}}>x</button>
+                                </div>
+                              );
+                            })}
+                            {/* Hinzufuegen-Zeile */}
                             {isActive
-                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setMeal(day,meal,cellInput);setActiveCell(null);setOpenCat(null);}if(e.key==="Escape"){setActiveCell(null);setOpenCat(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"10px 0",fontFamily:SF}} />
-                              :<button onClick={()=>{setActiveCell(key);setCellInput(dish);setOpenCat(null);}} style={{width:"100%",textAlign:"left",padding:"10px 0",fontSize:"13px",color:dish?C.text:C.subtle,fontStyle:dish?"normal":"italic",background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>{dish?dn(dish):"Hinzufügen..."}</button>
+                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){addDish(day,meal,cellInput);setCellInput("");}if(e.key==="Escape"){setActiveCell(null);setOpenCat(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"8px 0",fontFamily:SF}} />
+                              :<button onClick={()=>{setActiveCell(key);setCellInput("");setOpenCat(null);}} style={{width:"100%",textAlign:"left",padding:"8px 0",fontSize:"13px",color:C.subtle,fontStyle:"italic",background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>+ Hinzufügen...</button>
                             }
                           </div>
-                          {/* Per-meal add to shopping */}
-                          {hasRec&&!isActive&&(
-                            <button onClick={()=>addIngsToList(dish)} title="Zutaten zur Einkaufsliste" style={{padding:"10px 8px",color:C.ok,fontSize:"14px",background:"none",border:"none",cursor:"pointer",borderLeft:"1px solid "+C.border,title:"Zur Einkaufsliste"}}>+</button>
-                          )}
-                          {hasRec&&!isActive&&(
-                            <button onClick={()=>{setDetailRecipe(dish);setCookStep(0);setCookMode(false);setImgLoaded(false);}} style={{padding:"10px 10px",color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",background:"none",border:"none",borderLeft:"1px solid "+C.border,cursor:"pointer",fontFamily:SF}}>REZEPT</button>
-                          )}
-                          {dish&&!isActive&&<button onClick={()=>setMeal(day,meal,"")} style={{padding:"10px 10px",color:C.subtle,fontSize:"15px",background:"none",border:"none",borderLeft:hasRec?"none":"1px solid "+C.border,cursor:"pointer",lineHeight:1}}>x</button>}
                         </div>
                         {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"104px"}} />}
 
@@ -1021,8 +1048,8 @@ export default function App() {
                           const catsToShow=openCat?[openCat]:CATS;
                           const flt=(names)=>names.filter(s=>!cellInput||dn(s).toLowerCase().includes(cellInput.toLowerCase()));
                           const itemBtn=(s)=>(
-                            <button key={s} onMouseDown={e=>{e.preventDefault();setMeal(day,meal,s);setActiveCell(null);setOpenCat(null);}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
-                              <span>{dn(s)}</span>
+                            <button key={s} onMouseDown={e=>{e.preventDefault();addDish(day,meal,s);setCellInput("");}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:dishes.includes(s)?C.abg:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
+                              <span>{dishes.includes(s)?"✓ ":""}{dn(s)}</span>
                               {recipes[s]&&<span style={{fontSize:"9px",color:C.accent,fontWeight:"700",letterSpacing:"0.5px"}}>REZEPT</span>}
                             </button>
                           );
@@ -1057,7 +1084,7 @@ export default function App() {
                             </div>
                             {cellInput&&(
                               <div style={{padding:"7px 14px",borderTop:"1px solid "+C.border,background:C.bg}}>
-                                <button onMouseDown={e=>{e.preventDefault();setMeal(day,meal,cellInput);setActiveCell(null);setOpenCat(null);}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" direkt uebernehmen</button>
+                                <button onMouseDown={e=>{e.preventDefault();addDish(day,meal,cellInput);setCellInput("");}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" hinzufügen</button>
                               </div>
                             )}
                           </div>
