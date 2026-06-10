@@ -115,11 +115,36 @@ const aggregateIngs = (raw) => {
   return order.map(k=>{const e=map.get(k);return fmtIng(e.name,e.amount,e.unit);});
 };
 
-// MARKDOWN GENERATOR
-const makeMarkdown = (name, rec) => {
-  const ings = (rec.ingredients||[]).map(i=>"- "+i).join("\n");
-  const steps = (rec.steps||[]).map((s,i)=>(i+1)+". "+s).join("\n");
-  return "# "+dn(name)+"\n\n**Küche:** "+(rec.cuisine||"Allgemein")+"  \n**Mahlzeit:** "+(ML[rec.meal]||rec.meal||"Allgemein")+"\n\n## Zutaten\n\n"+ings+"\n\n## Zubereitung\n\n"+steps+"\n";
+// SINGLE RECIPE PDF (HTML zum Drucken / als PDF speichern)
+const makeRecipePDF = (name, rec) => {
+  const title = dn(name);
+  const ings = (rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
+  const steps = (rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+'</span><p>'+s+'</p></div>').join("");
+  const desc = rec.description ? '<p class="desc">'+rec.description+'</p>' : '';
+  const meta = (rec.cuisine||"Allgemein")+" · "+(ML[rec.meal]||rec.meal||"Allgemein");
+  const imgUrl = foodImg(name);
+  const css = `
+    @page{margin:2cm}
+    body{font-family:Georgia,serif;color:#1A1917;max-width:760px;margin:0 auto;padding:0}
+    .meta{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C17D3C;font-weight:700;margin-bottom:10px}
+    h1{font-size:38px;font-weight:400;letter-spacing:-1px;margin:0 0 18px}
+    img{width:100%;height:300px;object-fit:cover;border-radius:4px;margin-bottom:20px;display:block}
+    .desc{font-style:italic;font-size:15px;line-height:1.8;color:#4A4843;margin:0 0 24px}
+    .tag{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C17D3C;margin:24px 0 10px}
+    ul{list-style:none;padding:0;margin:0}
+    ul li{font-size:14px;padding:7px 0;border-bottom:1px solid #F0EEE9}
+    .step{display:flex;gap:14px;margin-bottom:14px}
+    .num{width:26px;height:26px;border-radius:50%;border:1px solid #1A1917;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:system-ui,sans-serif}
+    .step p{font-size:14px;line-height:1.7;margin:0;padding-top:2px}
+  `;
+  return '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>'+title+'</title><style>'+css+'</style></head><body>'+
+    '<div class="meta">'+meta+'</div>'+
+    '<h1>'+title+'</h1>'+
+    '<img src="'+imgUrl+'" alt="'+title+'" onerror="this.style.display=\'none\'">'+
+    desc+
+    '<div class="tag">Zutaten</div><ul>'+ings+'</ul>'+
+    '<div class="tag">Zubereitung</div>'+steps+
+    '</body></html>';
 };
 
 // PDF COOKBOOK
@@ -145,7 +170,8 @@ const makePDF = (recipes) => {
     const ings=(rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
     const steps=(rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+"</span><p>"+s+"</p></div>").join("");
     const imgUrl=foodImg(key);
-    return '<div class="recipe"><h2>'+name+'</h2><img src="'+imgUrl+'" alt="'+name+'" onerror="this.style.display=\'none\'"><div class="tag">Zutaten</div><ul>'+ings+'</ul><div class="tag">Zubereitung</div>'+steps+'</div>';
+    const desc=rec.description?'<p class="desc">'+rec.description+'</p>':'';
+    return '<div class="recipe"><h2>'+name+'</h2><img src="'+imgUrl+'" alt="'+name+'" onerror="this.style.display=\'none\'">'+desc+'<div class="tag">Zutaten</div><ul>'+ings+'</ul><div class="tag">Zubereitung</div>'+steps+'</div>';
   };
 
   const sectionsHTML = sections.map(sec=>'<div class="section"><h1 class="section-title">'+sec.title+'</h1>'+sec.items.map(recipeHTML).join("")+'</div>').join("");
@@ -165,6 +191,7 @@ const makePDF = (recipes) => {
     .recipe{margin-bottom:60px;padding-bottom:60px;border-bottom:1px solid #E8E6E1;page-break-inside:avoid}
     .recipe h2{font-size:28px;font-weight:400;margin-bottom:16px}
     .recipe img{width:100%;height:260px;object-fit:cover;border-radius:4px;margin-bottom:20px;display:block}
+    .recipe .desc{font-style:italic;font-size:14px;line-height:1.8;color:#4A4843;margin:0 0 16px}
     .tag{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C17D3C;margin:20px 0 10px}
     ul{list-style:none;padding:0}
     ul li{font-size:14px;padding:7px 0;border-bottom:1px solid #F0EEE9}
@@ -608,15 +635,16 @@ export default function App() {
     setDetailRecipe(null);setEditMode(false);
   };
 
-  // MD DOWNLOAD
-  const downloadMD=(name)=>{
+  // SINGLE RECIPE PDF (Druckdialog -> "Als PDF speichern")
+  const downloadRecipePDF=(name)=>{
     const rec=recipes[name];
     if(!rec)return;
-    const md=makeMarkdown(name,rec);
-    const blob=new Blob([md],{type:"text/markdown"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download=dn(name).replace(/\s+/g,"-")+".md";a.click();
-    URL.revokeObjectURL(url);
+    const html=makeRecipePDF(name,rec);
+    const w=window.open("","_blank");
+    if(!w)return;
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>{w.print();},1000);
   };
 
   // PDF COOKBOOK
@@ -790,7 +818,7 @@ export default function App() {
               <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
                 {curSteps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{flex:2,padding:"13px",background:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>KOCHMODUS</button>}
                 <button onClick={()=>startEdit(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.text,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>BEARBEITEN</button>
-                <button onClick={()=>downloadMD(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>DOWNLOAD .MD</button>
+                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ALS PDF</button>
               </div>
               {curRec.description&&(
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
