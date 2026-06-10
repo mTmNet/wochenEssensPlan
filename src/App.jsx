@@ -994,8 +994,8 @@ export default function App() {
                     return(
                       <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
                         <div style={{display:"flex",alignItems:"center",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
-                          <div style={{width:"90px",padding:"10px 14px",flexShrink:0}}>
-                            <div style={{fontSize:"10px",fontWeight:"700",color:isActive?C.accent:C.subtle,letterSpacing:"0.5px",textTransform:"uppercase"}}>{ML[meal]}</div>
+                          <div style={{width:"104px",padding:"10px 12px",flexShrink:0}}>
+                            <div style={{fontSize:"10px",fontWeight:"700",color:isActive?C.accent:C.subtle,letterSpacing:"0.3px",textTransform:"uppercase",lineHeight:"1.25",overflowWrap:"anywhere"}}>{ML[meal]}</div>
                           </div>
                           <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
                           <div style={{flex:1,padding:"0 10px"}}>
@@ -1013,7 +1013,7 @@ export default function App() {
                           )}
                           {dish&&!isActive&&<button onClick={()=>setMeal(day,meal,"")} style={{padding:"10px 10px",color:C.subtle,fontSize:"15px",background:"none",border:"none",borderLeft:hasRec?"none":"1px solid "+C.border,cursor:"pointer",lineHeight:1}}>x</button>}
                         </div>
-                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"90px"}} />}
+                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"104px"}} />}
 
                         {/* KATEGORIE-DROPDOWN */}
                         {isActive&&(()=>{
@@ -1101,11 +1101,11 @@ export default function App() {
                     <div style={{fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",padding:"8px 14px",background:C.bg,border:"1px solid "+C.border,borderBottom:"none"}}>{group.cat}</div>
                     <div style={{background:C.white,border:"1px solid "+C.border}}>
                       {group.items.map((item,gi)=>(
-                        <div key={item.idx} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",borderBottom:gi<group.items.length-1?"1px solid "+C.border:"none",background:item.checked?"#FAFAF8":C.white,transition:"background 0.15s"}}>
+                        <div key={item.idx} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",borderBottom:gi<group.items.length-1?"1px solid "+C.border:"none",background:C.white,transition:"background 0.15s"}}>
                           <button onClick={()=>toggleCheck(item.idx)} style={{width:"20px",height:"20px",border:"1px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
                             {item.checked&&<span style={{color:"#fff",fontSize:"11px",fontWeight:"800"}}>v</span>}
                           </button>
-                          <span style={{flex:1,fontSize:"13px",color:item.checked?C.subtle:C.text,textDecoration:item.checked?"line-through":"none",transition:"all 0.15s"}}>{item.text}</span>
+                          <span style={{flex:1,fontSize:"13px",color:C.text,textDecoration:item.checked?"line-through":"none",textDecorationColor:C.err,textDecorationThickness:"2px",transition:"all 0.15s"}}>{item.text}</span>
                           <button onClick={()=>removeItem(item.idx)} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"16px",lineHeight:1}}>x</button>
                         </div>
                       ))}
