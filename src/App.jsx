@@ -519,7 +519,7 @@ export default function App() {
     if(!canExtract) return;
     setExtracting(true);setImportErr("");setExtracted(null);
     try{
-      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"cuisine\":\"Italienisch\",\"meal\":\"Ab\"}. Für meal verwende: Fr (Frühstück), Mi (Mittagessen), Ab (Abendessen). Für cuisine wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
+      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"cuisine\":\"Italienisch\",\"meal\":\"Ab\"}. Für meal verwende: Fr (Frühstück), Mi (Mittagessen), Ab (Abendessen). Für cuisine wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
       let messages;
       if(importMode==="photo"&&recipeB64&&recipeImgType){
         messages=[{role:"user",content:[
@@ -568,7 +568,7 @@ export default function App() {
 
   const saveRecipe=async()=>{
     if(!extracted||!extracted.name)return;
-    const rec={ingredients:extracted.ingredients||[],steps:extracted.steps||[],cuisine:extracted.cuisine||"International",meal:extracted.meal||"Ab"};
+    const rec={ingredients:extracted.ingredients||[],steps:extracted.steps||[],description:extracted.description||"",cuisine:extracted.cuisine||"International",meal:extracted.meal||"Ab"};
     const key=extracted.name;
     setRecipes(prev=>{const n={...prev,[key]:rec};schedulePush(plan,shopping,n,participants);return n;});
     const patch={};patch[key]=rec;await fbPatch("globalRecipes",patch);
@@ -579,13 +579,13 @@ export default function App() {
   // RECIPE EDITING
   const startEdit=(name)=>{
     const rec=recipes[name];
-    setEditData({name,ingredients:[...rec.ingredients],steps:[...rec.steps],cuisine:rec.cuisine||"International",meal:rec.meal||"Ab"});
+    setEditData({name,ingredients:[...rec.ingredients],steps:[...rec.steps],description:rec.description||"",cuisine:rec.cuisine||"International",meal:rec.meal||"Ab"});
     setEditMode(true);
   };
 
   const saveEdit=async()=>{
     if(!editData)return;
-    const rec={ingredients:editData.ingredients,steps:editData.steps,cuisine:editData.cuisine,meal:editData.meal};
+    const rec={ingredients:editData.ingredients,steps:editData.steps,description:editData.description||"",cuisine:editData.cuisine,meal:editData.meal};
     const isRenamed=editData.name!==detailRecipe;
     setRecipes(prev=>{
       const n={...prev};
@@ -792,6 +792,12 @@ export default function App() {
                 <button onClick={()=>startEdit(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.text,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>BEARBEITEN</button>
                 <button onClick={()=>downloadMD(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>DOWNLOAD .MD</button>
               </div>
+              {curRec.description&&(
+                <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
+                  <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"10px"}}>Beschreibung</div>
+                  <div style={{fontSize:"14px",color:C.text,lineHeight:"1.7",fontFamily:SER,fontStyle:"italic"}}>{curRec.description}</div>
+                </div>
+              )}
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"14px"}}>Zutaten</div>
                 {curIngs.map((ing,i)=>(
@@ -834,6 +840,10 @@ export default function App() {
                     {["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"].map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+              </div>
+              <div style={{marginBottom:"10px"}}>
+                <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Beschreibung</label>
+                <textarea value={editData.description||""} onChange={e=>setEditData(d=>({...d,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white}} />
               </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"10px"}}>
                 <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"10px"}}>Zutaten</div>
@@ -1156,6 +1166,10 @@ export default function App() {
                       {["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"].map(c=><option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
+                </div>
+                <div style={{marginBottom:"10px"}}>
+                  <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Beschreibung</label>
+                  <textarea value={extracted.description||""} onChange={e=>setExtracted(r=>({...r,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white}} />
                 </div>
                 <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"8px"}}>Zutaten</div>
                 {(extracted.ingredients||[]).map((ing,i)=>(
