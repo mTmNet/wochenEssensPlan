@@ -26,15 +26,16 @@ const SER = "Georgia,'Times New Roman',serif";
 // CONSTANTS
 const DAYS   = ["Mo","Di","Mi","Do","Fr","Sa","So"];
 const DAYFUL = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
-const MEALS  = ["Fr","Mi","Ab"];
-const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen" };
+// PLAN-SLOTS - wann gegessen wird (pro Tag)
+const MEALS  = ["Fr","Mi","Ab","Zw"];
+const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Zwischenmahlzeit" };
 
-// CUISINE CATEGORIES per meal
-const CUISINES = {
-  Fr: ["Klassisch","International","Vegetarisch","Schnell"],
-  Mi: ["Schwäbisch","Italienisch","Asiatisch","Mediterran","Vegetarisch","International","Schnell"],
-  Ab: ["Schwäbisch","Italienisch","Asiatisch","Mediterran","Vegetarisch","Grillen","International"],
-};
+// REZEPT-KATEGORIEN (Rubriken) - was fuer ein Gericht (unabhaengig vom Plan-Slot)
+const CATS = ["Frühstück","Hauptgericht","Beilagen & Salate","Soßen & Dips","Snacks"];
+// KUECHEN - nur fuer Hauptgericht relevant (Untergruppen im Dropdown)
+const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
+// Kategorie eines Rezepts ermitteln (migriert alte meal-Werte: Fr->Fruehstueck, Mi/Ab->Hauptgericht)
+const recCat = (rec) => (rec && rec.category) ? rec.category : (rec && rec.meal==="Fr" ? "Frühstück" : "Hauptgericht");
 
 // SUPERMARKET CATEGORIES
 const SHOP_CATS = [
@@ -121,7 +122,7 @@ const makeRecipePDF = (name, rec) => {
   const ings = (rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
   const steps = (rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+'</span><p>'+s+'</p></div>').join("");
   const desc = rec.description ? '<p class="desc">'+rec.description+'</p>' : '';
-  const meta = (rec.cuisine||"Allgemein")+" · "+(ML[rec.meal]||rec.meal||"Allgemein");
+  const meta = recCat(rec)+(rec.cuisine?(" · "+rec.cuisine):"");
   const imgUrl = foodImg(name);
   const css = `
     @page{margin:2cm}
@@ -149,21 +150,11 @@ const makeRecipePDF = (name, rec) => {
 
 // PDF COOKBOOK
 const makePDF = (recipes) => {
-  const used = new Set();
-  const allMeals = ["Fr","Mi","Ab"];
-  const allCuisines = ["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell","Eigene Rezepte"];
   const sections = [];
-  allMeals.forEach(meal=>{
-    allCuisines.forEach(cuisine=>{
-      const items = Object.entries(recipes).filter(([k,v])=>v.meal===meal&&v.cuisine===cuisine&&!used.has(k));
-      if(items.length){
-        items.forEach(([k])=>used.add(k));
-        sections.push({title:ML[meal]+" - "+cuisine, items});
-      }
-    });
+  CATS.forEach(cat=>{
+    const items = Object.entries(recipes).filter(([k,v])=>recCat(v)===cat);
+    if(items.length) sections.push({title:cat, items});
   });
-  const remaining = Object.entries(recipes).filter(([k])=>!used.has(k));
-  if(remaining.length) sections.push({title:"Weitere Rezepte",items:remaining});
 
   const recipeHTML = ([key,rec])=>{
     const name=dn(key);
@@ -322,7 +313,7 @@ export default function App() {
   const [view,setView]               = useState("plan");
   const [activeCell,setActiveCell]   = useState(null);
   const [cellInput,setCellInput]     = useState("");
-  const [openCuisine,setOpenCuisine] = useState(null);
+  const [openCat,setOpenCat] = useState(null);
   const [cookPicker,setCookPicker]   = useState(null);
 
   const [detailRecipe,setDetailRecipe] = useState(null);
@@ -523,21 +514,26 @@ export default function App() {
     setCustomItem("");
   };
 
-  // DROPDOWN SUGGESTIONS with cuisine grouping
-  const getSuggGrouped=(meal)=>{
-    const cuisineList=CUISINES[meal]||[];
+  // DROPDOWN: Rezepte nach Kategorie (Rubrik) gruppieren
+  const getRecipesByCat=()=>{
+    const byCat={}; CATS.forEach(c=>byCat[c]=[]);
+    Object.keys(recipes).forEach(name=>{
+      const c=recCat(recipes[name]);
+      if(!byCat[c])byCat[c]=[];
+      byCat[c].push(name);
+    });
+    return byCat;
+  };
+  // Eine Namensliste nach Kueche untergruppieren (fuer Hauptgericht)
+  const groupByCuisine=(names)=>{
     const groups=[];
-    cuisineList.forEach(cuisine=>{
-      const items=Object.entries(recipes).filter(([k,v])=>{
-        if(v.meal&&v.meal!==meal)return false;
-        const rc=v.cuisine||"";
-        return rc===cuisine;
-      }).map(([k])=>k);
+    CUISINE_LIST.forEach(cuisine=>{
+      const items=names.filter(n=>((recipes[n]&&recipes[n].cuisine)||"")===cuisine);
       if(items.length)groups.push({cuisine,items});
     });
     const assigned=new Set(groups.flatMap(g=>g.items));
-    const unassigned=Object.entries(recipes).filter(([k,v])=>!assigned.has(k)&&(!v.meal||v.meal===meal)).map(([k])=>k);
-    if(unassigned.length)groups.push({cuisine:"Weitere",items:unassigned});
+    const rest=names.filter(n=>!assigned.has(n));
+    if(rest.length)groups.push({cuisine:"Weitere",items:rest});
     return groups;
   };
 
@@ -546,7 +542,7 @@ export default function App() {
     if(!canExtract) return;
     setExtracting(true);setImportErr("");setExtracted(null);
     try{
-      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"cuisine\":\"Italienisch\",\"meal\":\"Ab\"}. Für meal verwende: Fr (Frühstück), Mi (Mittagessen), Ab (Abendessen). Für cuisine wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
+      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"category\":\"Hauptgericht\",\"cuisine\":\"Italienisch\"}. Für category wähle genau eine aus: Frühstück, Hauptgericht, Beilagen & Salate, Soßen & Dips, Snacks. Für cuisine (vor allem bei Hauptgericht relevant) wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
       let messages;
       if(importMode==="photo"&&recipeB64&&recipeImgType){
         messages=[{role:"user",content:[
@@ -595,7 +591,7 @@ export default function App() {
 
   const saveRecipe=async()=>{
     if(!extracted||!extracted.name)return;
-    const rec={ingredients:extracted.ingredients||[],steps:extracted.steps||[],description:extracted.description||"",cuisine:extracted.cuisine||"International",meal:extracted.meal||"Ab"};
+    const rec={ingredients:extracted.ingredients||[],steps:extracted.steps||[],description:extracted.description||"",cuisine:extracted.cuisine||"International",category:extracted.category||"Hauptgericht"};
     const key=extracted.name;
     setRecipes(prev=>{const n={...prev,[key]:rec};schedulePush(plan,shopping,n,participants);return n;});
     const patch={};patch[key]=rec;await fbPatch("globalRecipes",patch);
@@ -606,13 +602,13 @@ export default function App() {
   // RECIPE EDITING
   const startEdit=(name)=>{
     const rec=recipes[name];
-    setEditData({name,ingredients:[...rec.ingredients],steps:[...rec.steps],description:rec.description||"",cuisine:rec.cuisine||"International",meal:rec.meal||"Ab"});
+    setEditData({name,ingredients:[...rec.ingredients],steps:[...rec.steps],description:rec.description||"",cuisine:rec.cuisine||"International",category:recCat(rec)});
     setEditMode(true);
   };
 
   const saveEdit=async()=>{
     if(!editData)return;
-    const rec={ingredients:editData.ingredients,steps:editData.steps,description:editData.description||"",cuisine:editData.cuisine,meal:editData.meal};
+    const rec={ingredients:editData.ingredients,steps:editData.steps,description:editData.description||"",cuisine:editData.cuisine,category:editData.category};
     const isRenamed=editData.name!==detailRecipe;
     setRecipes(prev=>{
       const n={...prev};
@@ -660,7 +656,7 @@ export default function App() {
   // CLOSE DROPDOWNS
   useEffect(()=>{
     const h=(e)=>{
-      if(cellRef.current&&!cellRef.current.contains(e.target)){setActiveCell(null);setOpenCuisine(null);}
+      if(cellRef.current&&!cellRef.current.contains(e.target)){setActiveCell(null);setOpenCat(null);}
       if(cookRef.current&&!cookRef.current.contains(e.target))setCookPicker(null);
     };
     document.addEventListener("mousedown",h);
@@ -807,7 +803,7 @@ export default function App() {
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.dark+")"}} />
           <button onClick={()=>{setDetailRecipe(null);setImgLoaded(false);setEditMode(false);setEditData(null);}} style={{position:"absolute",top:16,left:16,background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.8)",padding:"8px 14px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ZURUECK</button>
           <div style={{position:"absolute",bottom:24,left:24,right:24}}>
-            <div style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"6px"}}>{curRec.cuisine||""} / {ML[curRec.meal]||""}</div>
+            <div style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"6px"}}>{recCat(curRec)}{curRec.cuisine?" / "+curRec.cuisine:""}</div>
             <div style={{color:"#fff",fontSize:"28px",fontFamily:SER,lineHeight:"1.2"}}>{dn(detailRecipe)}</div>
           </div>
         </div>
@@ -857,9 +853,9 @@ export default function App() {
               </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
                 <div style={{flex:1}}>
-                  <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Mahlzeit</label>
-                  <select value={editData.meal} onChange={e=>setEditData(d=>({...d,meal:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"10px 12px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                    {MEALS.map(m=><option key={m} value={m}>{ML[m]}</option>)}
+                  <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Kategorie</label>
+                  <select value={editData.category} onChange={e=>setEditData(d=>({...d,category:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"10px 12px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
+                    {CATS.map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div style={{flex:1}}>
@@ -994,7 +990,6 @@ export default function App() {
                     const isActive=activeCell===key;
                     const dish=getDish(day,meal);
                     const hasRec=dish&&!!recipes[dish];
-                    const groups=getSuggGrouped(meal);
 
                     return(
                       <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
@@ -1005,8 +1000,8 @@ export default function App() {
                           <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
                           <div style={{flex:1,padding:"0 10px"}}>
                             {isActive
-                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setMeal(day,meal,cellInput);setActiveCell(null);setOpenCuisine(null);}if(e.key==="Escape"){setActiveCell(null);setOpenCuisine(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"10px 0",fontFamily:SF}} />
-                              :<button onClick={()=>{setActiveCell(key);setCellInput(dish);setOpenCuisine(null);}} style={{width:"100%",textAlign:"left",padding:"10px 0",fontSize:"13px",color:dish?C.text:C.subtle,fontStyle:dish?"normal":"italic",background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>{dish?dn(dish):"Hinzufügen..."}</button>
+                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setMeal(day,meal,cellInput);setActiveCell(null);setOpenCat(null);}if(e.key==="Escape"){setActiveCell(null);setOpenCat(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"10px 0",fontFamily:SF}} />
+                              :<button onClick={()=>{setActiveCell(key);setCellInput(dish);setOpenCat(null);}} style={{width:"100%",textAlign:"left",padding:"10px 0",fontSize:"13px",color:dish?C.text:C.subtle,fontStyle:dish?"normal":"italic",background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>{dish?dn(dish):"Hinzufügen..."}</button>
                             }
                           </div>
                           {/* Per-meal add to shopping */}
@@ -1018,42 +1013,56 @@ export default function App() {
                           )}
                           {dish&&!isActive&&<button onClick={()=>setMeal(day,meal,"")} style={{padding:"10px 10px",color:C.subtle,fontSize:"15px",background:"none",border:"none",borderLeft:hasRec?"none":"1px solid "+C.border,cursor:"pointer",lineHeight:1}}>x</button>}
                         </div>
-                        {meal!=="Ab"&&<div style={{height:"1px",background:C.border,marginLeft:"90px"}} />}
+                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"90px"}} />}
 
-                        {/* GROUPED DROPDOWN */}
-                        {isActive&&(
+                        {/* KATEGORIE-DROPDOWN */}
+                        {isActive&&(()=>{
+                          const byCat=getRecipesByCat();
+                          const catsToShow=openCat?[openCat]:CATS;
+                          const flt=(names)=>names.filter(s=>!cellInput||dn(s).toLowerCase().includes(cellInput.toLowerCase()));
+                          const itemBtn=(s)=>(
+                            <button key={s} onMouseDown={e=>{e.preventDefault();setMeal(day,meal,s);setActiveCell(null);setOpenCat(null);}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
+                              <span>{dn(s)}</span>
+                              {recipes[s]&&<span style={{fontSize:"9px",color:C.accent,fontWeight:"700",letterSpacing:"0.5px"}}>REZEPT</span>}
+                            </button>
+                          );
+                          return(
                           <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:C.white,border:"1px solid "+C.border,boxShadow:"0 12px 32px rgba(0,0,0,0.12)"}}>
-                            {/* Cuisine filter tabs */}
+                            {/* Kategorie-Tabs */}
                             <div style={{display:"flex",gap:"0",overflowX:"auto",borderBottom:"1px solid "+C.border,background:C.bg}}>
-                              <button onMouseDown={e=>{e.preventDefault();setOpenCuisine(null);}} style={{padding:"7px 10px",border:"none",background:openCuisine===null?C.white:"transparent",color:openCuisine===null?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,borderBottom:openCuisine===null?"2px solid "+C.accent:"2px solid transparent"}}>ALLE</button>
-                              {groups.map(g=>(
-                                <button key={g.cuisine} onMouseDown={e=>{e.preventDefault();setOpenCuisine(openCuisine===g.cuisine?null:g.cuisine);}} style={{padding:"7px 10px",border:"none",background:openCuisine===g.cuisine?C.white:"transparent",color:openCuisine===g.cuisine?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,borderBottom:openCuisine===g.cuisine?"2px solid "+C.accent:"2px solid transparent"}}>{g.cuisine.toUpperCase()}</button>
+                              <button onMouseDown={e=>{e.preventDefault();setOpenCat(null);}} style={{padding:"7px 10px",border:"none",background:openCat===null?C.white:"transparent",color:openCat===null?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,whiteSpace:"nowrap",borderBottom:openCat===null?"2px solid "+C.accent:"2px solid transparent"}}>ALLE</button>
+                              {CATS.map(c=>(
+                                <button key={c} onMouseDown={e=>{e.preventDefault();setOpenCat(openCat===c?null:c);}} style={{padding:"7px 10px",border:"none",background:openCat===c?C.white:"transparent",color:openCat===c?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,whiteSpace:"nowrap",borderBottom:openCat===c?"2px solid "+C.accent:"2px solid transparent"}}>{c.toUpperCase()}</button>
                               ))}
                             </div>
-                            <div style={{maxHeight:"220px",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-                              {(openCuisine?groups.filter(g=>g.cuisine===openCuisine):groups).map(g=>{
-                                const filtered=g.items.filter(s=>!cellInput||dn(s).toLowerCase().includes(cellInput.toLowerCase()));
-                                if(!filtered.length)return null;
+                            <div style={{maxHeight:"240px",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+                              {catsToShow.map(cat=>{
+                                const names=flt(byCat[cat]||[]);
+                                if(!names.length)return null;
                                 return(
-                                  <div key={g.cuisine}>
-                                    <div style={{padding:"6px 14px 4px",fontSize:"9px",fontWeight:"700",color:C.subtle,letterSpacing:"1.5px",textTransform:"uppercase",background:C.bg,borderBottom:"1px solid "+C.border}}>{g.cuisine}</div>
-                                    {filtered.map((s,i)=>(
-                                      <button key={s} onMouseDown={e=>{e.preventDefault();setMeal(day,meal,s);setActiveCell(null);setOpenCuisine(null);}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
-                                        <span>{dn(s)}</span>
-                                        {recipes[s]&&<span style={{fontSize:"9px",color:C.accent,fontWeight:"700",letterSpacing:"0.5px"}}>REZEPT</span>}
-                                      </button>
-                                    ))}
+                                  <div key={cat}>
+                                    <div style={{padding:"7px 14px 5px",fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"1.5px",textTransform:"uppercase",background:C.bg,borderTop:"1px solid "+C.border,borderBottom:"1px solid "+C.border}}>{cat}</div>
+                                    {cat==="Hauptgericht"
+                                      ? groupByCuisine(names).map(g=>(
+                                          <div key={g.cuisine}>
+                                            <div style={{padding:"5px 14px 3px 22px",fontSize:"9px",fontWeight:"700",color:C.subtle,letterSpacing:"1.5px",textTransform:"uppercase"}}>{g.cuisine}</div>
+                                            {g.items.map(itemBtn)}
+                                          </div>
+                                        ))
+                                      : names.map(itemBtn)
+                                    }
                                   </div>
                                 );
                               })}
                             </div>
                             {cellInput&&(
                               <div style={{padding:"7px 14px",borderTop:"1px solid "+C.border,background:C.bg}}>
-                                <button onMouseDown={e=>{e.preventDefault();setMeal(day,meal,cellInput);setActiveCell(null);setOpenCuisine(null);}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" direkt uebernehmen</button>
+                                <button onMouseDown={e=>{e.preventDefault();setMeal(day,meal,cellInput);setActiveCell(null);setOpenCat(null);}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" direkt uebernehmen</button>
                               </div>
                             )}
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -1183,9 +1192,9 @@ export default function App() {
                 <input value={extracted.name} onChange={e=>setExtracted(r=>({...r,name:e.target.value}))} style={{fontSize:"20px",fontFamily:SER,color:C.text,border:"none",background:"transparent",outline:"none",width:"100%",padding:"4px 0 10px",borderBottom:"1px solid "+C.border,marginBottom:"10px"}} />
                 <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
                   <div style={{flex:1}}>
-                    <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Mahlzeit</label>
-                    <select value={extracted.meal||"Ab"} onChange={e=>setExtracted(r=>({...r,meal:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"8px 10px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                      {MEALS.map(m=><option key={m} value={m}>{ML[m]}</option>)}
+                    <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Kategorie</label>
+                    <select value={extracted.category||"Hauptgericht"} onChange={e=>setExtracted(r=>({...r,category:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"8px 10px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
+                      {CATS.map(c=><option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div style={{flex:1}}>
@@ -1221,9 +1230,9 @@ export default function App() {
               </div>
             )}
 
-            {/* Meal filter */}
-            <div style={{display:"flex",gap:"6px",marginBottom:"12px"}}>
-              {[{id:"all",label:"Alle"},...MEALS.map(m=>({id:m,label:ML[m]}))].map(f=>(
+            {/* Kategorie-Filter */}
+            <div style={{display:"flex",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
+              {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c}))].map(f=>(
                 <button key={f.id} onClick={()=>setFilterMeal(f.id)} style={{padding:"6px 12px",border:"1px solid "+(filterMeal===f.id?C.accent:C.border),background:filterMeal===f.id?C.abg:C.white,color:filterMeal===f.id?C.accent:C.muted,fontSize:"11px",fontWeight:filterMeal===f.id?"700":"400",cursor:"pointer",fontFamily:SF}}>
                   {f.label}
                 </button>
@@ -1232,7 +1241,7 @@ export default function App() {
 
             {/* Recipe list grouped by cuisine */}
             {(()=>{
-              const filtered = Object.entries(recipes).filter(([k,v])=>filterMeal==="all"||!v.meal||v.meal===filterMeal);
+              const filtered = Object.entries(recipes).filter(([k,v])=>filterMeal==="all"||recCat(v)===filterMeal);
               const cuisineMap={};
               filtered.forEach(([k,v])=>{
                 const c=v.cuisine||"Weitere";
@@ -1250,7 +1259,7 @@ export default function App() {
                       <button key={name} onClick={()=>{setDetailRecipe(name);setCookStep(0);setCookMode(false);setImgLoaded(false);setEditMode(false);setEditData(null);}} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF}}>
                         <div style={{flex:1}}>
                           <div style={{fontSize:"14px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}</div>
-                          <div style={{fontSize:"11px",color:C.muted}}>{ML[rec.meal]||""} - {ings.length} Zutaten - {steps.length} Schritte</div>
+                          <div style={{fontSize:"11px",color:C.muted}}>{recCat(rec)} - {ings.length} Zutaten - {steps.length} Schritte</div>
                         </div>
                         <span style={{color:C.subtle,fontSize:"16px"}}>{">"}</span>
                       </button>
@@ -1270,20 +1279,13 @@ export default function App() {
             </button>
             <div style={{fontSize:"11px",color:C.muted,textAlign:"center",marginBottom:"24px",lineHeight:"1.5"}}>Ein neues Fenster öffnet sich. Dort "Als PDF speichern" im Druckdialog wählen.</div>
 
-            {/* Preview grouped */}
+            {/* Preview grouped by category */}
             {(()=>{
-              const used=new Set();
-              const allMeals=["Fr","Mi","Ab"];
-              const allCuisines=["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
               const sections=[];
-              allMeals.forEach(meal=>{
-                allCuisines.forEach(cuisine=>{
-                  const items=Object.entries(recipes).filter(([k,v])=>v.meal===meal&&v.cuisine===cuisine&&!used.has(k));
-                  if(items.length){items.forEach(([k])=>used.add(k));sections.push({title:ML[meal]+" - "+cuisine,items});}
-                });
+              CATS.forEach(cat=>{
+                const items=Object.entries(recipes).filter(([k,v])=>recCat(v)===cat);
+                if(items.length)sections.push({title:cat,items});
               });
-              const remaining=Object.entries(recipes).filter(([k])=>!used.has(k));
-              if(remaining.length)sections.push({title:"Weitere Rezepte",items:remaining});
               return sections.map(sec=>(
                 <div key={sec.title} style={{marginBottom:"16px"}}>
                   <div style={{fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px solid "+C.border}}>{sec.title}</div>
