@@ -3,6 +3,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // FIREBASE - hardcoded, no setup needed
 const FB = "https://wochenessenplan-default-rtdb.europe-west1.firebasedatabase.app";
 
+// SESSION PERSISTENCE - merkt sich Code + Name, damit man nicht rausfliegt
+const SESSION_KEY = "wochenplan_session";
+
 // DESIGN - mid-dark theme
 const C = {
   bg:"#1E1E24",
@@ -313,6 +316,7 @@ export default function App() {
   const [savedMsg,setSavedMsg]       = useState(false);
   const [codeCopied,setCodeCopied]   = useState(false);
   const [filterMeal,setFilterMeal]   = useState("all");
+  const [exitToast,setExitToast]     = useState(false);
 
   const isLocalDev =
     window.location.hostname === "localhost" ||
@@ -330,15 +334,23 @@ export default function App() {
   const cellRef      = useRef(null);
   const cookRef      = useRef(null);
   const dropRef      = useRef(null);
+  const exitArmedRef = useRef(false);
+  const handleBackRef= useRef(()=>false);
 
   useEffect(()=>()=>{ if(recipeImg) URL.revokeObjectURL(recipeImg); },[recipeImg]);
 
-  // LOAD & SYNC
+  // LOAD & SYNC - gespeicherte Sitzung wiederherstellen (Teil A)
   useEffect(()=>{
     (async()=>{
-      const [pd,gr] = await Promise.all([fbGet("meta/init"),fbGet("globalRecipes")]);
+      const gr = await fbGet("globalRecipes");
       if(gr) setRecipes(Object.assign({},DR,gr));
-      setScreen("join");
+      let session=null;
+      try{ const raw=localStorage.getItem(SESSION_KEY); if(raw) session=JSON.parse(raw); }catch(e){}
+      if(session&&session.code&&session.name){
+        await handleJoin(session.code,session.name);
+      }else{
+        setScreen("join");
+      }
     })();
   },[]);
 
@@ -383,24 +395,37 @@ export default function App() {
     },700);
   },[activeCode,pushSync,participants]);
 
-  const handleJoin = async(code)=>{
+  const handleJoin = async(code,name)=>{
+    const nm=(name!==undefined?name:nameInput).trim();
     const c=code.toUpperCase().trim();
-    if(!c||!nameInput.trim())return;
-    let initParts=[nameInput.trim()];
+    if(!c||!nm)return;
+    let initParts=[nm];
     const [ex,gr]=await Promise.all([fbGet("plans/"+c),fbGet("globalRecipes")]);
     if(ex){
       const inc=ex.plan||emptyPlan();
       DAYS.forEach(d=>{if(!inc[d])inc[d]={meals:{},cook:""};if(!inc[d].meals)inc[d]={meals:inc[d]||{},cook:""};});
       setPlan(inc);setShopping(ex.shopping||[]);
       const ep=ex.participants||[];
-      initParts=ep.includes(nameInput.trim())?ep:[...ep,nameInput.trim()];
+      initParts=ep.includes(nm)?ep:[...ep,nm];
       setParticipants(initParts);
     }else{
       setParticipants(initParts);
       await fbPut("plans/"+c,{plan:emptyPlan(),shopping:[],participants:initParts,updatedAt:Date.now()});
     }
     if(gr)setRecipes(Object.assign({},DR,gr));
-    setActiveCode(c);setUserName(nameInput.trim());setScreen("app");startPolling(c);
+    setActiveCode(c);setUserName(nm);setScreen("app");startPolling(c);
+    try{ localStorage.setItem(SESSION_KEY,JSON.stringify({code:c,name:nm})); }catch(e){}
+  };
+
+  // PLAN VERLASSEN - Sitzung loeschen, zurueck zum Join-Screen
+  const leavePlan=()=>{
+    if(!window.confirm("Plan verlassen? Mit deinem Code kannst du jederzeit zurueckkehren."))return;
+    clearInterval(syncTimer.current);
+    clearTimeout(pushTimer.current);
+    try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+    setActiveCode("");setUserName("");setJoinInput("");setView("plan");
+    setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);
+    setScreen("join");
   };
 
   // MEAL & COOK
@@ -614,6 +639,37 @@ export default function App() {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
+  // BACK BUTTON (Teil B): schliesst die oberste offene Ebene statt aus der App zu fliegen.
+  // handleBackRef wird bei jedem Render aktualisiert, damit der popstate-Listener
+  // immer den aktuellen Zustand sieht (keine veralteten Closures).
+  handleBackRef.current=()=>{
+    if(cookMode){ setCookMode(false); return true; }
+    if(editMode){ setEditMode(false); setEditData(null); return true; }
+    if(detailRecipe){ setDetailRecipe(null); setImgLoaded(false); return true; }
+    return false;
+  };
+  useEffect(()=>{
+    if(screen!=="app") return;
+    window.history.pushState({wp:1},"");        // Puffer-Eintrag, damit der erste Zurueck-Druck abgefangen wird
+    const onPop=()=>{
+      if(handleBackRef.current()){
+        window.history.pushState({wp:1},"");     // Ebene geschlossen -> Falle neu scharf machen
+        return;
+      }
+      if(exitArmedRef.current){                  // zweiter Druck -> wirklich verlassen
+        window.removeEventListener("popstate",onPop);
+        window.history.back();
+      }else{                                     // erster Druck auf der Hauptansicht -> Hinweis zeigen
+        exitArmedRef.current=true;
+        setExitToast(true);
+        window.history.pushState({wp:1},"");
+        setTimeout(()=>{exitArmedRef.current=false;setExitToast(false);},2500);
+      }
+    };
+    window.addEventListener("popstate",onPop);
+    return()=>window.removeEventListener("popstate",onPop);
+  },[screen]);
+
   const getDish=(day,meal)=>plan[day]&&plan[day].meals&&plan[day].meals[meal]||"";
   const getCook=(day)=>plan[day]&&plan[day].cook||"";
   const unchecked=shopping.filter(x=>!x.checked).length;
@@ -818,6 +874,12 @@ export default function App() {
 
     content=(
       <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF}}>
+        {/* EXIT HINWEIS (Teil B) */}
+        {exitToast&&(
+          <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:9999,background:"rgba(0,0,0,0.88)",color:"#fff",padding:"10px 18px",borderRadius:"6px",fontSize:"12px",letterSpacing:"0.5px",fontFamily:SF,boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+            Nochmal „Zurueck" druecken zum Verlassen
+          </div>
+        )}
         {/* HEADER */}
         <div style={{background:C.dark,padding:"12px 16px",display:"flex",alignItems:"center",gap:"10px"}}>
           <div style={{flex:1}}>
@@ -828,6 +890,7 @@ export default function App() {
             <div style={{color:"rgba(255,255,255,0.35)",fontSize:"8px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"1px"}}>{codeCopied?"KOPIERT":"CODE KOPIEREN"}</div>
             <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px"}}>{activeCode}</div>
           </button>
+          <button onClick={leavePlan} title="Plan verlassen" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.55)",padding:"7px 10px",fontSize:"10px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>VERLASSEN</button>
         </div>
 
         {/* SYNC */}
