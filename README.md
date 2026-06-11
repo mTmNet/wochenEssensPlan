@@ -63,3 +63,4 @@ die wird im Browser gespeichert. Dann einfach denselben Plan-Code verwenden.
 2. Projekt erstellen
 3. Realtime Database erstellen (Testmodus)
 4. Die URL der Datenbank in die App eingeben
+

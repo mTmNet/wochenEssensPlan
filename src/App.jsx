@@ -1037,9 +1037,9 @@ export default function App() {
                               return(
                                 <div key={d} style={{display:"flex",alignItems:"center",gap:"4px",padding:"5px 0",borderBottom:"1px solid "+C.border}}>
                                   <span style={{flex:1,fontSize:"13px",color:C.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(d)}</span>
-                                  {hasR&&<button onClick={()=>addIngsToList(d)} title="Zutaten zur Einkaufsliste" style={{color:C.ok,fontSize:"16px",background:"none",border:"none",cursor:"pointer",padding:"2px 5px",lineHeight:1,flexShrink:0}}>+</button>}
-                                  {hasR&&<button onClick={()=>{setDetailRecipe(d);setCookStep(0);setCookMode(false);setImgLoaded(false);}} style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontFamily:SF,flexShrink:0}}>REZEPT</button>}
-                                  <button onClick={()=>removeDish(day,meal,d)} title="Entfernen" style={{color:C.subtle,fontSize:"15px",background:"none",border:"none",cursor:"pointer",padding:"2px 5px",lineHeight:1,flexShrink:0}}>x</button>
+                                  {hasR&&<button onClick={()=>addIngsToList(d)} title="Zutaten zur Einkaufsliste" style={{color:C.ok,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>+</button>}
+                                  {hasR&&<button onClick={()=>{setDetailRecipe(d);setCookStep(0);setCookMode(false);setImgLoaded(false);}} style={{color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"0.5px",background:"none",border:"none",cursor:"pointer",padding:"8px 8px",fontFamily:SF,flexShrink:0}}>REZEPT</button>}
+                                  <button onClick={()=>removeDish(day,meal,d)} title="Entfernen" style={{color:C.subtle,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>×</button>
                                 </div>
                               );
                             })}
@@ -1139,11 +1139,11 @@ export default function App() {
                     <div style={{background:C.white,border:"1px solid "+C.border}}>
                       {group.items.map((item,gi)=>(
                         <div key={item.idx} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",borderBottom:gi<group.items.length-1?"1px solid "+C.border:"none",background:C.white,transition:"background 0.15s"}}>
-                          <button onClick={()=>toggleCheck(item.idx)} style={{width:"20px",height:"20px",border:"1px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
-                            {item.checked&&<span style={{color:"#fff",fontSize:"11px",fontWeight:"800"}}>v</span>}
+                          <button onClick={()=>toggleCheck(item.idx)} style={{width:"28px",height:"28px",border:"2px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",borderRadius:"4px"}}>
+                            {item.checked&&<span style={{color:"#fff",fontSize:"15px",fontWeight:"800"}}>✓</span>}
                           </button>
-                          <span style={{flex:1,fontSize:"13px",color:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",transition:"all 0.15s"}}>{item.text}</span>
-                          <button onClick={()=>removeItem(item.idx)} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"16px",lineHeight:1}}>x</button>
+                          <span style={{flex:1,fontSize:"14px",color:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",transition:"all 0.15s"}}>{item.text}</span>
+                          <button onClick={()=>removeItem(item.idx)} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"20px",lineHeight:1,padding:"6px 8px",flexShrink:0}}>×</button>
                         </div>
                       ))}
                     </div>
