@@ -28,7 +28,7 @@ const DAYS   = ["Mo","Di","Mi","Do","Fr","Sa","So"];
 const DAYFUL = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
 // PLAN-SLOTS - wann gegessen wird (pro Tag)
 const MEALS  = ["Fr","Mi","Ab","Zw"];
-const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Zwischenmahlzeit" };
+const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Snacks" };
 
 // REZEPT-KATEGORIEN (Rubriken) - was fuer ein Gericht (unabhaengig vom Plan-Slot)
 const CATS = ["Frühstück","Hauptgericht","Beilagen & Salate","Soßen & Dips","Snacks"];
@@ -1026,7 +1026,7 @@ export default function App() {
                     return(
                       <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
                         <div style={{display:"flex",alignItems:"stretch",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
-                          <div style={{width:"132px",padding:"10px 10px",flexShrink:0}}>
+                          <div style={{width:"100px",padding:"10px 10px",flexShrink:0}}>
                             <div style={{fontSize:"10px",fontWeight:"800",color:isActive?C.accent:C.text,letterSpacing:"0.2px",textTransform:"uppercase",lineHeight:"1.2",whiteSpace:"nowrap"}}>{ML[meal]}</div>
                           </div>
                           <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
@@ -1050,7 +1050,7 @@ export default function App() {
                             }
                           </div>
                         </div>
-                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"132px"}} />}
+                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"100px"}} />}
 
                         {/* KATEGORIE-DROPDOWN */}
                         {isActive&&(()=>{
