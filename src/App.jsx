@@ -354,6 +354,8 @@ export default function App() {
   const dropRef      = useRef(null);
   const exitArmedRef = useRef(false);
   const handleBackRef= useRef(()=>false);
+  const editingRef    = useRef(false);   // true solange eine Mahlzelle offen ist
+  const pendingPushRef= useRef(false);   // true solange ein Upload aussteht
 
   useEffect(()=>()=>{ if(recipeImg) URL.revokeObjectURL(recipeImg); },[recipeImg]);
 
@@ -385,9 +387,13 @@ export default function App() {
     if(!code)return;
     const [pd,gr] = await Promise.all([fbGet("plans/"+code),fbGet("globalRecipes")]);
     if(pd){
-      const inc=pd.plan||emptyPlan();
-      DAYS.forEach(d=>{if(!inc[d])inc[d]={meals:{},cook:""};if(!inc[d].meals)inc[d]={meals:inc[d]||{},cook:""};});
-      setPlan(inc);
+      // Lokale Bearbeitung schuetzen: Plan NICHT vom Server ueberschreiben,
+      // solange eine Zelle offen ist oder ein Upload noch aussteht.
+      if(!editingRef.current && !pendingPushRef.current){
+        const inc=pd.plan||emptyPlan();
+        DAYS.forEach(d=>{if(!inc[d])inc[d]={meals:{},cook:""};if(!inc[d].meals)inc[d]={meals:inc[d]||{},cook:""};});
+        setPlan(inc);
+      }
       setShopping(prev=>{
         const remote=pd.shopping||[];
         return remote.map(item=>({text:item.text,checked:localChecked.current.hasOwnProperty(item.text)?localChecked.current[item.text]:item.checked,cat:item.cat||"Sonstiges"}));
@@ -407,9 +413,10 @@ export default function App() {
 
   const schedulePush = useCallback((p,s,r,parts)=>{
     if(!activeCode)return;
+    pendingPushRef.current=true;
     clearTimeout(pushTimer.current);
     pushTimer.current=setTimeout(()=>{
-      pushSync(activeCode,p,s,r,parts||participants).then(()=>{localChecked.current={};});
+      pushSync(activeCode,p,s,r,parts||participants).then(()=>{localChecked.current={};pendingPushRef.current=false;});
     },700);
   },[activeCode,pushSync,participants]);
 
@@ -681,6 +688,9 @@ export default function App() {
     document.addEventListener("mousedown",h);
     return()=>document.removeEventListener("mousedown",h);
   },[]);
+
+  // Sync-Schutz: merkt sich, ob gerade eine Mahlzelle offen ist (siehe pullSync)
+  editingRef.current = activeCell!==null;
 
   // BACK BUTTON (Teil B): schliesst die oberste offene Ebene statt aus der App zu fliegen.
   // handleBackRef wird bei jedem Render aktualisiert, damit der popstate-Listener
@@ -1016,8 +1026,8 @@ export default function App() {
                     return(
                       <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
                         <div style={{display:"flex",alignItems:"stretch",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
-                          <div style={{width:"104px",padding:"10px 12px",flexShrink:0}}>
-                            <div style={{fontSize:"10px",fontWeight:"700",color:isActive?C.accent:C.subtle,letterSpacing:"0.3px",textTransform:"uppercase",lineHeight:"1.25",overflowWrap:"anywhere"}}>{ML[meal]}</div>
+                          <div style={{width:"132px",padding:"10px 10px",flexShrink:0}}>
+                            <div style={{fontSize:"10px",fontWeight:"800",color:isActive?C.accent:C.text,letterSpacing:"0.2px",textTransform:"uppercase",lineHeight:"1.2",whiteSpace:"nowrap"}}>{ML[meal]}</div>
                           </div>
                           <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
                           <div style={{flex:1,padding:"4px 10px",minWidth:0}}>
@@ -1040,7 +1050,7 @@ export default function App() {
                             }
                           </div>
                         </div>
-                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"104px"}} />}
+                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"132px"}} />}
 
                         {/* KATEGORIE-DROPDOWN */}
                         {isActive&&(()=>{
