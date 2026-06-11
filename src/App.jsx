@@ -335,6 +335,7 @@ export default function App() {
   const [codeCopied,setCodeCopied]   = useState(false);
   const [filterMeal,setFilterMeal]   = useState("all");
   const [exitToast,setExitToast]     = useState(false);
+  const [addedSlots,setAddedSlots]   = useState({});  // gesperrte "+"-Buttons (day|meal|dish)
 
   const isLocalDev =
     window.location.hostname === "localhost" ||
@@ -387,18 +388,19 @@ export default function App() {
     if(!code)return;
     const [pd,gr] = await Promise.all([fbGet("plans/"+code),fbGet("globalRecipes")]);
     if(pd){
-      // Lokale Bearbeitung schuetzen: Plan NICHT vom Server ueberschreiben,
-      // solange eine Zelle offen ist oder ein Upload noch aussteht.
-      if(!editingRef.current && !pendingPushRef.current){
+      // Lokale Bearbeitung schuetzen: Plan UND Einkaufsliste NICHT vom Server
+      // ueberschreiben, solange eine Zelle offen ist oder ein Upload aussteht.
+      const busy = editingRef.current || pendingPushRef.current;
+      if(!busy){
         const inc=pd.plan||emptyPlan();
         DAYS.forEach(d=>{if(!inc[d])inc[d]={meals:{},cook:""};if(!inc[d].meals)inc[d]={meals:inc[d]||{},cook:""};});
         setPlan(inc);
+        setShopping(prev=>{
+          const remote=pd.shopping||[];
+          return remote.map(item=>({text:item.text,checked:localChecked.current.hasOwnProperty(item.text)?localChecked.current[item.text]:item.checked,cat:item.cat||"Sonstiges"}));
+        });
+        if(pd.participants)setParticipants(pd.participants);
       }
-      setShopping(prev=>{
-        const remote=pd.shopping||[];
-        return remote.map(item=>({text:item.text,checked:localChecked.current.hasOwnProperty(item.text)?localChecked.current[item.text]:item.checked,cat:item.cat||"Sonstiges"}));
-      });
-      if(pd.participants)setParticipants(pd.participants);
       setLastSync(pd.updatedAt||Date.now());setSyncOk(true);
     }else setSyncOk(false);
     if(gr)setRecipes(Object.assign({},DR,gr));
@@ -478,6 +480,7 @@ export default function App() {
       schedulePush(n,shopping,recipes,participants);
       return n;
     });
+    setAddedSlots(s=>{const n={...s};delete n[day+"|"+meal+"|"+name];return n;});
   };
 
   const setCookForDay=(day,person)=>{
@@ -491,13 +494,11 @@ export default function App() {
     setCookPicker(null);
   };
 
-  // SHOPPING
+  // SHOPPING - Zutaten eines Rezepts zur Liste; gleiche Zutat erhoeht die Menge (aggregateIngs)
   const addIngsToList=(dishKey)=>{
     const rec=recipes[dishKey];
-    if(!rec||!rec.ingredients)return;
+    if(!rec||!rec.ingredients||!rec.ingredients.length)return;
     setShopping(prev=>{
-      const existing=new Set(prev.map(x=>x.text));
-      const toAdd=rec.ingredients.filter(i=>!existing.has(fmtIng(parseIng(i).name,parseIng(i).amount,parseIng(i).unit)));
       const newItems=aggregateIngs([...prev.map(x=>x.text),...rec.ingredients]).map(text=>({
         text,checked:prev.find(x=>x.text===text)?.checked||false,cat:shopCat(text)
       }));
@@ -524,6 +525,7 @@ export default function App() {
       ...[...new Set(dishes)].map(t=>({text:t,checked:false,cat:"Sonstiges"}))
     ];
     localChecked.current={};
+    setAddedSlots({});
     setShopping(next);schedulePush(plan,next,recipes,participants);setView("shopping");
   };
 
@@ -1034,10 +1036,15 @@ export default function App() {
                             {/* zugewiesene Rezepte */}
                             {dishes.map(d=>{
                               const hasR=!!recipes[d];
+                              const addKey=day+"|"+meal+"|"+d;
+                              const isAdded=!!addedSlots[addKey];
                               return(
                                 <div key={d} style={{display:"flex",alignItems:"center",gap:"4px",padding:"5px 0",borderBottom:"1px solid "+C.border}}>
                                   <span style={{flex:1,fontSize:"13px",color:C.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(d)}</span>
-                                  {hasR&&<button onClick={()=>addIngsToList(d)} title="Zutaten zur Einkaufsliste" style={{color:C.ok,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>+</button>}
+                                  {hasR&&(isAdded
+                                    ? <span title="bereits zur Einkaufsliste hinzugefügt" style={{color:C.ok,fontSize:"18px",padding:"8px 10px",lineHeight:1,flexShrink:0,opacity:0.85}}>✓</span>
+                                    : <button onClick={()=>{addIngsToList(d);setAddedSlots(s=>({...s,[addKey]:true}));}} title="Zutaten zur Einkaufsliste" style={{color:C.ok,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>+</button>
+                                  )}
                                   {hasR&&<button onClick={()=>{setDetailRecipe(d);setCookStep(0);setCookMode(false);setImgLoaded(false);}} style={{color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"0.5px",background:"none",border:"none",cursor:"pointer",padding:"8px 8px",fontFamily:SF,flexShrink:0}}>REZEPT</button>}
                                   <button onClick={()=>removeDish(day,meal,d)} title="Entfernen" style={{color:C.subtle,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>×</button>
                                 </div>
