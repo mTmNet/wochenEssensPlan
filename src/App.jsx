@@ -1027,7 +1027,7 @@ export default function App() {
                       <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
                         <div style={{display:"flex",alignItems:"stretch",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
                           <div style={{width:"100px",padding:"10px 10px",flexShrink:0}}>
-                            <div style={{fontSize:"10px",fontWeight:"800",color:isActive?C.accent:C.text,letterSpacing:"0.2px",textTransform:"uppercase",lineHeight:"1.2",whiteSpace:"nowrap"}}>{ML[meal]}</div>
+                            <div style={{fontSize:"10px",fontWeight:"700",color:isActive?C.accent:C.subtle,letterSpacing:"0.5px",textTransform:"uppercase",lineHeight:"1.2",whiteSpace:"nowrap"}}>{ML[meal]}</div>
                           </div>
                           <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
                           <div style={{flex:1,padding:"4px 10px",minWidth:0}}>
@@ -1064,7 +1064,7 @@ export default function App() {
                             </button>
                           );
                           return(
-                          <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:C.white,border:"1px solid "+C.border,boxShadow:"0 12px 32px rgba(0,0,0,0.12)"}}>
+                          <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:C.white,border:"2px solid "+C.accent,borderRadius:"4px",boxShadow:"0 14px 36px rgba(0,0,0,0.55)"}}>
                             {/* Kategorie-Tabs */}
                             <div style={{display:"flex",gap:"0",overflowX:"auto",borderBottom:"1px solid "+C.border,background:C.bg}}>
                               <button onMouseDown={e=>{e.preventDefault();setOpenCat(null);}} style={{padding:"7px 10px",border:"none",background:openCat===null?C.white:"transparent",color:openCat===null?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,whiteSpace:"nowrap",borderBottom:openCat===null?"2px solid "+C.accent:"2px solid transparent"}}>ALLE</button>
@@ -1142,7 +1142,7 @@ export default function App() {
                           <button onClick={()=>toggleCheck(item.idx)} style={{width:"20px",height:"20px",border:"1px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
                             {item.checked&&<span style={{color:"#fff",fontSize:"11px",fontWeight:"800"}}>v</span>}
                           </button>
-                          <span style={{flex:1,fontSize:"13px",color:C.text,textDecoration:item.checked?"line-through":"none",textDecorationColor:C.err,textDecorationThickness:"2px",transition:"all 0.15s"}}>{item.text}</span>
+                          <span style={{flex:1,fontSize:"13px",color:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",transition:"all 0.15s"}}>{item.text}</span>
                           <button onClick={()=>removeItem(item.idx)} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"16px",lineHeight:1}}>x</button>
                         </div>
                       ))}
