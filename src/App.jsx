@@ -82,6 +82,17 @@ const DR = {
   "Risotto":{ ingredients:["Risotto-Reis 200g","Gemüsebrühe 700ml","Parmesan 50g","Zwiebel 1 St.","Weisswein 100ml","Butter"], steps:["Brühe warm halten. Zwiebel würfeln, in Butter anschwitzen.","Reis 2 Min. rösten, mit Weißwein ablöschen.","Brühe schöpfkellenweise zugeben (18 Min.), ständig rühren.","Parmesan und Butter einrühren, 5 Min. ruhen lassen."], cuisine:"Italienisch", meal:"Ab" },
 };
 
+// STERNE-BEWERTUNG (1-5, nochmal tippen = zuruecksetzen)
+const Stars = ({value=0,onRate,size=24}) => (
+  <div style={{display:"flex",gap:"2px"}}>
+    {[1,2,3,4,5].map(i=>(
+      <button key={i} onClick={()=>onRate&&onRate(i===value?0:i)} style={{background:"none",border:"none",cursor:onRate?"pointer":"default",fontSize:size+"px",lineHeight:1,color:i<=value?"#E8B547":"#5A5A64",padding:"3px"}}>
+        {i<=value?"★":"☆"}
+      </button>
+    ))}
+  </div>
+);
+
 // FIREBASE HELPERS
 const fbGet   = async (p) => { try { const r=await fetch(FB+"/"+p+".json"); return r.ok?await r.json():null; } catch(e){return null;} };
 const fbPut   = async (p,d) => { try { await fetch(FB+"/"+p+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); } catch(e){} };
@@ -349,6 +360,9 @@ export default function App() {
   const [codeCopied,setCodeCopied]   = useState(false);
   const [filterMeal,setFilterMeal]   = useState("all");
   const [recipeSearch,setRecipeSearch] = useState("");
+  const [rateAfterCook,setRateAfterCook] = useState(false); // Bewertungs-Dialog nach dem Kochen
+  const [ratingDraft,setRatingDraft] = useState(0);
+  const [noteDraft,setNoteDraft]     = useState("");
   const [exitToast,setExitToast]     = useState(false);
   const [addedSlots,setAddedSlots]   = useState({});  // gesperrte "+"-Buttons (day|meal|dish)
   const [editShopIdx,setEditShopIdx] = useState(null); // Index der gerade editierten Einkaufszeile
@@ -672,7 +686,8 @@ export default function App() {
 
   const saveEdit=async()=>{
     if(!editData)return;
-    const rec={ingredients:editData.ingredients,steps:editData.steps,description:editData.description||"",cuisine:editData.cuisine,category:editData.category};
+    // Bestehende Felder (z.B. rating, notes) erhalten, nur die editierten ueberschreiben
+    const rec={...(recipes[detailRecipe]||{}),ingredients:editData.ingredients,steps:editData.steps,description:editData.description||"",cuisine:editData.cuisine,category:editData.category};
     const isRenamed=editData.name!==detailRecipe;
     setRecipes(prev=>{
       const n={...prev};
@@ -686,6 +701,16 @@ export default function App() {
     await fbPatch("globalRecipes",patch);
     setDetailRecipe(editData.name);
     setEditMode(false);setEditData(null);
+  };
+
+  // Bewertung/Notizen am Rezept speichern (lokal + global)
+  const updateRecipeMeta=(name,patchObj)=>{
+    const rec=recipes[name];
+    if(!rec)return;
+    const updated={...rec,...patchObj};
+    setRecipes(prev=>{const n={...prev,[name]:updated};schedulePush(plan,shopping,n,participants);return n;});
+    const patch={};patch[name]=updated;
+    fbPatch("globalRecipes",patch);
   };
 
   const deleteRecipe=async(name)=>{
@@ -727,6 +752,11 @@ export default function App() {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
+  // Notiz-Entwurf laden, wenn ein Rezept geoeffnet wird
+  useEffect(()=>{
+    if(detailRecipe&&recipes[detailRecipe]) setNoteDraft(recipes[detailRecipe].notes||"");
+  },[detailRecipe]);
+
   // Sync-Schutz: merkt sich, ob gerade eine Mahlzelle oder Einkaufszeile offen ist (siehe pullSync)
   editingRef.current = activeCell!==null || editShopIdx!==null;
 
@@ -734,6 +764,7 @@ export default function App() {
   // handleBackRef wird bei jedem Render aktualisiert, damit der popstate-Listener
   // immer den aktuellen Zustand sieht (keine veralteten Closures).
   handleBackRef.current=()=>{
+    if(rateAfterCook){ setRateAfterCook(false); return true; }
     if(cookMode){ setCookMode(false); return true; }
     if(editMode){ setEditMode(false); setEditData(null); return true; }
     if(detailRecipe){ setDetailRecipe(null); setImgLoaded(false); return true; }
@@ -857,7 +888,7 @@ export default function App() {
           <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} style={{flex:1,padding:"14px",border:"none",background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.7)",fontSize:"13px",letterSpacing:"1px",cursor:cookStep===0?"default":"pointer",fontFamily:SF}}>ZURUECK</button>
           {cookStep<curSteps.length-1
             ?<button onClick={()=>setCookStep(s=>s+1)} style={{flex:2,padding:"14px",border:"none",background:C.accent,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>WEITER</button>
-            :<button onClick={()=>{setCookMode(false);setCookStep(0);}} style={{flex:2,padding:"14px",border:"none",background:C.ok,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>FERTIG</button>
+            :<button onClick={()=>{setCookMode(false);setCookStep(0);setRatingDraft(curRec.rating||0);setNoteDraft(curRec.notes||"");setRateAfterCook(true);}} style={{flex:2,padding:"14px",border:"none",background:C.ok,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>FERTIG</button>
           }
         </div>
       </div>
@@ -868,6 +899,21 @@ export default function App() {
   else if(detailRecipe&&curRec&&!cookMode){
     content=(
       <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF}}>
+        {/* BEWERTUNGS-DIALOG nach dem Kochen */}
+        {rateAfterCook&&(
+          <div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}} onClick={()=>setRateAfterCook(false)}>
+            <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:"400px",background:C.white,border:"1px solid "+C.border,padding:"22px"}}>
+              <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"6px"}}>Guten Appetit!</div>
+              <div style={{fontSize:"20px",fontFamily:SER,color:C.text,marginBottom:"16px"}}>Wie war {dn(detailRecipe)}?</div>
+              <Stars value={ratingDraft} onRate={setRatingDraft} size={32} />
+              <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
+              <div style={{display:"flex",gap:"8px",marginTop:"14px"}}>
+                <button onClick={()=>{updateRecipeMeta(detailRecipe,{rating:ratingDraft,notes:noteDraft});setRateAfterCook(false);}} style={{flex:2,padding:"13px",background:C.ok,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>SPEICHERN</button>
+                <button onClick={()=>setRateAfterCook(false)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ÜBERSPRINGEN</button>
+              </div>
+            </div>
+          </div>
+        )}
         <div style={{position:"relative",height:"260px",background:C.dark,overflow:"hidden"}}>
           <img src={foodImg(detailRecipe)} alt={dn(detailRecipe)} onLoad={()=>setImgLoaded(true)} onError={()=>setImgLoaded(true)} style={{width:"100%",height:"100%",objectFit:"cover",opacity:imgLoaded?0.75:0,transition:"opacity 0.6s"}} />
           {!imgLoaded&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.3)",fontSize:"12px",letterSpacing:"1px"}}>BILD WIRD GELADEN...</div>}
@@ -893,6 +939,12 @@ export default function App() {
                   <div style={{fontSize:"14px",color:C.text,lineHeight:"1.7",fontFamily:SER,fontStyle:"italic"}}>{curRec.description}</div>
                 </div>
               )}
+              {/* BEWERTUNG & NOTIZEN */}
+              <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
+                <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"10px"}}>Bewertung & Notizen</div>
+                <Stars value={curRec.rating||0} onRate={r=>updateRecipeMeta(detailRecipe,{rating:r})} />
+                <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))updateRecipeMeta(detailRecipe,{notes:noteDraft});}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
+              </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"14px"}}>Zutaten</div>
                 {curIngs.map((ing,i)=>(
@@ -1355,7 +1407,7 @@ export default function App() {
                       <button key={name} onClick={()=>{setDetailRecipe(name);setCookStep(0);setCookMode(false);setImgLoaded(false);setEditMode(false);setEditData(null);}} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF}}>
                         <div style={{flex:1}}>
                           <div style={{fontSize:"14px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}</div>
-                          <div style={{fontSize:"11px",color:C.muted}}>{recCat(rec)} - {ings.length} Zutaten - {steps.length} Schritte</div>
+                          <div style={{fontSize:"11px",color:C.muted}}>{recCat(rec)} - {ings.length} Zutaten - {steps.length} Schritte{rec.rating?<span style={{color:"#E8B547"}}> · {"★".repeat(rec.rating)}</span>:null}</div>
                         </div>
                         <span style={{color:C.subtle,fontSize:"16px"}}>{">"}</span>
                       </button>
