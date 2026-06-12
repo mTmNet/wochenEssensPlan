@@ -95,14 +95,28 @@ const foodImg = (name) => {
 };
 
 // INGREDIENT AGGREGATOR
+// Zwei Formate: "Zucchini 750 g" (Name zuerst, eingebaute Rezepte)
+//          und  "750 g Zucchini" (Menge zuerst, typisch fuer KI-Import)
+const UNIT_RE = "(?:g|kg|mg|ml|cl|dl|l|el|tl|st(?:k|ück|ueck)?\\.?|bund|prisen?|zehen?|dosen?|pck\\.?|packung(?:en)?|p(?:ä|ae)ckchen|scheiben?|becher|gl(?:a|ä)s(?:er)?|tassen?|msp\\.?|liter|gramm|kilo)";
+const ING_PRE_RE = new RegExp("^([\\d]+(?:[.,][\\d]+)?|[½¼¾⅓⅔])\\s*("+UNIT_RE+")?\\s+(.+)$","i");
+const FRACTIONS = {"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3};
 const parseIng = (t) => {
-  const m = t.match(/^(.*?)\s*([\d]+(?:[.,][\d]+)?)\s*(.*)$/);
-  if (!m) return {name:t.trim(),amount:null,unit:""};
-  return {name:m[1].trim()||t.trim(),amount:parseFloat(m[2].replace(",",".")),unit:m[3].trim()};
+  const s=t.trim();
+  // Format A: Menge zuerst ("750 g Zucchini", "2 Eier", "½ Bund Minze")
+  let m=s.match(ING_PRE_RE);
+  if(m){
+    const amount=FRACTIONS[m[1]]!==undefined?FRACTIONS[m[1]]:parseFloat(m[1].replace(",","."));
+    return {name:m[3].trim(),amount,unit:(m[2]||"").trim(),pre:true};
+  }
+  // Format B: Name zuerst ("Haferflocken 100g", "Eier 2 St.")
+  m=s.match(/^(.*?)\s*([\d]+(?:[.,][\d]+)?)\s*(.*)$/);
+  if(!m||!m[1].trim()) return {name:s,amount:null,unit:"",pre:false};
+  return {name:m[1].trim(),amount:parseFloat(m[2].replace(",",".")),unit:m[3].trim(),pre:false};
 };
-const fmtIng = (n,a,u) => {
+const fmtIng = (n,a,u,pre) => {
   if (a===null) return n;
   const d = Number.isInteger(a)?String(a):parseFloat(a.toFixed(1)).toString();
+  if(pre) return u?d+" "+u+" "+n:d+" "+n;
   return u?n+" "+d+" "+u:n+" "+d;
 };
 const aggregateIngs = (raw) => {
@@ -111,9 +125,9 @@ const aggregateIngs = (raw) => {
     const p=parseIng(t);
     const k=p.name.toLowerCase()+"|||"+p.unit.toLowerCase();
     if(map.has(k)){const e=map.get(k);if(p.amount!==null&&e.amount!==null)e.amount+=p.amount;}
-    else{map.set(k,{name:p.name,amount:p.amount,unit:p.unit});order.push(k);}
+    else{map.set(k,{name:p.name,amount:p.amount,unit:p.unit,pre:p.pre});order.push(k);}
   });
-  return order.map(k=>{const e=map.get(k);return fmtIng(e.name,e.amount,e.unit);});
+  return order.map(k=>{const e=map.get(k);return fmtIng(e.name,e.amount,e.unit,e.pre);});
 };
 
 // SINGLE RECIPE PDF (HTML zum Drucken / als PDF speichern)
@@ -336,6 +350,8 @@ export default function App() {
   const [filterMeal,setFilterMeal]   = useState("all");
   const [exitToast,setExitToast]     = useState(false);
   const [addedSlots,setAddedSlots]   = useState({});  // gesperrte "+"-Buttons (day|meal|dish)
+  const [editShopIdx,setEditShopIdx] = useState(null); // Index der gerade editierten Einkaufszeile
+  const [editShopText,setEditShopText] = useState("");
 
   const isLocalDev =
     window.location.hostname === "localhost" ||
@@ -535,6 +551,25 @@ export default function App() {
     schedulePush(plan,n,recipes,participants);return n;
   });
   const removeItem=(i)=>setShopping(prev=>{const n=prev.filter((_,j)=>j!==i);schedulePush(plan,n,recipes,participants);return n;});
+  const saveShopEdit=()=>{
+    if(editShopIdx===null)return;
+    const idx=editShopIdx, txt=editShopText.trim();
+    setShopping(prev=>{
+      const n=txt
+        ? prev.map((x,j)=>j===idx?{...x,text:txt,cat:shopCat(txt)}:x)
+        : prev.filter((_,j)=>j!==idx);   // leerer Text = Eintrag loeschen
+      schedulePush(plan,n,recipes,participants);
+      return n;
+    });
+    setEditShopIdx(null);setEditShopText("");
+  };
+  const clearShopping=()=>{
+    if(!window.confirm("Einkaufsliste komplett löschen?"))return;
+    localChecked.current={};
+    setAddedSlots({});
+    setEditShopIdx(null);
+    setShopping([]);schedulePush(plan,[],recipes,participants);
+  };
   const addCustom=()=>{
     if(!customItem.trim())return;
     const txt=customItem.trim();
@@ -691,8 +726,8 @@ export default function App() {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
-  // Sync-Schutz: merkt sich, ob gerade eine Mahlzelle offen ist (siehe pullSync)
-  editingRef.current = activeCell!==null;
+  // Sync-Schutz: merkt sich, ob gerade eine Mahlzelle oder Einkaufszeile offen ist (siehe pullSync)
+  editingRef.current = activeCell!==null || editShopIdx!==null;
 
   // BACK BUTTON (Teil B): schliesst die oberste offene Ebene statt aus der App zu fliegen.
   // handleBackRef wird bei jedem Render aktualisiert, damit der popstate-Listener
@@ -1149,7 +1184,10 @@ export default function App() {
                           <button onClick={()=>toggleCheck(item.idx)} style={{width:"28px",height:"28px",border:"2px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",borderRadius:"4px"}}>
                             {item.checked&&<span style={{color:"#fff",fontSize:"15px",fontWeight:"800"}}>✓</span>}
                           </button>
-                          <span style={{flex:1,fontSize:"14px",color:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",transition:"all 0.15s"}}>{item.text}</span>
+                          {editShopIdx===item.idx
+                            ?<input autoFocus value={editShopText} onChange={e=>setEditShopText(e.target.value)} onBlur={saveShopEdit} onKeyDown={e=>{if(e.key==="Enter")saveShopEdit();if(e.key==="Escape"){setEditShopIdx(null);setEditShopText("");}}} style={{flex:1,fontSize:"14px",color:C.text,background:"#16161C",border:"1px solid "+C.accent,padding:"6px 8px",outline:"none",fontFamily:SF,minWidth:0}} />
+                            :<span onClick={()=>{setEditShopIdx(item.idx);setEditShopText(item.text);}} title="Tippen zum Bearbeiten" style={{flex:1,fontSize:"14px",color:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",transition:"all 0.15s",cursor:"pointer"}}>{item.text}</span>
+                          }
                           <button onClick={()=>removeItem(item.idx)} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"20px",lineHeight:1,padding:"6px 8px",flexShrink:0}}>×</button>
                         </div>
                       ))}
@@ -1162,6 +1200,7 @@ export default function App() {
                   <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." style={{flex:1,border:"1px solid "+C.border,padding:"9px 12px",fontSize:"13px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C"}} />
                   <button onClick={addCustom} style={{background:C.dark,border:"none",color:"#fff",padding:"9px 16px",cursor:"pointer",fontSize:"18px",fontWeight:"700"}}>+</button>
                 </div>
+                <button onClick={clearShopping} style={{width:"100%",marginTop:"10px",padding:"12px",background:"none",border:"1px solid "+C.err,color:C.err,fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",cursor:"pointer",fontFamily:SF}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
               </div>
             )}
           </div>
