@@ -33,7 +33,7 @@ const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Snacks
 // REZEPT-KATEGORIEN (Rubriken) - was fuer ein Gericht (unabhaengig vom Plan-Slot)
 const CATS = ["Frühstück","Hauptgericht","Beilagen & Salate","Soßen & Dips","Snacks"];
 // KUECHEN - nur fuer Hauptgericht relevant (Untergruppen im Dropdown)
-const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
+const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Indisch","Naher Osten","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
 // Kategorie eines Rezepts ermitteln (migriert alte meal-Werte: Fr->Fruehstueck, Mi/Ab->Hauptgericht)
 const recCat = (rec) => (rec && rec.category) ? rec.category : (rec && rec.meal==="Fr" ? "Frühstück" : "Hauptgericht");
 
@@ -348,6 +348,7 @@ export default function App() {
   const [savedMsg,setSavedMsg]       = useState(false);
   const [codeCopied,setCodeCopied]   = useState(false);
   const [filterMeal,setFilterMeal]   = useState("all");
+  const [recipeSearch,setRecipeSearch] = useState("");
   const [exitToast,setExitToast]     = useState(false);
   const [addedSlots,setAddedSlots]   = useState({});  // gesperrte "+"-Buttons (day|meal|dish)
   const [editShopIdx,setEditShopIdx] = useState(null); // Index der gerade editierten Einkaufszeile
@@ -605,7 +606,7 @@ export default function App() {
     if(!canExtract) return;
     setExtracting(true);setImportErr("");setExtracted(null);
     try{
-      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"category\":\"Hauptgericht\",\"cuisine\":\"Italienisch\"}. Für category wähle genau eine aus: Frühstück, Hauptgericht, Beilagen & Salate, Soßen & Dips, Snacks. Für cuisine (vor allem bei Hauptgericht relevant) wähle aus: Schwäbisch, Italienisch, Asiatisch, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
+      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"category\":\"Hauptgericht\",\"cuisine\":\"Italienisch\"}. Für category wähle genau eine aus: Frühstück, Hauptgericht, Beilagen & Salate, Soßen & Dips, Snacks. Für cuisine (vor allem bei Hauptgericht relevant) wähle aus: Schwäbisch, Italienisch, Asiatisch, Indisch, Naher Osten, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
       let messages;
       if(importMode==="photo"&&recipeB64&&recipeImgType){
         messages=[{role:"user",content:[
@@ -931,7 +932,7 @@ export default function App() {
                 <div style={{flex:1}}>
                   <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Küche</label>
                   <select value={editData.cuisine} onChange={e=>setEditData(d=>({...d,cuisine:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"10px 12px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                    {["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"].map(c=><option key={c} value={c}>{c}</option>)}
+                    {CUISINE_LIST.map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
@@ -1087,7 +1088,7 @@ export default function App() {
                             })}
                             {/* Hinzufuegen-Zeile */}
                             {isActive
-                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){addDish(day,meal,cellInput);setCellInput("");}if(e.key==="Escape"){setActiveCell(null);setOpenCat(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"8px 0",fontFamily:SF}} />
+                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&cellInput.trim()){addDish(day,meal,cellInput);setCellInput("");setActiveCell(null);setOpenCat(null);}if(e.key==="Escape"){setActiveCell(null);setOpenCat(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"8px 0",fontFamily:SF}} />
                               :<button onClick={()=>{setActiveCell(key);setCellInput("");setOpenCat(null);}} style={{width:"100%",textAlign:"left",padding:"8px 0",fontSize:"13px",color:C.subtle,fontStyle:"italic",background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>+ Hinzufügen...</button>
                             }
                           </div>
@@ -1100,7 +1101,7 @@ export default function App() {
                           const catsToShow=openCat?[openCat]:CATS;
                           const flt=(names)=>names.filter(s=>!cellInput||dn(s).toLowerCase().includes(cellInput.toLowerCase()));
                           const itemBtn=(s)=>(
-                            <button key={s} onMouseDown={e=>{e.preventDefault();addDish(day,meal,s);setCellInput("");}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:dishes.includes(s)?C.abg:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
+                            <button key={s} onMouseDown={e=>{e.preventDefault();addDish(day,meal,s);setCellInput("");setActiveCell(null);setOpenCat(null);}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:dishes.includes(s)?C.abg:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
                               <span>{dishes.includes(s)?"✓ ":""}{dn(s)}</span>
                               {recipes[s]&&<span style={{fontSize:"9px",color:C.accent,fontWeight:"700",letterSpacing:"0.5px"}}>REZEPT</span>}
                             </button>
@@ -1114,7 +1115,7 @@ export default function App() {
                                 <button key={c} onMouseDown={e=>{e.preventDefault();setOpenCat(openCat===c?null:c);}} style={{padding:"7px 10px",border:"none",background:openCat===c?C.white:"transparent",color:openCat===c?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,whiteSpace:"nowrap",borderBottom:openCat===c?"2px solid "+C.accent:"2px solid transparent"}}>{c.toUpperCase()}</button>
                               ))}
                             </div>
-                            <div style={{maxHeight:"240px",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+                            <div style={{maxHeight:"360px",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
                               {catsToShow.map(cat=>{
                                 const names=flt(byCat[cat]||[]);
                                 if(!names.length)return null;
@@ -1136,7 +1137,7 @@ export default function App() {
                             </div>
                             {cellInput&&(
                               <div style={{padding:"7px 14px",borderTop:"1px solid "+C.border,background:C.bg}}>
-                                <button onMouseDown={e=>{e.preventDefault();addDish(day,meal,cellInput);setCellInput("");}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" hinzufügen</button>
+                                <button onMouseDown={e=>{e.preventDefault();addDish(day,meal,cellInput);setCellInput("");setActiveCell(null);setOpenCat(null);}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" hinzufügen</button>
                               </div>
                             )}
                           </div>
@@ -1283,7 +1284,7 @@ export default function App() {
                   <div style={{flex:1}}>
                     <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Küche</label>
                     <select value={extracted.cuisine||"International"} onChange={e=>setExtracted(r=>({...r,cuisine:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"8px 10px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                      {["Schwäbisch","Italienisch","Asiatisch","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"].map(c=><option key={c} value={c}>{c}</option>)}
+                      {CUISINE_LIST.map(c=><option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
@@ -1313,6 +1314,12 @@ export default function App() {
               </div>
             )}
 
+            {/* Suche */}
+            <div style={{position:"relative",marginBottom:"10px"}}>
+              <input value={recipeSearch} onChange={e=>setRecipeSearch(e.target.value)} placeholder="Rezept oder Zutat suchen..." style={{width:"100%",border:"1px solid "+(recipeSearch?C.accent:C.border),padding:"11px 38px 11px 12px",fontSize:"14px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C",boxSizing:"border-box"}} />
+              {recipeSearch&&<button onClick={()=>setRecipeSearch("")} style={{position:"absolute",right:"4px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:C.subtle,fontSize:"18px",cursor:"pointer",padding:"6px 10px",lineHeight:1}}>×</button>}
+            </div>
+
             {/* Kategorie-Filter */}
             <div style={{display:"flex",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
               {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c}))].map(f=>(
@@ -1324,7 +1331,13 @@ export default function App() {
 
             {/* Recipe list grouped by cuisine */}
             {(()=>{
-              const filtered = Object.entries(recipes).filter(([k,v])=>filterMeal==="all"||recCat(v)===filterMeal);
+              const q=recipeSearch.trim().toLowerCase();
+              const matches=([k,v])=>{
+                if(!q) return true;
+                if(dn(k).toLowerCase().includes(q)) return true;
+                return (v.ingredients||[]).some(i=>i.toLowerCase().includes(q));
+              };
+              const filtered = Object.entries(recipes).filter(([k,v])=>(filterMeal==="all"||recCat(v)===filterMeal)&&matches([k,v]));
               const cuisineMap={};
               filtered.forEach(([k,v])=>{
                 const c=v.cuisine||"Weitere";
