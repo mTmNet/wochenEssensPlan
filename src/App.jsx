@@ -142,13 +142,13 @@ const aggregateIngs = (raw) => {
 };
 
 // SINGLE RECIPE PDF (HTML zum Drucken / als PDF speichern)
-const makeRecipePDF = (name, rec) => {
+const makeRecipePDF = (name, rec, customImg) => {
   const title = dn(name);
   const ings = (rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
   const steps = (rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+'</span><p>'+s+'</p></div>').join("");
   const desc = rec.description ? '<p class="desc">'+rec.description+'</p>' : '';
   const meta = recCat(rec)+(rec.cuisine?(" · "+rec.cuisine):"");
-  const imgUrl = foodImg(name);
+  const imgUrl = customImg || foodImg(name);
   const css = `
     @page{margin:2cm}
     body{font-family:Georgia,serif;color:#1A1917;max-width:760px;margin:0 auto;padding:0}
@@ -174,7 +174,7 @@ const makeRecipePDF = (name, rec) => {
 };
 
 // PDF COOKBOOK
-const makePDF = (recipes) => {
+const makePDF = (recipes, customImgs) => {
   const sections = [];
   CATS.forEach(cat=>{
     const items = Object.entries(recipes).filter(([k,v])=>recCat(v)===cat);
@@ -185,7 +185,7 @@ const makePDF = (recipes) => {
     const name=dn(key);
     const ings=(rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
     const steps=(rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+"</span><p>"+s+"</p></div>").join("");
-    const imgUrl=foodImg(key);
+    const imgUrl=(customImgs&&customImgs[key])||foodImg(key);
     const desc=rec.description?'<p class="desc">'+rec.description+'</p>':'';
     return '<div class="recipe"><h2>'+name+'</h2><img src="'+imgUrl+'" alt="'+name+'" onerror="this.style.display=\'none\'">'+desc+'<div class="tag">Zutaten</div><ul>'+ings+'</ul><div class="tag">Zubereitung</div>'+steps+'</div>';
   };
@@ -360,6 +360,7 @@ export default function App() {
   const [codeCopied,setCodeCopied]   = useState(false);
   const [filterMeal,setFilterMeal]   = useState("all");
   const [recipeSearch,setRecipeSearch] = useState("");
+  const [recipeImgs,setRecipeImgs]   = useState({}); // eigene Bilder (name -> dataUrl), separater FB-Pfad
   const [rateAfterCook,setRateAfterCook] = useState(false); // Bewertungs-Dialog nach dem Kochen
   const [ratingDraft,setRatingDraft] = useState(0);
   const [noteDraft,setNoteDraft]     = useState("");
@@ -386,16 +387,19 @@ export default function App() {
   const dropRef      = useRef(null);
   const exitArmedRef = useRef(false);
   const handleBackRef= useRef(()=>false);
+  const imgFileRef    = useRef(null);    // Datei-Dialog fuer eigenes Rezeptbild
   const editingRef    = useRef(false);   // true solange eine Mahlzelle offen ist
   const pendingPushRef= useRef(false);   // true solange ein Upload aussteht
 
   useEffect(()=>()=>{ if(recipeImg) URL.revokeObjectURL(recipeImg); },[recipeImg]);
 
   // LOAD & SYNC - gespeicherte Sitzung wiederherstellen (Teil A)
+  // recipeImages wird bewusst NUR hier einmal geladen (nicht im 10s-Poll - zu gross)
   useEffect(()=>{
     (async()=>{
-      const gr = await fbGet("globalRecipes");
+      const [gr,imgs] = await Promise.all([fbGet("globalRecipes"),fbGet("recipeImages")]);
       if(gr) setRecipes(Object.assign({},DR,gr));
+      if(imgs) setRecipeImgs(imgs);
       let session=null;
       try{ const raw=localStorage.getItem(SESSION_KEY); if(raw) session=JSON.parse(raw); }catch(e){}
       if(session&&session.code&&session.name){
@@ -699,6 +703,12 @@ export default function App() {
     const patch={};patch[editData.name]=rec;
     if(isRenamed){const del={};del[detailRecipe]=null;await fbPatch("globalRecipes",del);}
     await fbPatch("globalRecipes",patch);
+    if(isRenamed&&recipeImgs[detailRecipe]){
+      const img=recipeImgs[detailRecipe];
+      setRecipeImgs(prev=>{const n={...prev};delete n[detailRecipe];n[editData.name]=img;return n;});
+      const ip={};ip[detailRecipe]=null;ip[editData.name]=img;
+      await fbPatch("recipeImages",ip);
+    }
     setDetailRecipe(editData.name);
     setEditMode(false);setEditData(null);
   };
@@ -713,10 +723,38 @@ export default function App() {
     fbPatch("globalRecipes",patch);
   };
 
+  // EIGENES REZEPTBILD hochladen / zuruecksetzen (separater Pfad recipeImages)
+  const uploadRecipeImg=async(file)=>{
+    if(!file||!detailRecipe)return;
+    try{
+      const c=await compressImageToBase64(file,{maxEdge:900,quality:0.72});
+      if(c.previewUrl) URL.revokeObjectURL(c.previewUrl);
+      const dataUrl="data:"+(c.mimeType||"image/jpeg")+";base64,"+c.base64;
+      if(dataUrl.length>1500000){window.alert("Das Bild ist auch komprimiert noch zu groß. Bitte ein kleineres Foto wählen.");return;}
+      const name=detailRecipe;
+      setRecipeImgs(prev=>({...prev,[name]:dataUrl}));
+      const patch={};patch[name]=dataUrl;
+      await fbPatch("recipeImages",patch);
+      setImgLoaded(false);
+    }catch(e){window.alert("Bild konnte nicht verarbeitet werden.");}
+  };
+  const resetRecipeImg=async()=>{
+    if(!detailRecipe)return;
+    const name=detailRecipe;
+    setRecipeImgs(prev=>{const n={...prev};delete n[name];return n;});
+    const patch={};patch[name]=null;
+    await fbPatch("recipeImages",patch);
+    setImgLoaded(false);
+  };
+
   const deleteRecipe=async(name)=>{
     if(!window.confirm("Rezept '"+dn(name)+"' wirklich löschen?"))return;
     setRecipes(prev=>{const n={...prev};delete n[name];schedulePush(plan,shopping,n,participants);return n;});
     const del={};del[name]=null;await fbPatch("globalRecipes",del);
+    if(recipeImgs[name]){
+      setRecipeImgs(prev=>{const n={...prev};delete n[name];return n;});
+      const ip={};ip[name]=null;await fbPatch("recipeImages",ip);
+    }
     setDetailRecipe(null);setEditMode(false);
   };
 
@@ -724,7 +762,7 @@ export default function App() {
   const downloadRecipePDF=(name)=>{
     const rec=recipes[name];
     if(!rec)return;
-    const html=makeRecipePDF(name,rec);
+    const html=makeRecipePDF(name,rec,recipeImgs[name]);
     const w=window.open("","_blank");
     if(!w)return;
     w.document.write(html);
@@ -734,7 +772,7 @@ export default function App() {
 
   // PDF COOKBOOK
   const downloadPDF=()=>{
-    const html=makePDF(recipes);
+    const html=makePDF(recipes,recipeImgs);
     const w=window.open("","_blank");
     if(!w)return;
     w.document.write(html);
@@ -915,10 +953,16 @@ export default function App() {
           </div>
         )}
         <div style={{position:"relative",height:"260px",background:C.dark,overflow:"hidden"}}>
-          <img src={foodImg(detailRecipe)} alt={dn(detailRecipe)} onLoad={()=>setImgLoaded(true)} onError={()=>setImgLoaded(true)} style={{width:"100%",height:"100%",objectFit:"cover",opacity:imgLoaded?0.75:0,transition:"opacity 0.6s"}} />
+          <img src={recipeImgs[detailRecipe]||foodImg(detailRecipe)} alt={dn(detailRecipe)} onLoad={()=>setImgLoaded(true)} onError={()=>setImgLoaded(true)} style={{width:"100%",height:"100%",objectFit:"cover",opacity:imgLoaded?0.75:0,transition:"opacity 0.6s"}} />
           {!imgLoaded&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.3)",fontSize:"12px",letterSpacing:"1px"}}>BILD WIRD GELADEN...</div>}
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.dark+")"}} />
           <button onClick={()=>{setDetailRecipe(null);setImgLoaded(false);setEditMode(false);setEditData(null);}} style={{position:"absolute",top:16,left:16,background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.8)",padding:"8px 14px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ZURUECK</button>
+          {/* Eigenes Bild hochladen / Standard wiederherstellen */}
+          <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)uploadRecipeImg(f);e.target.value="";}} />
+          <div style={{position:"absolute",top:16,right:16,display:"flex",gap:"6px"}}>
+            <button onClick={()=>imgFileRef.current&&imgFileRef.current.click()} style={{background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.8)",padding:"8px 12px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>BILD ÄNDERN</button>
+            {recipeImgs[detailRecipe]&&<button onClick={resetRecipeImg} style={{background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.6)",padding:"8px 12px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>STANDARD</button>}
+          </div>
           <div style={{position:"absolute",bottom:24,left:24,right:24}}>
             <div style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"6px"}}>{recCat(curRec)}{curRec.cuisine?" / "+curRec.cuisine:""}</div>
             <div style={{color:"#fff",fontSize:"28px",fontFamily:SER,lineHeight:"1.2"}}>{dn(detailRecipe)}</div>
