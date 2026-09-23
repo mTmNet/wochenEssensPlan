@@ -5,6 +5,8 @@ const FB = "https://wochenessenplan-default-rtdb.europe-west1.firebasedatabase.a
 
 // SESSION PERSISTENCE - merkt sich Code + Name, damit man nicht rausfliegt
 const SESSION_KEY = "wochenplan_session";
+// SCHRIFTZOOM - pro Geraet gespeichert (nicht synchronisiert)
+const ZOOM_KEY = "wochenplan_zoom";
 
 // DESIGN - mid-dark theme
 const C = {
@@ -97,6 +99,8 @@ const Stars = ({value=0,onRate,size=24}) => (
 const fbGet   = async (p) => { try { const r=await fetch(FB+"/"+p+".json"); return r.ok?await r.json():null; } catch(e){return null;} };
 const fbPut   = async (p,d) => { try { await fetch(FB+"/"+p+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); } catch(e){} };
 const fbPatch = async (p,d) => { try { await fetch(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); } catch(e){} };
+// Wie fbPatch, meldet aber zurueck ob das Speichern geklappt hat (fuer Bilder wichtig)
+const fbPatchChecked = async (p,d) => { try { const r=await fetch(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); return r.ok; } catch(e){ return false; } };
 
 // FOOD IMAGE
 const foodImg = (name) => {
@@ -361,6 +365,7 @@ export default function App() {
   const [filterMeal,setFilterMeal]   = useState("all");
   const [recipeSearch,setRecipeSearch] = useState("");
   const [recipeImgs,setRecipeImgs]   = useState({}); // eigene Bilder (name -> dataUrl), separater FB-Pfad
+  const [fontZoom,setFontZoom]       = useState(()=>{ try{ const v=parseFloat(localStorage.getItem(ZOOM_KEY)); return (v>=0.8&&v<=1.4)?v:1; }catch(e){ return 1; } });
   const [rateAfterCook,setRateAfterCook] = useState(false); // Bewertungs-Dialog nach dem Kochen
   const [ratingDraft,setRatingDraft] = useState(0);
   const [noteDraft,setNoteDraft]     = useState("");
@@ -732,19 +737,23 @@ export default function App() {
       const dataUrl="data:"+(c.mimeType||"image/jpeg")+";base64,"+c.base64;
       if(dataUrl.length>1500000){window.alert("Das Bild ist auch komprimiert noch zu groß. Bitte ein kleineres Foto wählen.");return;}
       const name=detailRecipe;
+      // Wichtig: imgLoaded VOR dem src-Wechsel zuruecksetzen, nicht nach dem
+      // Cloud-Speichern - sonst wird das laengst geladene Bild unsichtbar geschaltet.
+      setImgLoaded(false);
       setRecipeImgs(prev=>({...prev,[name]:dataUrl}));
       const patch={};patch[name]=dataUrl;
-      await fbPatch("recipeImages",patch);
-      setImgLoaded(false);
+      const ok=await fbPatchChecked("recipeImages",patch);
+      if(!ok) window.alert("Das Bild wird angezeigt, konnte aber NICHT in der Cloud gespeichert werden (nach Neuladen weg). Bitte in der Firebase Console die Regeln um 'recipeImages' erweitern.");
     }catch(e){window.alert("Bild konnte nicht verarbeitet werden.");}
   };
   const resetRecipeImg=async()=>{
     if(!detailRecipe)return;
     const name=detailRecipe;
+    setImgLoaded(false);
     setRecipeImgs(prev=>{const n={...prev};delete n[name];return n;});
     const patch={};patch[name]=null;
-    await fbPatch("recipeImages",patch);
-    setImgLoaded(false);
+    const ok=await fbPatchChecked("recipeImages",patch);
+    if(!ok) window.alert("Zurücksetzen konnte nicht in der Cloud gespeichert werden. Bitte Firebase-Regeln um 'recipeImages' erweitern.");
   };
 
   const deleteRecipe=async(name)=>{
@@ -794,6 +803,13 @@ export default function App() {
   useEffect(()=>{
     if(detailRecipe&&recipes[detailRecipe]) setNoteDraft(recipes[detailRecipe].notes||"");
   },[detailRecipe]);
+
+  // SCHRIFTZOOM auf die ganze App anwenden (body-Ebene erfasst alle Ansichten)
+  useEffect(()=>{
+    document.body.style.zoom=fontZoom;
+    try{ localStorage.setItem(ZOOM_KEY,String(fontZoom)); }catch(e){}
+  },[fontZoom]);
+  const zoomStep=(d)=>setFontZoom(z=>Math.min(1.4,Math.max(0.8,Math.round((z+d)*10)/10)));
 
   // Sync-Schutz: merkt sich, ob gerade eine Mahlzelle oder Einkaufszeile offen ist (siehe pullSync)
   editingRef.current = activeCell!==null || editShopIdx!==null;
@@ -1091,6 +1107,8 @@ export default function App() {
             <div style={{color:"rgba(255,255,255,0.35)",fontSize:"8px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"1px"}}>{codeCopied?"KOPIERT":"CODE KOPIEREN"}</div>
             <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px"}}>{activeCode}</div>
           </button>
+          <button onClick={()=>zoomStep(-0.1)} title="Schrift kleiner" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom<=0.8?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"12px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A−</button>
+          <button onClick={()=>zoomStep(0.1)} title="Schrift größer" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom>=1.4?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"14px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A+</button>
           <button onClick={leavePlan} title="Plan verlassen" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.55)",padding:"7px 10px",fontSize:"10px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>VERLASSEN</button>
         </div>
 

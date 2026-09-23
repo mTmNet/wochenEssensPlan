@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(curl -s https://wochenessenplan-default-rtdb.europe-west1.firebasedatabase.app/plans/AT7K9J/shopping.json)"
+    ]
+  }
+}
