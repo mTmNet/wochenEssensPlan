@@ -5,7 +5,7 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const { CLASSICS, classicKey } = await import(pathToFileURL(join(ROOT, "src", "classics.js")).href);
+const { CLASSICS } = await import(pathToFileURL(join(ROOT, "src", "classics.js")).href);
 
 const CATS = ["Frühstück", "Hauptgericht", "Kinderessen", "Schnelle Küche", "Beilagen & Salate", "Soßen & Dips", "Snacks"];
 const CUISINES = ["Schwäbisch", "Italienisch", "Asiatisch", "Indisch", "Naher Osten", "Mediterran", "Klassisch", "International", "Vegetarisch", "Grillen", "Schnell"];
@@ -13,11 +13,6 @@ const CUISINES = ["Schwäbisch", "Italienisch", "Asiatisch", "Indisch", "Naher O
 test("CLASSICS ist ein Array mit mindestens 100 Gerichten", () => {
   assert.ok(Array.isArray(CLASSICS));
   assert.ok(CLASSICS.length >= 100, `nur ${CLASSICS.length} Gerichte`);
-});
-
-test("classicKey liefert einen String", () => {
-  assert.equal(typeof classicKey, "function");
-  assert.equal(typeof classicKey("Käsespätzle"), "string");
 });
 
 test("Namen sind eindeutig (ohne Groß-/Kleinschreibung)", () => {

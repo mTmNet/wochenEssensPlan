@@ -13,7 +13,7 @@ Die Rubrik „Heute“ durchsucht die Basis, wenn das eigene Kochbuch nichts Pas
 | `src/classics/italienisch.js` | Italienische und mediterrane Küche |
 | `src/classics/orient-asien.js` | Naher Osten, Indien, Südost- und Ostasien |
 | `src/classics/modern-alltag.js` | Frühstück, Kinderessen, Schnelle Küche, Beilagen, Soßen, Snacks |
-| `src/classics.js` | Führt alle Dateien zu `CLASSICS` zusammen (sortiert nach category, dann name) und exportiert den Platzhalter `classicKey` |
+| `src/classics.js` | Führt alle Dateien zu `CLASSICS` zusammen (sortiert nach category, dann name) |
 
 Jede Datei exportiert ein Array (`export default [ … ]`). `src/classics.js` enthält keine weitere Logik; die App bildet den Schlüssel eines Eintrags mit `recKey(name)`.
 

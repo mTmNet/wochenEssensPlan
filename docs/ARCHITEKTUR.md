@@ -17,10 +17,12 @@ Dieses Dokument ist der verbindliche Bauplan für den Umbau nach dem Testbericht
 src/
   main.jsx
   App.jsx                  Zustand, Sync, Migration, Aktionen (api-Objekt), wählt die Ansicht
-  theme.js                 C (Farben), SF, SER, gemeinsame Style-Helfer (btn, card, micro, chip)
-  data.js                  DAYS, DAYFUL, MEALS, ML, CATS, CATS_WITH_CUISINE, CUISINE_LIST, SHOP_CATS, SHOP_ORDER,
+  theme.js                 C (Farben), SF, SER, MAXW/column (Desktop-Spalte), gemeinsame Style-Helfer (btn, card, micro, chip, iconBtn, input)
+  data.js                  APP_VERSION, DAYS, DAYFUL, MEALS, ML, CATS, CATS_WITH_CUISINE, CUISINE_LIST, CAT_COLORS, SHOP_CATS,
+                           SHOP_CAT_EXCEPTIONS (Komposita), SHOP_CAT_ALIAS (alte Abteilungsnamen), SHOP_ORDER,
                            BASIC_END, BASIC_WORDS, BASIC_LABEL, KEY_STOP, KEY_SYN, HALF_LIFE, HB_SKIP_SUB, HB_DAYS, DNAMES
-  fb.js                    FB, HB_FB, fbGet (undefined bei Fehler, null wenn leer), fbPut, fbPatch (liefert ok), hbGet
+  fb.js                    FB, HB_FB, fbGet (undefined bei Fehler, null wenn leer), fbPut, fbPatch (liefert ok), hbGet;
+                           jeder Aufruf mit Zeitgrenze (15 s, groessere Koerper laenger), damit kein haengender Aufruf den Poll blockiert
   ai.js                    callAI({mode, system, messages}), buildExtractPrompt(), buildSuggestPrompt(), parseJsonBlock(), kiErrText()
   pdf.js                   makeRecipePDF(), makeCookbookPDF() (zunächst HTML/Druck, später jsPDF)
   classics.js              CLASSICS: kuratierte Basis etablierter Gerichte (Array von Recipe-Objekten, source "klassiker")
@@ -28,8 +30,10 @@ src/
     ingredients.js         parseIng, fmtIng, scaleIng, normKey, tokMatch, isBasic, ingKey, aggregateIngs, shopCat
     stock.js               fold, hbStock, ingStatus, scoreRecipe, hbCats
     weeks.js               todayISO, todayDay, isoWeekKey, weekDates, shiftWeek, weekLabel, daysSince, mealSlotNow, emptyWeek, migrateWeek
-    shopping.js            planItems, mergeShopping, groupShopping, shoppingText, newShopId
-    recipes.js             recKey, recName, normalizeRecipe, isProven, cookedCount, DR (Startrezepte, nur als Fallback-Anzeige)
+    shopping.js            planItems, mergeShopping, addIngredients, groupShopping, shoppingText, newShopId, migrateShopping,
+                           isListed, orphanIds, addedSlotKeys, scaledIngredients
+    recipes.js             recKey, recName, normalizeRecipe, isProven, cookedCount, isGhostRecipe/ghostKeys, sortRecipeKeys, stepMinutes,
+                           DR (Startrezepte, nur als Fallback-Anzeige)
   views/
     Join.jsx               Startbildschirm
     Shell.jsx              Kopf (Titel, Name, Code), Menü, Sync-Leiste, Tabs
@@ -40,7 +44,7 @@ src/
     RecipeDetail.jsx       Rezeptdetail und Bearbeiten
     CookMode.jsx           Kochmodus
   components/
-    Stars.jsx, DishImage.jsx (Platzhalterkachel oder eigenes Foto), Modal.jsx
+    Stars.jsx, DishImage.jsx (Platzhalterkachel oder eigenes Foto), Modal.jsx, Toast.jsx (kurzer Hinweis)
 tests/                     node --test, reine Logik (ingredients, stock, weeks, shopping, recipes)
 public/                    manifest.json, sw.js, icon-192.png, icon-512.png, icon-maskable-512.png
 api/gemini.js              Vercel-Function, Modus-abhängige Temperatur, Origin-Prüfung, Drossel
@@ -58,13 +62,17 @@ plans/<CODE>
   settings: { aiImages: false }               KI-Symbolbilder anzeigen (Standard aus)
   meta: {
     createdAt, updatedAt,                     ms seit Epoche
-    weeksUpdatedAt, shoppingUpdatedAt, recipesUpdatedAt, peopleUpdatedAt
+    weeksUpdatedAt, shoppingUpdatedAt, recipesUpdatedAt, peopleUpdatedAt,
+    imagesMigrated: true                      Altbilder vollstaendig kopiert (sonst holt der naechste Beitritt es nach)
   }
   weeks: {
     "2026-W41": { Mo: { meals: { Fr: [], Mi: [], Ab: [], Zw: [] }, cook: "" }, Di: …, So: … }
   }
   shopping: {
-    "<id>": { text, checked, cat, src: "plan" | "manuell", key, order, addedAt }
+    "<id>": { text, checked, cat, src: "plan" | "manuell", key, order, addedAt,
+              basic: true,                    nur bei Grundvorrat (Block „Vorrat prüfen“)
+              forceBuy: true,                 trotzdem kaufen (holt basic/„Wahrscheinlich da“ in die Liste)
+              slots: { "<wk>|<Tag>|<Slot>|<recKey>": true } }   Plan-Zellen, deren Zutaten per „+“ hier gelandet sind („+“-Sperre liegt im Plan)
   }
   recipes: {
     "<recKey>": Recipe
@@ -108,7 +116,7 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
 ### Einkaufsposten
 
 - `key` = `ingKey(text)` (normierter Name + Einheitenklasse), dient dem Zusammenführen.
-- `src: "plan"` entsteht aus „Einkaufsliste aus dem Plan“, `"manuell"` aus Handeingabe oder „+“ am Rezept.
+- `src: "plan"` entsteht aus „Einkaufsliste aus dem Plan“, `"manuell"` aus Handeingabe oder „+“ am Rezept. Das „+“ merkt sich die Plan-Zelle am Posten (`slots`), daraus leitet die Plan-Ansicht die „+“-Sperre ab (auf allen Geräten).
 - `basic: true` kennzeichnet Grundvorrat (Salz, Öl, Mehl …), wird in einem eingeklappten Block „Vorrat prüfen“ gezeigt und zählt nicht im Fortschritt.
 - `stockP` (0..1, nur lokal berechnet, nicht gespeichert) = Wahrscheinlichkeit laut Haushaltsbuch; ab 0,6 landet der Posten im eingeklappten Block „Wahrscheinlich da“, ein Tipp holt ihn in die Liste (`forceBuy: true` wird gespeichert).
 
@@ -121,7 +129,9 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
   - Haken: `{"shopping/<id>/checked": true, "meta/shoppingUpdatedAt": now}`
   - Bewertung: `{"recipes/<key>/rating": 4, "recipes/<key>/updatedAt": now, "meta/recipesUpdatedAt": now}`
   - Rezept löschen: `{"recipes/<key>": null, …}`; Bild separat `fbPatch("recipeImages/"+code, {[key]: null})`
-- Lokaler Zustand wird sofort aktualisiert (optimistisch), dann geschrieben. Scheitert das Schreiben, wird `syncErr` gesetzt, die Sync-Leiste rot, der lokale Zustand bleibt und der nächste Poll gleicht ab.
+- Lokaler Zustand wird sofort aktualisiert (optimistisch), dann geschrieben. Scheitert das Schreiben, wird `syncErr` gesetzt, die Sync-Leiste rot, der betroffene Teil als „dirty“ gemerkt; der nächste Poll lädt ihn unabhängig vom Zeitstempel nach und löscht den Fehler erst mit diesem Abgleich. Ein laufendes eigenes Schreiben bricht den Poll nicht ab, es verhindert nur das Übernehmen (`canApply`).
+- Wochen: der Poll hält nur die sichtbare und die aktuelle Woche im Cache, andere werden beim Öffnen (`selectWeek`) immer frisch geladen. Ein Slot wird vor dem Schreiben gegen den Serverstand der Zelle abgeglichen (`writeSlot`: Funktion auf Server-Array anwenden), damit zwei Geräte in derselben Zelle nichts verlieren. „Letzte Woche übernehmen“ liest Vor- und Zielwoche frisch und füllt nur leere Slots.
+- Feld-PATCHes auf Rezepte (Bewertung, Notiz, Kochdatum) und Posten (Haken, Text) prüfen vorher per GET, ob der Eintrag noch existiert; sonst wird er lokal entfernt und ein Hinweis gezeigt. Reste solcher Schreibvorgänge (Rezept ohne `name`/`ingredients`/`steps`, Posten ohne `text`) werden beim Laden verworfen und per `null` aufgeräumt. Der Rezept-Editor schreibt nur die editierten Felder; beim Umbenennen wird das alte Rezept frisch gelesen, unter dem neuen Schlüssel geschrieben, das alte gelöscht und alle Planzellen (frisch gelesen) im selben PATCH umgestellt.
 - Schutz lokaler Eingaben: Solange eine Planzelle, eine Einkaufszeile oder ein Rezept-Editor offen ist (`editingRef`), wird der betroffene Teil nicht vom Server überschrieben.
 - Rezepte werden **nicht** mehr bei jedem Push mitgeschickt. `pushSync` in alter Form entfällt.
 - Bilder: `recipeImages/<CODE>` wird einmal beim Start geladen (nicht im Poll) und nach eigenem Upload lokal ergänzt.
@@ -131,9 +141,10 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
 1. `meta` vorhanden → nichts tun.
 2. `meta` fehlt, aber `plans/<CODE>/plan` existiert (Altbestand):
    - `weeks[isoWeekKey(heute)] = migrateWeek(plan)` (Einzel-Strings zu Arrays, `""` zu `[]`).
-   - `shopping` (Array) → Objekt mit Ids, `src: "plan"`, `key` berechnet.
+   - `shopping` (Array) → Objekt mit festen Ids (`alt000`, `alt001`, …), `src: "plan"`, `key` berechnet – deterministisch, damit zwei gleichzeitig beitretende Geräte dasselbe schreiben.
    - `recipes` fehlt → `globalRecipes` lesen, jedes Rezept mit `normalizeRecipe` übernehmen (Schlüssel `recKey(name)`).
-   - `recipeImages` (Wurzel) lesen; Werte, die mit `data:` beginnen und zu einem übernommenen Rezept gehören, nach `recipeImages/<CODE>/<key>` kopieren.
+   - `recipeImages` (Wurzel) lesen; Werte, die mit `data:` beginnen und zu einem übernommenen Rezept gehören, einzeln (ein PATCH je Bild) nach `recipeImages/<CODE>/<key>` kopieren – vor dem meta-PATCH. Nur wenn alle Kopien gelangen, steht `meta/imagesMigrated`; sonst holt der nächste Beitritt die fehlenden nach.
+   - Unmittelbar vor dem Schreiben `meta` noch einmal lesen: ist es inzwischen da (anderes Gerät war schneller), wird nur geladen.
    - `meta` schreiben. `plan`, `updatedAt` (alt) und `globalRecipes` bleiben unverändert stehen.
 3. Weder `meta` noch `plan` → der Code existiert nicht. Beitreten meldet „Kein Plan mit diesem Code“. Nur „Plan starten“ legt einen Plan an (`participants`, `meta`, `settings`, leere `weeks`).
 4. Sitzung wiederherstellen (localStorage) darf nie einen Plan anlegen.
@@ -164,7 +175,7 @@ Reihenfolge der Quellen:
 
 ## 9. Einkaufsliste
 
-- „Einkaufsliste aus dem Plan“ führt zusammen statt zu ersetzen (`mergeShopping`): Posten mit `src: "plan"`, die nicht mehr gebraucht werden, verschwinden; Mengen werden neu berechnet; `checked` bleibt, wenn der `key` gleich bleibt; `src: "manuell"` bleibt immer.
+- „Einkaufsliste aus dem Plan“ führt zusammen statt zu ersetzen (`mergeShopping(shopping, planItems(...))` liefert `{next, patch}` mit gezielten Pfaden): Posten mit `src: "plan"`, die nicht mehr gebraucht werden, verschwinden (`shopping/<id>: null`); Mengen werden neu berechnet (bei gleicher Menge bleibt ein von Hand ergänzter Zusatz stehen); `checked` und Id bleiben, wenn der `key` gleich bleibt; `src: "manuell"` bleibt immer. `ingKey` ignoriert Zusätze in Klammern („(Bio)“).
 - Portionen: Rezeptmengen werden mit `servings` des Plans skaliert (Standard: Haushaltsgröße = Anzahl `participants`, mindestens 2; überschreibbar pro Rezept beim Hinzufügen).
 - `aggregateIngs` führt über `ingKey` zusammen: Name per `normKey` (Synonyme, Plural, Stoppwörter), Einheitenklasse (`g/kg` → Gramm, `ml/l` → Milliliter, `St./Stück/leer` → Stück, sonst Einheit wörtlich), Mengen werden auf die Basiseinheit umgerechnet und beim Anzeigen passend formatiert (1 500 g → 1,5 kg).
 - Grundvorrat (`isBasic`) kommt in den Block „Vorrat prüfen“. Posten mit `stockP ≥ 0,6` kommen in den Block „Wahrscheinlich da“.
