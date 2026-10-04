@@ -25,7 +25,7 @@ export default function Shell({state,api,children}){
         <div style={{background:C.dark}}>
           <div style={{...column,padding:"12px 16px",display:"flex",alignItems:"center",gap:"8px 10px"}}>
             <div style={{flex:"1 1 auto",minWidth:0}}>
-              <div style={{color:C.accent,fontSize:"34px",fontWeight:"600",fontFamily:"'Dancing Script',cursive",lineHeight:1.05,marginBottom:"1px",whiteSpace:"nowrap"}}>Wochenplan</div>
+              <div style={{color:C.accent,fontSize:"clamp(24px,7vw,34px)",fontWeight:"600",fontFamily:"'Dancing Script',cursive",lineHeight:1.05,marginBottom:"1px",whiteSpace:"nowrap"}}>Wochenplan</div>
               <div style={{color:"rgba(255,255,255,0.55)",fontSize:"11px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
             </div>
             <button onClick={copyCode} aria-label="Plan-Code kopieren" style={{background:"rgba(193,125,60,0.15)",border:"1px solid rgba(193,125,60,0.25)",padding:"5px 10px",minHeight:"40px",textAlign:"center",cursor:"pointer",fontFamily:SF}}>

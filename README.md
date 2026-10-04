@@ -1,66 +1,63 @@
-# Wochenplan App
+# Wochenplan (WochenEssensPlan)
 
-Gemeinsamer Essensplaner mit Einkaufsliste, Rezepten und Kochbuch.
+Gemeinsamer Essensplaner für die Familie: Wochenplan mit Datum, Einkaufsliste, Rezepte mit Kochmodus und Kochhistorie, „Was kochen wir heute?“ mit Anbindung an das Haushaltsbuch. Schwester-App von `Haushaltsbuch` (gleiche Optik, gleiche Technik).
 
-## Voraussetzungen
+## Funktionen
 
-- Node.js (https://nodejs.org) installieren
-- Ein kostenloses Firebase Konto (https://firebase.google.com)
-- Ein kostenloses GitHub Konto (https://github.com)
-- Ein kostenloses Vercel Konto (https://vercel.com)
+- **Heute** – zeigt zuerst, was für heute geplant ist, dann Vorschläge aus dem eigenen Kochbuch (Filter „Bewährt“ = schon gekocht und gut bewertet), danach passende Gerichte aus der mitgelieferten **Klassiker-Basis** (133 etablierte Gerichte mit Herkunft, Portionen, Zeit), zuletzt „Bekanntes Gericht finden“ per KI. Mit verknüpftem Haushaltsbuch werden die Einkäufe berücksichtigt (wahrscheinlicher Vorrat, frische Sachen verblassen schneller). Es wird nur gelesen.
+- **Woche** – Plan mit Kalenderwoche und Datum, Navigation vor/zurück, „Letzte Woche übernehmen“, mehrere Gerichte pro Mahlzeit, „Wer kocht?“, „Woche abschließen“ trägt die gekochten Gerichte in die Kochhistorie ein.
+- **Einkauf** – aus dem Plan erzeugt und beim erneuten Erzeugen **zusammengeführt** (Handeinträge und Haken bleiben), nach Supermarkt-Abteilungen, Grundvorrat („Vorrat prüfen“) und wahrscheinlich Vorhandenes in eigenen Blöcken, Teilen als Text.
+- **Rezepte** – Suche, Rubriken, Sortierung, Textimport und Fotoimport per KI (abschreiben, nicht erfinden; ergänzte Schritte werden gekennzeichnet), Klassiker-Basis einblenden und übernehmen, Kochbuch als PDF.
+- **Rezept** – Portionen umrechnen, Zeit, Herkunft und Quelle, „Zum Wochenplan“, „Auf die Einkaufsliste“, eigenes Foto, Bewertung, Notizen, Kochhistorie. **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern aus den Zeitangaben.
+- **Gemeinsam** – ein Plan-Code für die Familie (10 Zeichen), Synchronisation alle 10 Sekunden, jede Änderung wird einzeln geschrieben, damit sich zwei Geräte nicht überschreiben.
+- Als App installierbar (PWA), Schriftzoom, Android-Zurück-Taste.
 
-## Lokale Entwicklung
+## Entwicklung
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
+npm test           # Unit-Tests (node --test)
+npm run build
 ```
 
-Dann http://localhost:5173 im Browser öffnen.
+Browser-Durchlauf mit simuliertem Firebase, Haushaltsbuch und KI: siehe `tests/e2e/README.md`.
 
-## KI-Extraktion lokal testen (wichtig)
+Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetztem `GEMINI_API_KEY`, nicht mit `npm run dev`. Details in `docs/API.md`.
 
-Die Rezept-KI nutzt den Endpoint `/api/gemini` aus dem Ordner `api/`.
-Dieser Endpoint wird mit reinem `npm run dev` (Vite) lokal nicht bereitgestellt.
+## Deployment
 
-Wenn du KI-Extraktion lokal testen willst:
+1. Repository bei Vercel importieren (Vite wird erkannt, `api/` wird zur Serverless Function).
+2. Umgebungsvariable `GEMINI_API_KEY` setzen (Key von aistudio.google.com/apikey), neu deployen.
+3. Firebase Realtime Database: die App nutzt das Projekt `wochenessenplan-3d0e1` (URL in `src/fb.js`).
 
-1. Vercel CLI installieren: `npm i -g vercel`
-2. Im Projekt anmelden: `vercel login`
-3. Umgebungsvariable setzen: `GEMINI_API_KEY` in Vercel Project Settings (oder lokal via Vercel env)
-4. Lokal mit Vercel starten: `vercel dev`
+## Firebase-Regeln und Datenmodell
 
-Ohne `GEMINI_API_KEY` liefert der Endpoint einen 500-Fehler.
+Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`. Der Code ist das einzige Passwort. Empfohlene Regeln:
 
-## Deployment auf Vercel
+```json
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "plans": {
+      "$code": {
+        ".read": "$code.matches(/^[A-Z0-9]{6,16}$/)",
+        ".write": "$code.matches(/^[A-Z0-9]{6,16}$/)"
+      }
+    },
+    "recipeImages": {
+      ".read": true,
+      ".write": true
+    },
+    "globalRecipes": {
+      ".read": true,
+      ".write": false
+    }
+  }
+}
+```
 
-### Schritt 1 — GitHub Repository erstellen
-1. github.com aufrufen und einloggen
-2. "New repository" klicken
-3. Name: "wochenplan", Public oder Private wählen
-4. "Create repository" klicken
+`globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
 
-### Schritt 2 — Dateien hochladen
-1. Im neuen Repository auf "uploading an existing file" klicken
-2. Alle Dateien aus diesem Ordner hochladen (inkl. src/ Ordner)
-3. "Commit changes" klicken
-
-### Schritt 3 — Vercel verbinden
-1. vercel.com aufrufen und mit GitHub einloggen
-2. "New Project" klicken
-3. Das GitHub Repository "wochenplan" auswählen
-4. Einstellungen so lassen wie sie sind
-5. "Deploy" klicken
-6. Nach ~1 Minute bekommt die App eine URL wie: wochenplan.vercel.app
-
-### Fertig!
-Die URL an alle teilen. Jeder gibt beim ersten Start seine Firebase URL ein,
-die wird im Browser gespeichert. Dann einfach denselben Plan-Code verwenden.
-
-## Firebase einrichten
-
-1. firebase.google.com aufrufen
-2. Projekt erstellen
-3. Realtime Database erstellen (Testmodus)
-4. Die URL der Datenbank in die App eingeben
-
+Datenmodell, Synchronisation und Migration sind in `docs/ARCHITEKTUR.md` beschrieben, die Klassiker-Basis in `docs/KLASSIKER.md`, der Testbericht mit den Befunden in `TESTBERICHT.md`.
