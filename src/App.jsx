@@ -4,7 +4,7 @@ import { CUISINE_LIST, CATS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { hbStock, scoreRecipe, hbCats, ingStatus } from "./logic/stock.js";
+import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat } from "./logic/stock.js";
 import { todayISO, isoWeekKey, shiftWeek, todayDayKey, slotOrderNow, emptyWeek, normalizeWeek, migrateWeek, slotList } from "./logic/weeks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, planItems, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, addedSlotKeys } from "./logic/shopping.js";
@@ -672,8 +672,7 @@ export default function App() {
     setHbLoading(false);
     if(bk===undefined){setHbErr("Haushaltsbuch nicht erreichbar. Code prüfen oder später erneut versuchen.");return false;}
     if(!bk){setHbErr("Kein Haushaltsbuch mit diesem Code gefunden.");return false;}
-    const cats=hbCats(bk);
-    const link={code:c,cat:cats.includes("Lebensmittel")?"Lebensmittel":(cats[0]||"Lebensmittel")};
+    const link={code:c,cat:pickFoodCat(bk)};   // Rubrik wird automatisch gewaehlt, kein Dropdown mehr
     setHbLink(link);setHbBook(bk);
     writePlan({hb:link},"people");
     return true;

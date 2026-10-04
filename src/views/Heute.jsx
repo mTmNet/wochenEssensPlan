@@ -2,20 +2,21 @@ import { useState } from "react";
 import { C, SF, SER, micro as label, chip, btn, input } from "../theme.js";
 import { CUISINE_LIST, ML } from "../data.js";
 import { recName, recCat, cookedLabel, cookedCount } from "../logic/recipes.js";
-import { hbCats } from "../logic/stock.js";
+import { daysSince } from "../logic/weeks.js";
 import DishImage from "../components/DishImage.jsx";
 
 // HEUTE - "Was kochen wir heute?": Heute im Plan, Vorschlaege aus dem Kochbuch (Haushaltsbuch, Bewertung, Kochhistorie),
 // Klassiker-Basis, bekanntes Gericht finden (KI)
 export default function Heute({state,api}){
   const {stock,ranked,heuteCat,hbLink,hbLoading,hbErr,hbBook,images,recipes,todayPlan,aiBusy,aiErr,classicPicks,settings}=state;
-  const {setHeuteCat,connectHb,setHbCat,reloadHb,disconnectHb,openRecipe,setView,suggestRecipe,adoptClassic}=api;
+  const {setHeuteCat,connectHb,reloadHb,disconnectHb,openRecipe,setView,suggestRecipe,adoptClassic}=api;
   const [heuteMore,setHeuteMore]=useState(false);
   const [hbInput,setHbInput]=useState("");
   const [aiFast,setAiFast]=useState(false);
   const [aiKids,setAiKids]=useState(false);
   const [aiCuisine,setAiCuisine]=useState("Egal");
   const [adopting,setAdopting]=useState("");
+  const [stockOpen,setStockOpen]=useState(false);   // Vorratsliste aus dem Haushaltsbuch auf-/zugeklappt
   const dn=(k)=>recName(recipes[k],k);
   const hasStock=stock.length>0;
   const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
@@ -74,16 +75,42 @@ export default function Heute({state,api}){
         {hbErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{hbErr}</div>}
       </div>
     ):(
-      <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:"4px 6px",fontSize:"12px",color:C.muted,marginBottom:"12px",padding:"0 2px"}}>
-        <span style={{width:"6px",height:"6px",borderRadius:"50%",background:hbErr?C.err:hasStock?C.ok:C.subtle,flexShrink:0}} />
-        <span style={{flex:"1 1 auto"}}>{hbLoading?"Haushaltsbuch wird geladen…":hbErr?hbErr:hbBook?("Haushaltsbuch: "+stock.filter(s=>s.p>=0.25).length+" Lebensmittel wahrscheinlich da"):"Haushaltsbuch verbunden"}</span>
-        {hbBook&&(
-          <select value={hbLink.cat} onChange={e=>setHbCat(e.target.value)} title="Rubrik der Lebensmittel-Einkäufe" aria-label="Rubrik der Lebensmittel-Einkäufe" style={{border:"1px solid "+C.border,background:C.white,color:C.muted,fontSize:"12px",padding:"8px 6px",minHeight:"40px",fontFamily:SF,outline:"none"}}>
-            {hbCats(hbBook).map(c=><option key={c} value={c}>{c}</option>)}
-          </select>
+      <div style={{marginBottom:"12px"}}>
+        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:"4px 6px",fontSize:"12px",color:C.muted,padding:"0 2px"}}>
+          <span style={{width:"6px",height:"6px",borderRadius:"50%",background:hbErr?C.err:hasStock?C.ok:C.subtle,flexShrink:0}} />
+          <span style={{flex:"1 1 auto"}}>
+            {hbLoading?"Haushaltsbuch wird geladen…":hbErr?hbErr:(
+              <>Haushaltsbuch <span style={{color:C.text,letterSpacing:"1px",fontWeight:"700"}}>{hbLink.code}</span>{hbBook?(" · "+hbLink.cat+" · "+stock.filter(s=>s.p>=0.25).length+" wahrscheinlich da"):" verbunden"}</>
+            )}
+          </span>
+          <button onClick={()=>reloadHb()} disabled={hbLoading} style={linkBtn}>aktualisieren</button>
+          <button onClick={disconnectHb} style={{...linkBtn,color:C.muted}}>trennen</button>
+        </div>
+        {/* Vorratsliste: worauf sich die Vorschlaege stuetzen */}
+        {hbBook&&hasStock&&(
+          <div style={{background:C.white,border:"1px solid "+C.border,marginTop:"6px"}}>
+            <button onClick={()=>setStockOpen(v=>!v)} aria-expanded={stockOpen} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",minHeight:"40px",background:"none",border:"none",cursor:"pointer",fontFamily:SF,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase"}}>
+              <span>Was wahrscheinlich da ist ({stock.filter(s=>s.p>=0.25).length})</span>
+              <span style={{fontSize:"12px"}}>{stockOpen?"▴":"▾"}</span>
+            </button>
+            {stockOpen&&(
+              <div style={{borderTop:"1px solid "+C.border}}>
+                {stock.filter(s=>s.p>=0.25).map((s,i)=>{
+                  const d=daysSince(s.last);
+                  const when=d===null?"":d===0?"heute":d===1?"gestern":"vor "+d+" Tagen";
+                  return (
+                    <div key={s.key} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",borderTop:i?"1px solid "+C.border:"none",fontSize:"13px"}}>
+                      <span style={{flex:1,minWidth:0,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+                      <span style={{fontSize:"11px",color:C.muted,flexShrink:0}}>{when}</span>
+                      <span style={{fontSize:"12px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"38px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>
+                    </div>
+                  );
+                })}
+                <div style={{padding:"8px 12px",fontSize:"11px",color:C.subtle,borderTop:"1px solid "+C.border,lineHeight:"1.4"}}>Aus den Einkäufen der Rubrik „{hbLink.cat}“ der letzten 90 Tage. Frisches verblasst nach Tagen, Vorräte nach Wochen; Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+              </div>
+            )}
+          </div>
         )}
-        <button onClick={()=>reloadHb()} disabled={hbLoading} style={linkBtn}>aktualisieren</button>
-        <button onClick={disconnectHb} style={{...linkBtn,color:C.muted}}>trennen</button>
       </div>
     )}
     </div>

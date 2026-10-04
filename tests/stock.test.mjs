@@ -1,7 +1,7 @@
 // Punktzahl fuer "Heute" (Bauplan Abschnitt 7) und Bestand aus dem Haushaltsbuch
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreRecipe, hbStock, ingStatus } from "../src/logic/stock.js";
+import { scoreRecipe, hbStock, ingStatus, pickFoodCat } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const NOW = "2026-10-04";
@@ -38,4 +38,27 @@ test("scoreRecipe mit Bestand: Abdeckung zaehlt nur Nicht-Basics", () => {
   assert.ok(r.cov>0.9, "Pasta ist frisch gekauft: "+r.cov);
   assert.ok(r.score>90);
   assert.equal(ingStatus("Salz", stock).basic, true);
+});
+
+test("hbStock liefert das juengste Einkaufsdatum je Lebensmittel (last)", () => {
+  const d = (n) => { const x = new Date(Date.now() - n * 86400000); return x.toISOString().slice(0, 10); };
+  const book = { entries: {
+    a: { date: d(10), category: "Lebensmittel", items: [{ name: "Milch", amount: 1, sub: "Milchprodukte" }] },
+    b: { date: d(2),  category: "Lebensmittel", items: [{ name: "Vollmilch", amount: 1, sub: "Milchprodukte" }] },
+  } };
+  const st = hbStock(book, "Lebensmittel");
+  const milch = st.find((s) => s.key.includes("milch"));
+  assert.ok(milch, "Milch im Vorrat");
+  assert.equal(milch.last, d(2), "juengstes Datum gewinnt");
+});
+
+test("pickFoodCat waehlt Lebensmittel, sonst die Rubrik mit den meisten Positionen", () => {
+  assert.equal(pickFoodCat({ categories: ["Drogerie", "Lebensmittel", "Sonstiges"] }), "Lebensmittel");
+  assert.equal(pickFoodCat({ categories: ["Essen & Trinken", "Drogerie"] }), "Essen & Trinken");
+  const book = { categories: ["Haushalt", "Einkauf"], entries: {
+    a: { date: "2026-10-01", category: "Haushalt", items: [{ name: "Spülmittel", amount: 1 }] },
+    b: { date: "2026-10-01", category: "Einkauf", items: [{ name: "Brot", amount: 1 }, { name: "Milch", amount: 1 }] },
+  } };
+  assert.equal(pickFoodCat(book), "Einkauf");
+  assert.equal(pickFoodCat(null), "Lebensmittel");
 });

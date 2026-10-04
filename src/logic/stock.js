@@ -26,7 +26,8 @@ export const hbStock = (book,cat) => {
       if(!key||isBasic(key)) return;
       const p = Math.pow(0.5,Math.max(0,age)/halfLife(sub));
       const prev = map[key];
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:it.sub||""};
+      // last = juengstes Einkaufsdatum (fuer die Vorratsliste im Reiter Heute)
+      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:it.sub||"",last:prev&&prev.last>e.date?prev.last:e.date};
     });
   });
   return Object.values(map).sort((a,b)=>b.p-a.p);
@@ -52,6 +53,16 @@ export const scoreRecipe = (rec,stock,now) => {
   const recent = ds!==null&&ds<7;
   const times = cookedCount(rec);
   return {st,core,cov,recent,ds,times,score:cov*100+(rec.rating||0)*4+Math.min(times,5)*3-(recent?25:0)};
+};
+// Lebensmittel-Rubrik des Buchs: "Lebensmittel" (auch als Teil des Namens), sonst die Rubrik mit den meisten Positionen
+export const pickFoodCat = (bk) => {
+  const cats = hbCats(bk);
+  const hit = cats.find(c=>/lebensmittel|essen|nahrung/i.test(String(c)));
+  if(hit) return hit;
+  const count = {};
+  Object.values((bk&&bk.entries)||{}).forEach(e=>{ if(e&&e.category) count[e.category]=(count[e.category]||0)+((Array.isArray(e.items)&&e.items.length)||1); });
+  const best = Object.entries(count).sort((a,b)=>b[1]-a[1])[0];
+  return best?best[0]:(cats[0]||"Lebensmittel");
 };
 // Rubriken des Buchs (gespeicherte Liste, sonst aus den Eintraegen)
 export const hbCats = (bk) => {
