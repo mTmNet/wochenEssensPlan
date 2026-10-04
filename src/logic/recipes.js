@@ -1,5 +1,5 @@
 // REZEPTE - Schluessel, Anzeigename, Normalform, Rubrik, Gruppierung, Startrezepte (reine Funktionen)
-import { CATS, CUISINE_LIST, DNAMES } from "../data.js";
+import { CATS, CUISINE_LIST, DNAMES, QUICK_MINUTES } from "../data.js";
 import { daysSince } from "./weeks.js";
 
 // Firebase erlaubt in Schluesseln kein . # $ [ ] / -> Leerzeichen, zusammenfassen, trimmen
@@ -19,8 +19,20 @@ export const isGhostRecipe = (raw) => !raw || typeof raw!=="object" || (!raw.nam
 export const ghostKeys = (obj) => Object.keys(obj||{}).filter(k=>isGhostRecipe(obj[k]));
 
 // Fehlende Felder ergaenzen, damit Altbestand und neue Eintraege gleich aussehen (Abschnitt 3 des Bauplans)
+// Merkmale eines Rezepts (auch fuer Eintraege der Rezept-Basis, die nicht normalisiert sind)
+const LEGACY_TAG = { "Kinderessen":"kinder", "Schnelle Küche":"schnell" };
+export const recTags = (rec) => {
+  const t = new Set(strList(rec && rec.tags));
+  const legacy = LEGACY_TAG[rec && rec.category];
+  if(legacy) t.add(legacy);
+  return [...t];
+};
+export const isKids  = (rec) => recTags(rec).includes("kinder");
+export const isQuick = (rec) => recTags(rec).includes("schnell") || (Number(rec && rec.minutes)>0 && Number(rec.minutes)<=QUICK_MINUTES);
+
 export const normalizeRecipe = (key, raw, now) => {
   const r = raw && typeof raw==="object" ? raw : {};
+  const tags = recTags(r);
   const ts = now===undefined ? Date.now() : now;
   const cooked = [...new Set([...strList(r.cooked), ...(isISO(r.lastCooked)?[r.lastCooked]:[])].filter(isISO))].sort();
   const servings = Number(r.servings), minutes = Number(r.minutes), rating = Number(r.rating);
@@ -29,8 +41,9 @@ export const normalizeRecipe = (key, raw, now) => {
     ingredients: strList(r.ingredients),
     steps: strList(r.steps),
     description: r.description || "",
-    category: recCat(r),
-    cuisine: r.cuisine || "International",
+    category: LEGACY_TAG[recCat(r)] ? "Hauptgericht" : recCat(r),
+    tags,
+    cuisine: r.cuisine==="Schnell" ? "International" : (r.cuisine || "International"),
     servings: servings>0 ? servings : 4,
     minutes: minutes>0 ? minutes : null,
     source: r.source || "eigen",

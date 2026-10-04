@@ -24,7 +24,7 @@ export const parseJsonBlock = (raw, kind) => {
   return JSON.parse(m[0]);
 };
 
-const CAT_HELP = "Für category wähle genau eine aus: "+CATS.join(", ")+". Kinderessen = einfache, milde Gerichte, die Kinder gern mögen; Schnelle Küche = in höchstens etwa 20 Minuten fertig. "+
+const CAT_HELP = "Für category wähle genau eine aus: "+CATS.join(", ")+". "+
   "Für cuisine wähle aus: "+CUISINE_LIST.join(", ")+".";
 
 // EXTRAKTION (Text oder Foto einer Rezeptseite): woertliche Uebernahme, ergaenzte Schritte werden gekennzeichnet

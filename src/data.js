@@ -9,11 +9,15 @@ export const MEALS  = ["Fr","Mi","Ab","Zw"];
 export const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Snacks" };
 
 // REZEPT-KATEGORIEN (Rubriken) - was fuer ein Gericht (unabhaengig vom Plan-Slot)
-export const CATS = ["Frühstück","Hauptgericht","Kinderessen","Schnelle Küche","Beilagen & Salate","Soßen & Dips","Snacks"];
+export const CATS = ["Frühstück","Hauptgericht","Beilagen & Salate","Soßen & Dips","Snacks"];
+// MERKMALE (Haekchen im Rezept, unabhaengig von der Kategorie): "kinder" = fuer Kinder geeignet, "schnell" = bis 30 Min.
+// Alte Kategorien "Kinderessen" und "Schnelle Küche" werden beim Laden zu Hauptgericht + Merkmal (normalizeRecipe).
+export const TAGS = [{id:"kinder",label:"Für Kinder"},{id:"schnell",label:"Schnell"}];
+export const QUICK_MINUTES = 30;
 // Kategorien, die im Dropdown zusaetzlich nach Kueche untergruppiert werden
-export const CATS_WITH_CUISINE = ["Hauptgericht","Kinderessen","Schnelle Küche"];
+export const CATS_WITH_CUISINE = ["Hauptgericht"];
 // KUECHEN - nur fuer Hauptgericht relevant (Untergruppen im Dropdown)
-export const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Indisch","Naher Osten","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
+export const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Indisch","Naher Osten","Mediterran","Klassisch","International","Vegetarisch","Grillen"];
 // Rubrik-Farben fuer die Platzhalterkachel (DishImage)
 export const CAT_COLORS = { "Frühstück":"#6B5A3A","Hauptgericht":"#5A3A2E","Kinderessen":"#3A4F5A","Schnelle Küche":"#5A4A2A","Beilagen & Salate":"#3E5A3A","Soßen & Dips":"#5A3A4F","Snacks":"#4A4A5A" };
 

@@ -359,11 +359,14 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.fill('input[type="number"] >> nth=1', '25');
   await page.fill('input[placeholder="z.B. Schwaben"]', 'Rom');
   await page.fill('input[placeholder="z.B. Kochbuch Oma S. 42"]', 'Kochbuch Nonna S. 12');
+  check(!(await page.locator('select option', {hasText:'Kinderessen'}).count())&&!(await page.locator('select option', {hasText:/^Schnell$/}).count()), 'Bearbeiten: Kinderessen und Schnell sind keine Kategorie/Kueche mehr');
+  await page.click('button:has-text("Für Kinder")');
   await page.click('text=SPEICHERN');
   await page.waitForTimeout(500);
   const carb2 = db.wochen.plans[code].recipes['Pasta Carbonara'];
   check(carb2.servings===2&&carb2.minutes===25&&carb2.origin==='Rom'&&carb2.sourceNote==='Kochbuch Nonna S. 12'&&carb2.rating===4&&JSON.stringify(carb2.cooked)===JSON.stringify([todayISO()]), 'Bearbeiten: Portionen, Minuten, Herkunft, Quelle gespeichert; Bewertung und Kochhistorie bleiben', carb2);
-  check(await page.locator('text=Hauptgericht · Italienisch · Rom · 2 Portionen · 25 Min.').first().isVisible(), 'Detail: Metazeile "Hauptgericht · Italienisch · Rom · 2 Portionen · 25 Min."');
+  check(JSON.stringify(carb2.tags)===JSON.stringify(['kinder']), 'Bearbeiten: Merkmal "Für Kinder" liegt als tags im Rezept', carb2.tags);
+  check(await page.locator('text=Hauptgericht · Italienisch · Rom · 2 Portionen · 25 Min. · Für Kinder').first().isVisible(), 'Detail: Metazeile "Hauptgericht · Italienisch · Rom · 2 Portionen · 25 Min. · Für Kinder"');
   check(await page.locator('text=Quelle: Kochbuch Nonna S. 12').first().isVisible(), 'Detail: Quelle sichtbar');
   check(await page.isVisible('text=2 Portionen')&&await page.isVisible('text=Pasta 200g'), 'Detail: Stepper startet bei den gespeicherten 2 Portionen, Mengen unveraendert');
   await shot('16b-detail-meta');
@@ -437,7 +440,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // Sortierung nach Wahrscheinlichkeit: Prozentwerte der weiteren Vorschlaege fallen monoton
   await page.click('button:has-text("VORRAT")');
   await page.waitForTimeout(200);
-  const pcts = (await page.locator('div[style*="font-size: 14px"][style*="font-weight: 700"]').allTextContents()).map(t=>parseInt(t,10)).filter(x=>!isNaN(x));
+  const pcts = (await page.locator('div[style*="font-size: 14px"][style*="font-weight: 700"]').allTextContents()).filter(t=>/^\d+ %$/.test(t.trim())).map(t=>parseInt(t,10));
   check(pcts.length>=3&&pcts.every((v,i)=>i===0||v<=pcts[i-1]), 'Heute: Vorschlaege absteigend nach Wahrscheinlichkeit sortiert', pcts);
   // Chip "Bewaehrt": gekocht und >= 3 Sterne -> nur Pasta Carbonara
   await page.click('button:has-text("Bewährt")');
@@ -464,7 +467,14 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("Alle Gerichte")');
   await page.click('button:has-text("Kinderessen") >> nth=0');
   await page.waitForTimeout(300);
-  await shot('21-heute-kinder-empty');
+  const kidsTop = (await page.locator('div[style*="font-size: 22px"]').first().textContent().catch(()=>'')).trim();
+  check(kidsTop==='Pasta Carbonara', 'Heute: Chip "Kinderessen" zeigt das Rezept mit Merkmal "Für Kinder"', kidsTop);
+  await shot('21-heute-kinder');
+  await page.click('button:has-text("Alle Gerichte")');
+  await page.click('button:has-text("Schnell") >> nth=0');
+  await page.waitForTimeout(300);
+  const quickTop = (await page.locator('div[style*="font-size: 22px"]').first().textContent().catch(()=>'')).trim();
+  check(quickTop==='Pasta Carbonara', 'Heute: Chip "Schnell" greift ueber die Zeit (25 Min.)', quickTop);
   await page.click('button:has-text("Alle Gerichte")');
   await page.click('button:has-text("Schnell") >> nth=0');
   await page.click('text=BEKANNTES GERICHT FINDEN');

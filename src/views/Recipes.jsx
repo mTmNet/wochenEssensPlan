@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, chip, btn, iconBtn, microMuted as lbl, input as inp } from "../theme.js";
-import { CATS, CUISINE_LIST } from "../data.js";
-import { recName, recCat, recKey, sortRecipeKeys, cookedLabel, cookedCount } from "../logic/recipes.js";
+import { CATS, CUISINE_LIST, TAGS } from "../data.js";
+import { recName, recCat, recKey, sortRecipeKeys, cookedLabel, cookedCount, recTags, isKids, isQuick } from "../logic/recipes.js";
 import { compressImageToBase64 } from "../ai.js";
 
 const SORTS=[{id:"cooked",label:"Zuletzt gekocht"},{id:"best",label:"Beste"},{id:"new",label:"Neu"},{id:"az",label:"A–Z"}];
@@ -60,9 +60,11 @@ export default function Recipes({state,api}){
   // Liste: Suche ueber Name und Zutaten, Rubrik-Chip, Sortierung
   const q=search.trim().toLowerCase();
   const matches=(name,ings)=>!q||name.toLowerCase().includes(q)||(ings||[]).some(i=>i.toLowerCase().includes(q));
-  const keys=sortRecipeKeys(recipes,sort).filter(k=>(filterCat==="all"||recCat(recipes[k])===filterCat)&&matches(dn(k),recipes[k].ingredients));
+  // Filter: Kategorie oder Merkmal ("tag:kinder", "tag:schnell")
+  const catOk=(rec,cat)=>filterCat==="all"||(filterCat==="tag:kinder"?isKids(rec):filterCat==="tag:schnell"?isQuick(rec):cat===filterCat);
+  const keys=sortRecipeKeys(recipes,sort).filter(k=>catOk(recipes[k],recCat(recipes[k]))&&matches(dn(k),recipes[k].ingredients));
   const classicsOn=showClassics||total===0;   // leeres Kochbuch: Rezept-Basis immer zeigen
-  const classicList=classicsOn?classics.filter(c=>!recipes[recKey(c.name)]&&(filterCat==="all"||c.category===filterCat)&&matches(c.name,c.ingredients)):[];
+  const classicList=classicsOn?classics.filter(c=>!recipes[recKey(c.name)]&&catOk(c,c.category)&&matches(c.name,c.ingredients)):[];
   const existsName=extracted&&!extracted.ai&&!!recipes[recKey(String(extracted.name||"").trim())];
 
   return(
@@ -131,6 +133,12 @@ export default function Recipes({state,api}){
                     <select value={extracted.cuisine||"International"} onChange={e=>setExtracted(r=>({...r,cuisine:e.target.value}))} style={{...inp,background:C.white}}>
                       {CUISINE_LIST.map(c=><option key={c} value={c}>{c}</option>)}
                     </select>
+                  </div>
+                </div>
+                <div style={{marginBottom:"10px"}}>
+                  <label style={lbl}>Merkmale</label>
+                  <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                    {TAGS.map(t=>{ const on=(extracted.tags||[]).includes(t.id); return <button key={t.id} type="button" onClick={()=>setExtracted(r=>{ const x=new Set(r.tags||[]); x.has(t.id)?x.delete(t.id):x.add(t.id); return {...r,tags:[...x]}; })} aria-pressed={on} style={chip(on)}>{on?"✓ ":""}{t.label}</button>; })}
                   </div>
                 </div>
                 <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
@@ -207,7 +215,7 @@ export default function Recipes({state,api}){
 
             {/* Rubrik-Filter */}
             <div style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap"}}>
-              {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c}))].map(f=>(
+              {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c})),...TAGS.map(t=>({id:"tag:"+t.id,label:t.label}))].map(f=>(
                 <button key={f.id} onClick={()=>setFilterCat(f.id)} aria-pressed={filterCat===f.id} style={chip(filterCat===f.id)}>{f.label}</button>
               ))}
             </div>
@@ -225,7 +233,7 @@ export default function Recipes({state,api}){
             {keys.map(name=>{
               const rec=recipes[name];
               const ings=(rec&&rec.ingredients)||[];
-              const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
+              const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · "),cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
               return(
                 <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",minHeight:"56px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF}}>
                   <div style={{flex:1,minWidth:0}}>

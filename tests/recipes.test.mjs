@@ -1,7 +1,7 @@
 // Rezept-Logik: Schluessel, Normalform, Kochhistorie
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { recKey, recName, normalizeRecipe, normalizeRecipes, addCooked, cookedCount, cookedLabel, isProven, starterRecipes, DR, isGhostRecipe, ghostKeys, stepMinutes, sortRecipeKeys } from "../src/logic/recipes.js";
+import { recKey, recName, normalizeRecipe, normalizeRecipes, addCooked, cookedCount, cookedLabel, isProven, starterRecipes, DR, isGhostRecipe, ghostKeys, stepMinutes, sortRecipeKeys, recTags, isKids, isQuick } from "../src/logic/recipes.js";
 
 test("cookedLabel: Anzahl und Abstand zum letzten Kochen", () => {
   assert.equal(cookedLabel(normalizeRecipe("A", {}, 0)), "noch nie gekocht");
@@ -133,4 +133,19 @@ test("sortRecipeKeys: Zuletzt gekocht, Beste, Neu, A–Z", () => {
   assert.deepEqual(sortRecipeKeys(r, "best"), ["B","A","C"]);
   assert.deepEqual(sortRecipeKeys(r, "new"), ["A","C","B"]);
   assert.deepEqual(sortRecipeKeys(r, "cooked"), ["A","B","C"]);
+});
+
+test("Merkmale: alte Kategorien Kinderessen/Schnelle Küche werden zu Hauptgericht + Merkmal, Küche 'Schnell' faellt weg", () => {
+  const k = normalizeRecipe("Nudeln mit Soße", { category:"Kinderessen", cuisine:"Schnell", ingredients:["Nudeln"], steps:["Kochen."] }, 0);
+  assert.equal(k.category, "Hauptgericht");
+  assert.deepEqual(k.tags, ["kinder"]);
+  assert.equal(k.cuisine, "International");
+  const q = normalizeRecipe("Omelett", { category:"Schnelle Küche", tags:["kinder"] }, 0);
+  assert.equal(q.category, "Hauptgericht");
+  assert.deepEqual(q.tags.sort(), ["kinder","schnell"]);
+  assert.ok(isKids(q) && isQuick(q));
+  assert.ok(isQuick({ minutes: 25 }), "bis 30 Minuten gilt als schnell");
+  assert.ok(!isQuick({ minutes: 45 }) && !isKids({ category:"Hauptgericht" }));
+  assert.deepEqual(recTags({ category:"Kinderessen" }), ["kinder"], "Eintrag der Rezept-Basis ohne tags");
+  assert.deepEqual(normalizeRecipe("x", { tags:{ a:"schnell", b:"unsinn" } }, 0).tags, ["schnell","unsinn"].slice(0,2), "Firebase-Objektform wird gelesen");
 });

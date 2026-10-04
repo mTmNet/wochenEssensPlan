@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, column, btn, iconBtn, microMuted as lbl, chip } from "../theme.js";
-import { CATS, CUISINE_LIST, DAYS, DAYFUL, MEALS, ML } from "../data.js";
-import { recName, recCat, cookedLabel } from "../logic/recipes.js";
+import { CATS, CUISINE_LIST, TAGS, DAYS, DAYFUL, MEALS, ML } from "../data.js";
+import { recName, recCat, cookedLabel, recTags } from "../logic/recipes.js";
 import { scaleIng } from "../logic/ingredients.js";
 import { weekDates, shiftWeek, shortDate, todayDayKey, mealSlotNow, weekLabel } from "../logic/weeks.js";
 import Stars from "../components/Stars.jsx";
@@ -10,6 +10,9 @@ import DishImage from "../components/DishImage.jsx";
 import Toast from "../components/Toast.jsx";
 
 const SRC_LABEL = { ki:"KI-Vorschlag", import:"Importiert", klassiker:"Rezept-Basis", eigen:"" };
+const toggleTag=(set,id)=>set(d=>{ const t=new Set(d.tags||[]); t.has(id)?t.delete(id):t.add(id); return {...d,tags:[...t]}; });
+const tagLabel=(rec)=>TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · ");
+
 const fmtDate = (iso) => { const m=String(iso||"").split("-"); return m.length===3 ? parseInt(m[2],10)+"."+parseInt(m[1],10)+"."+m[0] : iso; };
 const inp = {width:"100%",border:"1px solid "+C.border,padding:"10px 12px",minHeight:"40px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",boxSizing:"border-box",background:C.white};
 const stepBtn = {width:"40px",height:"40px",border:"1px solid "+C.border,background:C.bg,color:C.text,fontSize:"20px",lineHeight:1,cursor:"pointer",fontFamily:SF,flexShrink:0};
@@ -30,7 +33,7 @@ export default function RecipeDetail({state,api}){
   useEffect(()=>{ setPortions(base); },[detailRecipe,base]);
   const factor=portions/base;
   const ings=curRec.ingredients||[], steps=curRec.steps||[];
-  const metaLine=[recCat(curRec),curRec.cuisine,curRec.origin,base+" Portionen",curRec.minutes>0?curRec.minutes+" Min.":""].filter(Boolean).join(" · ");
+  const metaLine=[recCat(curRec),curRec.cuisine,curRec.origin,base+" Portionen",curRec.minutes>0?curRec.minutes+" Min.":"",tagLabel(curRec)].filter(Boolean).join(" · ");
   const srcLine=[SRC_LABEL[curRec.source]||"",curRec.sourceNote?"Quelle: "+curRec.sourceNote:""].filter(Boolean).join(" · ");
   const cooked=Array.isArray(curRec.cooked)?curRec.cooked:[];
   // "Zum Wochenplan": Woche (diese/naechste), Tag, Slot - Standard heute und aktueller Slot
@@ -177,15 +180,23 @@ export default function RecipeDetail({state,api}){
                 <div style={{flex:1}}>
                   <label style={lbl}>Kategorie</label>
                   <select value={editData.category} onChange={e=>setEditData(d=>({...d,category:e.target.value}))} style={inp}>
-                    {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                    {[...CATS,...(CATS.includes(editData.category)?[]:[editData.category])].map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div style={{flex:1}}>
                   <label style={lbl}>Küche</label>
                   <select value={editData.cuisine} onChange={e=>setEditData(d=>({...d,cuisine:e.target.value}))} style={inp}>
-                    {CUISINE_LIST.map(c=><option key={c} value={c}>{c}</option>)}
+                    {[...CUISINE_LIST,...(CUISINE_LIST.includes(editData.cuisine)?[]:[editData.cuisine])].map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+              </div>
+              {/* Merkmale: unabhaengig von der Kategorie, steuern die Chips "Kinderessen" und "Schnell" */}
+              <div style={{marginBottom:"10px"}}>
+                <label style={lbl}>Merkmale</label>
+                <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                  {TAGS.map(t=>{ const on=(editData.tags||[]).includes(t.id); return <button key={t.id} type="button" onClick={()=>toggleTag(setEditData,t.id)} aria-pressed={on} style={chip(on)}>{on?"✓ ":""}{t.label}</button>; })}
+                </div>
+                <div style={{fontSize:"11px",color:C.subtle,marginTop:"4px"}}>„Schnell“ gilt automatisch auch bei einer Zeit bis 30 Minuten.</div>
               </div>
               {/* Portionen, Zeit, Herkunft, Quelle */}
               <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>

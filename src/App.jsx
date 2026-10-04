@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
-import { CUISINE_LIST, CATS, BASIC_LABEL } from "./data.js";
+import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
 import { todayISO, isoWeekKey, shiftWeek, todayDayKey, slotOrderNow, emptyWeek, normalizeWeek, migrateWeek, slotList } from "./logic/weeks.js";
-import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys } from "./logic/recipes.js";
+import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys, isKids, isQuick } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, planItems, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, addedSlotKeys } from "./logic/shopping.js";
 import { shopCat, ingKey } from "./logic/ingredients.js";
 import { CLASSICS } from "./classics.js";
@@ -601,7 +601,7 @@ export default function App() {
         setExtracted({
           name:String(parsed.name).trim(),ingredients:parsed.ingredients.map(String),steps:parsed.steps.map(String),description:parsed.description||"",
           category:CATS.includes(parsed.category)?parsed.category:"Hauptgericht",cuisine:CUISINE_LIST.includes(parsed.cuisine)?parsed.cuisine:"International",
-          servings:sv>0?sv:4,minutes:mn>0?mn:"",origin:typeof parsed.origin==="string"?parsed.origin:"",sourceNote:"",stepsGenerated,ai:false,
+          servings:sv>0?sv:4,minutes:mn>0?mn:"",origin:typeof parsed.origin==="string"?parsed.origin:"",sourceNote:"",stepsGenerated,ai:false,tags:[],
         });
       }
     }catch(e){
@@ -623,7 +623,7 @@ export default function App() {
     return {
       name,bekanntAls,ingredients:parsed.ingredients.map(String),steps:parsed.steps.map(String),description:parsed.description||"",
       cuisine:CUISINE_LIST.includes(parsed.cuisine)?parsed.cuisine:(o.cuisine&&o.cuisine!=="Egal"?o.cuisine:"International"),
-      category:CATS.includes(parsed.category)?parsed.category:(o.category||"Hauptgericht"),
+      category:CATS.includes(parsed.category)?parsed.category:"Hauptgericht",tags:o.tags||[],
       ai:true,freeCombo,origin,sourceNote:"",servings:parseInt(parsed.servings,10)||4,minutes:parseInt(parsed.minutes,10)||"",stepsGenerated:false,
       genutzt:Array.isArray(parsed.genutzt)?parsed.genutzt:[],
       fehlt:Array.isArray(parsed.fehlt)?parsed.fehlt:[],
@@ -644,7 +644,7 @@ export default function App() {
       name,ingredients:extracted.ingredients||[],steps:extracted.steps||[],description:extracted.description||"",
       cuisine:extracted.cuisine||"International",category:extracted.category||"Hauptgericht",
       source:extracted.ai?"ki":"import",origin:(extracted.origin||"").trim(),sourceNote:(extracted.sourceNote||"").trim(),stepsGenerated:!!extracted.stepsGenerated,
-      servings:parseInt(extracted.servings,10)||4,minutes:parseInt(extracted.minutes,10)||null,
+      servings:parseInt(extracted.servings,10)||4,minutes:parseInt(extracted.minutes,10)||null,tags:(extracted.tags||[]).filter(t=>TAGS.some(x=>x.id===t)),
     },{keepMeta:exists&&o.replace});
     if(!key)return false;
     if(extracted.ai){ setExtracted(null); openRecipe(key); return true; }   // KI-Vorschlag: direkt zum Rezept (Kochmodus)
@@ -715,7 +715,7 @@ export default function App() {
       const items=stock.filter(s=>s.p>=0.25).slice(0,50);
       const fmt=(arr)=>arr.map(s=>s.name+" ("+Math.round(s.p*100)+" %)").join(", ");
       const hi=items.filter(s=>s.p>=0.6), mid=items.filter(s=>s.p>=0.4&&s.p<0.6), lo=items.filter(s=>s.p<0.4);
-      const category=o.kids?"Kinderessen":o.fast?"Schnelle Küche":"Hauptgericht";
+      const tags=[o.kids?"kinder":"",o.fast?"schnell":""].filter(Boolean);
       const wishes=[
         o.fast?"SCHNELL: in höchstens 25 Minuten komplett fertig.":"",
         o.kids?"KINDERESSEN: mild (nicht scharf), einfach, ohne Alkohol, ein Gericht, das Kinder gern essen.":"",
@@ -740,7 +740,7 @@ export default function App() {
       const names=Object.keys(recipes).slice(0,80).map(k=>recName(recipes[k],k));
       if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";
       const parsed=parseJsonBlock(await callAI({mode:"suggest",system:buildSuggestPrompt(),messages:[{role:"user",content:user}]}));
-      setExtracted(suggestionFromAnswer(parsed,{cuisine:o.cuisine,category}));
+      setExtracted(suggestionFromAnswer(parsed,{cuisine:o.cuisine,tags}));
       setImportErr("");setView("recipes");
       setTimeout(()=>{ const el=document.getElementById("ki-vorschlag"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },60);
     }catch(e){
@@ -756,7 +756,7 @@ export default function App() {
     const rec=recipes[key];
     if(!rec)return;
     setEditData({name:recName(rec,key),ingredients:[...rec.ingredients],steps:[...rec.steps],description:rec.description||"",cuisine:rec.cuisine||"International",category:recCat(rec),
-      servings:rec.servings||4,minutes:rec.minutes||"",origin:rec.origin||"",sourceNote:rec.sourceNote||""});
+      servings:rec.servings||4,minutes:rec.minutes||"",origin:rec.origin||"",sourceNote:rec.sourceNote||"",tags:[...(rec.tags||[])]});
     setEditMode(true);
   };
   // Speichern: nur die editierten Felder als Feld-PATCH (Bewertung, Notizen, Kochhistorie anderer Geraete bleiben).
@@ -770,7 +770,7 @@ export default function App() {
     if(newKey!==oldKey&&recipes[newKey]){ window.alert("Ein Rezept mit diesem Namen gibt es schon."); return; }
     const servings=parseInt(editData.servings,10), minutes=parseInt(editData.minutes,10);
     const fields={name,ingredients:editData.ingredients.filter(x=>x.trim()),steps:editData.steps.filter(x=>x.trim()),description:editData.description||"",cuisine:editData.cuisine,category:editData.category,
-      servings:servings>0?servings:4,minutes:minutes>0?minutes:null,origin:(editData.origin||"").trim(),sourceNote:(editData.sourceNote||"").trim()};
+      servings:servings>0?servings:4,minutes:minutes>0?minutes:null,origin:(editData.origin||"").trim(),sourceNote:(editData.sourceNote||"").trim(),tags:(editData.tags||[]).filter(t=>TAGS.some(x=>x.id===t))};
     const now=Date.now();
     if(newKey===oldKey){
       setRecipes(prev=>prev[oldKey]?{...prev,[oldKey]:{...prev[oldKey],...fields,updatedAt:now}}:prev);
@@ -921,7 +921,8 @@ export default function App() {
     const general=!skip.includes(c)&&!(lateForBreakfast&&c==="Frühstück");
     if(heuteCat==="all") return general;
     if(heuteCat==="proven") return general&&isProven(r);
-    if(heuteCat==="Schnelle Küche") return c==="Schnelle Küche"||(r.minutes>0&&r.minutes<=30&&general);
+    if(heuteCat==="Schnelle Küche") return general&&isQuick(r);
+    if(heuteCat==="Kinderessen") return general&&isKids(r);
     return c===heuteCat;
   };
   const ranked=useMemo(()=>{

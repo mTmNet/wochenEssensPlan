@@ -8,7 +8,7 @@ Gemeinsamer Essensplaner für die Familie: Wochenplan mit Datum, Einkaufsliste, 
 - **Woche** – Plan mit Kalenderwoche und Datum, Navigation vor/zurück, „Letzte Woche übernehmen“, mehrere Gerichte pro Mahlzeit, „Wer kocht?“, „Woche abschließen“ trägt die gekochten Gerichte in die Kochhistorie ein.
 - **Einkauf** – aus dem Plan erzeugt und beim erneuten Erzeugen **zusammengeführt** (Handeinträge und Haken bleiben), nach Supermarkt-Abteilungen, Grundvorrat („Vorrat prüfen“) und wahrscheinlich Vorhandenes in eigenen Blöcken, Teilen als Text.
 - **Rezepte** – Suche, Rubriken, Sortierung, Textimport und Fotoimport per KI (abschreiben, nicht erfinden; ergänzte Schritte werden gekennzeichnet), Rezept-Basis einblenden und übernehmen, Kochbuch als PDF.
-- **Rezept** – Portionen umrechnen, Zeit, Herkunft und Quelle, „Zum Wochenplan“, „Auf die Einkaufsliste“, eigenes Foto, Bewertung, Notizen, Kochhistorie. **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern aus den Zeitangaben.
+- **Rezept** – Merkmale „Für Kinder“ und „Schnell“ (unabhängig von der Kategorie, steuern die Filter), Portionen umrechnen, Zeit, Herkunft und Quelle, „Zum Wochenplan“, „Auf die Einkaufsliste“, eigenes Foto, Bewertung, Notizen, Kochhistorie. **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern aus den Zeitangaben.
 - **Gemeinsam** – ein Plan-Code für die Familie (10 Zeichen), Synchronisation alle 10 Sekunden, jede Änderung wird einzeln geschrieben, damit sich zwei Geräte nicht überschreiben.
 - Als App installierbar (PWA), Schriftzoom, Android-Zurück-Taste.
 
