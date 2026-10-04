@@ -1,8 +1,23 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-
-// FIREBASE - eigenes Projekt "wochenessenplan-3d0e1" (seit 2026-10, alte DB wochenessenplan-default-rtdb bleibt als Backup)
-// Regeln: Wurzel gesperrt, plans/$code nur mit Code, globalRecipes + recipeImages offen
-const FB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
+import { C, SF } from "./theme.js";
+import { CUISINE_LIST, CATS, BASIC_LABEL } from "./data.js";
+import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode } from "./fb.js";
+import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
+import { hbStock, scoreRecipe, hbCats, ingStatus } from "./logic/stock.js";
+import { todayISO, isoWeekKey, shiftWeek, todayDayKey, slotOrderNow, emptyWeek, normalizeWeek, migrateWeek, slotList } from "./logic/weeks.js";
+import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys } from "./logic/recipes.js";
+import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, planItems, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, addedSlotKeys } from "./logic/shopping.js";
+import { shopCat, ingKey } from "./logic/ingredients.js";
+import { CLASSICS } from "./classics.js";
+import Join from "./views/Join.jsx";
+import Shell from "./views/Shell.jsx";
+import Heute from "./views/Heute.jsx";
+import Plan from "./views/Plan.jsx";
+import Shopping from "./views/Shopping.jsx";
+import Recipes from "./views/Recipes.jsx";
+import RecipeDetail from "./views/RecipeDetail.jsx";
+import CookMode from "./views/CookMode.jsx";
 
 // SESSION PERSISTENCE - merkt sich Code + Name, damit man nicht rausfliegt
 const SESSION_KEY = "wochenplan_session";
@@ -10,437 +25,46 @@ const SESSION_KEY = "wochenplan_session";
 const ZOOM_KEY = "wochenplan_zoom";
 // "HEUTE"-FILTER - pro Geraet gespeichert
 const HEUTE_CAT_KEY = "wochenplan_heute_cat";
-
-// HAUSHALTSBUCH - eigenes Firebase-Projekt, wird NUR gelesen (Einkaeufe -> wahrscheinlicher Bestand)
-const HB_FB = "https://haushaltsbuch-3cefb-default-rtdb.europe-west1.firebasedatabase.app";
-const HB_CODE_RE = /^[A-Z0-9]{6,16}$/;
-// undefined = nicht erreichbar, null = kein Buch mit diesem Code
-const hbGet = async (code) => { try { const r=await fetch(HB_FB+"/books/"+code+".json"); return r.ok?await r.json():undefined; } catch(e){ return undefined; } };
-
-// DESIGN - mid-dark theme
-const C = {
-  bg:"#1E1E24",
-  white:"#2A2A32",
-  border:"#3A3A46",
-  text:"#F0EEE9",
-  muted:"#9A9898",
-  subtle:"#5A5A64",
-  accent:"#D4904A",
-  abg:"#2E2820",
-  dark:"#13131A",
-  ok:"#4CAF7D",
-  err:"#E05555",
-};
-const SF = "system-ui,-apple-system,Helvetica Neue,Arial,sans-serif";
-const SER = "Georgia,'Times New Roman',serif";
-
-// CONSTANTS
-const DAYS   = ["Mo","Di","Mi","Do","Fr","Sa","So"];
-const DAYFUL = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
-// PLAN-SLOTS - wann gegessen wird (pro Tag)
-const MEALS  = ["Fr","Mi","Ab","Zw"];
-const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Snacks" };
-
-// REZEPT-KATEGORIEN (Rubriken) - was fuer ein Gericht (unabhaengig vom Plan-Slot)
-const CATS = ["Frühstück","Hauptgericht","Kinderessen","Schnelle Küche","Beilagen & Salate","Soßen & Dips","Snacks"];
-// Kategorien, die im Dropdown zusaetzlich nach Kueche untergruppiert werden
-const CATS_WITH_CUISINE = ["Hauptgericht","Kinderessen","Schnelle Küche"];
-// KUECHEN - nur fuer Hauptgericht relevant (Untergruppen im Dropdown)
-const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Indisch","Naher Osten","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
-// Kategorie eines Rezepts ermitteln (migriert alte meal-Werte: Fr->Fruehstueck, Mi/Ab->Hauptgericht)
-const recCat = (rec) => (rec && rec.category) ? rec.category : (rec && rec.meal==="Fr" ? "Frühstück" : "Hauptgericht");
-
-// SUPERMARKET CATEGORIES
-const SHOP_CATS = [
-  { label:"Obst & Gemüse",  keys:["karott","brokkoli","tomat","salat","zwiebel","knoblauch","lauch","sellerie","kartoffel","ingwer","avocado","zitrone","beere","frucht","paprika","spinat","gurk","pilz","lauch","kohl","apfel","banane"] },
-  { label:"Fleisch & Fisch", keys:["hackfleisch","haehnchen","hähnchen","hühnchen","speck","lachs","fleisch","fisch","wurst","rind","schwein","thun","garnele","schinken","putenbrust"] },
-  { label:"Milch & Käse",   keys:["milch","butter","eier","joghurt","parmesan","kaese","käse","sahne","quark","mozzarella","ricotta","creme","schlagobers"] },
-  { label:"Backwaren",      keys:["brot","tortilla","brötchen","toast","croissant","mehl","vollkornbrot"] },
-  { label:"Trockenwaren",   keys:["pasta","reis","haferflocken","linsen","granola","zucker","risotto","kichererbsen","bulgur","couscous","quinoa","nudel","müsli"] },
-  { label:"Konserven",      keys:["dose","bruehe","brühe","kokosmilch","konserv","passiert"] },
-  { label:"Gewürze & Öle", keys:["olivenoel","olivenöl","curry","honig","essig","senf","soja","pesto","mayonnaise","ketchup","dressing","gewürz","kreuzküm","kreuzkümmel"] },
-  { label:"Getränke",       keys:["weisswein","weißwein","rotwein","bier","saft","wasser","bruehe","brühe"] },
-];
-
-const shopCat = (text) => {
-  const l = text.toLowerCase();
-  for (const c of SHOP_CATS) {
-    if (c.keys.some(k => l.includes(k))) return c.label;
-  }
-  return "Sonstiges";
-};
-
-// DISPLAY NAMES
-const DNAMES = {
-  "Ruehreier":"Rühreier","Joghurt und Granola":"Joghurt & Granola",
-  "Gemuesesuppe":"Gemüsesuppe","Haehnchen-Wrap":"Hähnchen-Wrap","Lachs mit Gemuese":"Lachs mit Gemüse",
-};
-const dn = (k) => DNAMES[k] || k;
-
-// DEFAULT RECIPES
-const DR = {
-  "Haferflocken mit Beeren":{ ingredients:["Haferflocken 100g","Beeren 150g","Milch 200ml","Honig 1 EL"], steps:["Haferflocken mit Milch in einen Topf geben und bei mittlerer Hitze aufkochen.","Hitze reduzieren und 3-4 Min. köcheln lassen.","In Schüssel füllen, Beeren und Honig darüber."], cuisine:"Klassisch", meal:"Fr" },
-  "Avocado Toast":{ ingredients:["Avocado 1 St.","Vollkornbrot 2 Scheiben","Zitrone 0.5 St.","Salz und Pfeffer"], steps:["Brot toasten.","Avocado zerdrücken, mit Zitronensaft und Salz abschmecken.","Auf Toast verteilen und servieren."], cuisine:"International", meal:"Fr" },
-  "Ruehreier":{ ingredients:["Eier 3 St.","Butter 10g","Salz und Pfeffer","Schnittlauch"], steps:["Eier in Schüssel verquirlen, salzen und pfeffern.","Butter in Pfanne bei mittlerer Hitze schmelzen.","Eimasse zugeben, langsam unter Rühren stocken lassen.","Vom Herd nehmen, mit Schnittlauch garnieren."], cuisine:"Klassisch", meal:"Fr" },
-  "Joghurt und Granola":{ ingredients:["Joghurt 200g","Granola 50g","Honig 1 EL","Früchte"], steps:["Joghurt in Schüssel geben.","Granola und Früchte darüber streuen.","Mit Honig beträufeln."], cuisine:"Klassisch", meal:"Fr" },
-  "Pfannkuchen":{ ingredients:["Mehl 150g","Eier 2 St.","Milch 300ml","Butter","Zucker 1 EL"], steps:["Mehl, Eier, Milch und Zucker zu glattem Teig verrühren, 15 Min. ruhen lassen.","Butter in Pfanne erhitzen, Teig hineingeben.","Je 2 Min. pro Seite goldgelb backen.","Mit Belag nach Wahl servieren."], cuisine:"Klassisch", meal:"Fr" },
-  "Pasta Bolognese":{ ingredients:["Pasta 200g","Hackfleisch 300g","Tomaten Dose 1 St.","Zwiebel 1 St.","Knoblauch 2 Zehen","Olivenoel 2 EL"], steps:["Zwiebel und Knoblauch hacken, in Olivenöl glasig dünsten.","Hackfleisch dazugeben, krümelig braten.","Dosentomaten unterrühren, 20 Min. köcheln lassen.","Pasta al dente kochen, mit Sauce mischen."], cuisine:"Italienisch", meal:"Mi" },
-  "Caesar Salad":{ ingredients:["Roemersalat 1 Kopf","Parmesan 50g","Croutons 50g","Caesar Dressing","Haehnchenbrust 200g"], steps:["Hähnchen mit Öl braten, 4-5 Min. je Seite, dann in Scheiben schneiden.","Salat waschen und zupfen.","Mit Dressing vermischen.","Hähnchen, Croutons und Parmesan obenauf."], cuisine:"International", meal:"Mi" },
-  "Gemuesesuppe":{ ingredients:["Karotten 3 St.","Sellerie 2 St.","Lauch 1 St.","Kartoffeln 3 St.","Gemüsebrühe 1L"], steps:["Gemüse schälen und würfeln.","Brühe aufkochen, Gemüse zugeben.","20 Min. bei mittlerer Hitze kochen.","Mit Salz, Pfeffer und Kräutern abschmecken."], cuisine:"Schwäbisch", meal:"Mi" },
-  "Haehnchen-Wrap":{ ingredients:["Tortilla 2 St.","Haehnchenbrust 200g","Salat","Tomate 1 St.","Joghurt-Dressing"], steps:["Hähnchen würzen und in Pfanne 6-8 Min. braten, in Streifen schneiden.","Tortillas kurz erwärmen.","Alles belegen, aufrollen und servieren."], cuisine:"International", meal:"Mi" },
-  "Linsensuppe":{ ingredients:["Linsen 200g","Karotten 2 St.","Zwiebel 1 St.","Knoblauch","Kreuzkümmel","Gemüsebrühe 1L"], steps:["Zwiebel und Knoblauch hacken, mit Kreuzkümmel anbraten.","Linsen und Karotten dazu, mit Brühe aufgießen.","25 Min. köcheln lassen.","Mit Zitrone und Salz abschmecken."], cuisine:"Mediterran", meal:"Mi" },
-  "Lachs mit Gemuese":{ ingredients:["Lachsfilet 200g","Brokkoli 300g","Karotten 2 St.","Olivenoel","Zitrone"], steps:["Brokkoli in Röschen teilen, Karotten schneiden.","Gemüse in Pfanne mit Öl 5 Min. anbraten.","Lachs salzen, pfeffern, je 3-4 Min. pro Seite braten.","Anrichten, mit Zitrone beträufeln."], cuisine:"Mediterran", meal:"Ab" },
-  "Veggie-Curry":{ ingredients:["Kichererbsen Dose 1 St.","Kokosmilch Dose 1 St.","Tomaten Dose 1 St.","Curry-Paste 2 EL","Ingwer","Reis 200g"], steps:["Reis kochen.","Curry-Paste in Topf anrösten, Ingwer zugeben.","Kokosmilch und Tomaten unterrühren.","Kichererbsen zugeben, 15 Min. köcheln.","Über Reis servieren."], cuisine:"Asiatisch", meal:"Ab" },
-  "Pasta Carbonara":{ ingredients:["Pasta 200g","Speck 100g","Eier 2 St.","Parmesan 60g","Schwarzer Pfeffer"], steps:["Pasta kochen, Kochwasser aufheben.","Speck knusprig braten.","Eier und Parmesan verquirlen.","Heiße Pasta zum Speck, Pfanne vom Herd.","Ei-Mischung unterrühren, Kochwasser bis cremig zugeben."], cuisine:"Italienisch", meal:"Ab" },
-  "Risotto":{ ingredients:["Risotto-Reis 200g","Gemüsebrühe 700ml","Parmesan 50g","Zwiebel 1 St.","Weisswein 100ml","Butter"], steps:["Brühe warm halten. Zwiebel würfeln, in Butter anschwitzen.","Reis 2 Min. rösten, mit Weißwein ablöschen.","Brühe schöpfkellenweise zugeben (18 Min.), ständig rühren.","Parmesan und Butter einrühren, 5 Min. ruhen lassen."], cuisine:"Italienisch", meal:"Ab" },
-};
-
-// STERNE-BEWERTUNG (1-5, nochmal tippen = zuruecksetzen)
-const Stars = ({value=0,onRate,size=24}) => (
-  <div style={{display:"flex",gap:"2px"}}>
-    {[1,2,3,4,5].map(i=>(
-      <button key={i} onClick={()=>onRate&&onRate(i===value?0:i)} style={{background:"none",border:"none",cursor:onRate?"pointer":"default",fontSize:size+"px",lineHeight:1,color:i<=value?"#E8B547":"#5A5A64",padding:"3px"}}>
-        {i<=value?"★":"☆"}
-      </button>
-    ))}
-  </div>
-);
-
-// FIREBASE HELPERS
-const fbGet   = async (p) => { try { const r=await fetch(FB+"/"+p+".json"); return r.ok?await r.json():null; } catch(e){return null;} };
-const fbPut   = async (p,d) => { try { await fetch(FB+"/"+p+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); } catch(e){} };
-const fbPatch = async (p,d) => { try { await fetch(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); } catch(e){} };
-// Wie fbPatch, meldet aber zurueck ob das Speichern geklappt hat (fuer Bilder wichtig)
-const fbPatchChecked = async (p,d) => { try { const r=await fetch(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); return r.ok; } catch(e){ return false; } };
-
-// FOOD IMAGE
-const foodImg = (name) => {
-  const seed = name.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
-  const prompt = dn(name)+", food photography, professional, appetizing, natural light, minimal background";
-  return "https://image.pollinations.ai/prompt/"+encodeURIComponent(prompt)+"?width=800&height=480&nologo=true&seed="+seed;
-};
-
-// INGREDIENT AGGREGATOR
-// Zwei Formate: "Zucchini 750 g" (Name zuerst, eingebaute Rezepte)
-//          und  "750 g Zucchini" (Menge zuerst, typisch fuer KI-Import)
-const UNIT_RE = "(?:g|kg|mg|ml|cl|dl|l|el|tl|st(?:k|ück|ueck)?\\.?|bund|prisen?|zehen?|dosen?|pck\\.?|packung(?:en)?|p(?:ä|ae)ckchen|scheiben?|becher|gl(?:a|ä)s(?:er)?|tassen?|msp\\.?|liter|gramm|kilo)";
-const ING_PRE_RE = new RegExp("^([\\d]+(?:[.,][\\d]+)?|[½¼¾⅓⅔])\\s*("+UNIT_RE+")?\\s+(.+)$","i");
-const FRACTIONS = {"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3};
-const parseIng = (t) => {
-  const s=t.trim();
-  // Format A: Menge zuerst ("750 g Zucchini", "2 Eier", "½ Bund Minze")
-  let m=s.match(ING_PRE_RE);
-  if(m){
-    const amount=FRACTIONS[m[1]]!==undefined?FRACTIONS[m[1]]:parseFloat(m[1].replace(",","."));
-    return {name:m[3].trim(),amount,unit:(m[2]||"").trim(),pre:true};
-  }
-  // Format B: Name zuerst ("Haferflocken 100g", "Eier 2 St.")
-  m=s.match(/^(.*?)\s*([\d]+(?:[.,][\d]+)?)\s*(.*)$/);
-  if(!m||!m[1].trim()) return {name:s,amount:null,unit:"",pre:false};
-  return {name:m[1].trim(),amount:parseFloat(m[2].replace(",",".")),unit:m[3].trim(),pre:false};
-};
-const fmtIng = (n,a,u,pre) => {
-  if (a===null) return n;
-  const d = Number.isInteger(a)?String(a):parseFloat(a.toFixed(1)).toString();
-  if(pre) return u?d+" "+u+" "+n:d+" "+n;
-  return u?n+" "+d+" "+u:n+" "+d;
-};
-const aggregateIngs = (raw) => {
-  const map=new Map(),order=[];
-  raw.forEach(t=>{
-    const p=parseIng(t);
-    const k=p.name.toLowerCase()+"|||"+p.unit.toLowerCase();
-    if(map.has(k)){const e=map.get(k);if(p.amount!==null&&e.amount!==null)e.amount+=p.amount;}
-    else{map.set(k,{name:p.name,amount:p.amount,unit:p.unit,pre:p.pre});order.push(k);}
-  });
-  return order.map(k=>{const e=map.get(k);return fmtIng(e.name,e.amount,e.unit,e.pre);});
-};
-
-// WAHRSCHEINLICHER BESTAND - keine Mengen, keine Zaehler: jede gekaufte Position "verblasst"
-// mit einer Halbwertszeit je Unterkategorie. Rezeptzutaten werden ueber normierte Schluessel abgeglichen.
-const fold = (t) => String(t||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss");
-const KEY_STOP = new Set(["bio","frisch","frische","frischer","frisches","ja","gut","guenstig","packung","pack","stk","st","ca","etwa","und","oder","mit","von","fuer","zum","zur","nach","in","im","aus","geschmack","belieben","etwas","prise","prisen","bund","dose","dosen","glas","becher","beutel","netz","schale","klein","kleine","kleiner","gross","grosse","grosser","mittelgross","mittelgrosse","fein","feine","grob","gehackt","gehackte","gewuerfelt","geschnitten","gerieben","geriebener","gemahlen","gemahlener","getrocknet","getrocknete","gerebelt","tk","xxl","classic","natur","stueck","scheibe","scheiben","zehe","zehen","handvoll","msp","rot","rote","roter","gruen","gruene","gelb","gelbe","weiss","weisse","schwarz","schwarzer","hell","dunkel","mild","scharf","jung","light","vollkorn","natives","nativ","extra","edelsuess","gew","lose","fri","g","kg","ml","l","el","tl","x"]);
-const KEY_SYN = {hack:"hackfleisch",gehacktes:"hackfleisch",schlagsahne:"sahne",kochsahne:"sahne",zucchino:"zucchini",huehnchen:"haehnchen",moehre:"karotte",moehren:"karotte",ei:"eier",paprikaschote:"paprika",paprikaschoten:"paprika",nudel:"pasta",nudeln:"pasta",spaghetti:"pasta",penne:"pasta",fusilli:"pasta",farfalle:"pasta",tagliatelle:"pasta",passata:"tomaten"};
-const normKey = (t) => {
-  let s = fold(t).replace(/\([^)]*\)/g," ").replace(/\d+(?:[.,]\d+)?\s*%/g," ");
-  s = s.replace(new RegExp("\\b\\d+(?:[.,]\\d+)?\\s*"+UNIT_RE+"\\b","gi")," ");
-  s = s.replace(/[^a-z\s]/g," ");
-  return s.split(/\s+/).filter(w=>w.length>=2&&!KEY_STOP.has(w)).map(w=>KEY_SYN[w]||w).join(" ");
-};
-// Zwei Woerter passen: gleich, Plural/Bon-Kuerzel ("tomate"/"tomaten", "jogh"/"joghurt"),
-// Kompositum-Kopf ("kirschtomaten"/"tomaten") oder lange gemeinsame Vorsilbe ("haehnchenbrust"/"haehnchenbrustfilet")
-const TOK_NOMATCH = new Set(["lauch|knoblauch","lauch|schnittlauch"]);
-const tokMatch = (a,b) => {
-  if(a===b) return true;
-  const [s,l] = a.length<=b.length?[a,b]:[b,a];
-  if(s.length<3||TOK_NOMATCH.has(s+"|"+l)) return false;
-  if(l.startsWith(s)&&((s.length>=4&&l.length-s.length<=3)||s.length>=6)) return true;
-  return s.length>=4&&l.endsWith(s);
-};
-// Basics gelten immer als vorhanden (alle Woerter der Zutat muessen Basics sein)
-const BASIC_END = ["salz","pfeffer","oel","zucker","mehl","wasser","essig","bruehe"];
-const BASIC_WORDS = new Set(["paprikapulver","muskat","muskatnuss","oregano","thymian","zimt","kreuzkuemmel","currypulver","chili","chiliflocken","lorbeer","lorbeerblatt","lorbeerblaetter","backpulver","natron","speisestaerke","senf"]);
-const BASIC_LABEL = "Salz, Pfeffer, Öl, Zucker, Mehl, Essig, Brühe, Senf, Gewürze";
-const isBasic = (key) => { const t=key.split(" "); return t.length>0&&t.every(w=>BASIC_END.some(b=>w.endsWith(b))||w.includes("gewuerz")||BASIC_WORDS.has(w)); };
-// Halbwertszeit in Tagen je Unterkategorie aus dem Haushaltsbuch
-const HALF_LIFE = [["obst",4],["gemuese",4],["fleisch",3],["wurst",4],["fisch",2],["backwaren",3],["brot",3],["milch",7],["kaese",10],["getraenk",21],["suess",30],["tiefkuehl",60]];
-const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LIFE) if(s.includes(k)) return d; return 45; };
-const HB_SKIP_SUB = ["reinigung","hygiene","tierbedarf","kraftstoff","pfand","drogerie","kosmetik","haushalt","sonstig","non-food","nonfood","elektro","garten","deko","kleidung","schreibwaren","pflanzen","blumen"];
-const HB_DAYS = 90;
-// Liefert [{key,toks,p,name,sub}] absteigend nach Wahrscheinlichkeit; Mehrfachkaeufe: p = 1 - Prod(1-p_i)
-const hbStock = (book,cat) => {
-  const map = {};
-  if(!book||!book.entries||!cat) return [];
-  const now = Date.now();
-  Object.values(book.entries).forEach(e=>{
-    if(!e||e.category!==cat||!Array.isArray(e.items)) return;
-    const age = (now-new Date(e.date+"T12:00:00").getTime())/86400000;
-    if(!(age>-2)||age>HB_DAYS) return;
-    e.items.forEach(it=>{
-      if(!it||!(it.amount>0)) return;
-      const sub = fold(it.sub);
-      if(HB_SKIP_SUB.some(k=>sub.includes(k))) return;
-      const key = normKey(it.name);
-      if(!key||isBasic(key)) return;
-      const p = Math.pow(0.5,Math.max(0,age)/halfLife(sub));
-      const prev = map[key];
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:it.sub||""};
-    });
-  });
-  return Object.values(map).sort((a,b)=>b.p-a.p);
-};
-// Status einer Rezeptzutat: {name, basic, p, src}
-const ingStatus = (ing,stock) => {
-  const name = parseIng(ing).name;
-  const key = normKey(name);
-  if(!key) return null;
-  if(isBasic(key)) return {name,basic:true,p:1,src:""};
-  const toks = key.split(" ");
-  let best = 0, src = "";
-  stock.forEach(s=>{ if(s.p>best&&toks.some(a=>s.toks.some(b=>tokMatch(a,b)))){ best=s.p; src=s.name; } });
-  return {name,basic:false,p:best,src};
-};
-const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
-const daysSince = (iso) => iso ? Math.floor((Date.now()-new Date(iso+"T12:00:00").getTime())/86400000) : null;
-// Punktzahl: Abdeckung (0-100) + Bewertung*3 - 15 wenn in den letzten 7 Tagen gekocht
-const scoreRecipe = (rec,stock) => {
-  const st = (rec.ingredients||[]).map(i=>ingStatus(i,stock)).filter(Boolean);
-  const core = st.filter(x=>!x.basic);
-  const cov = core.length ? core.reduce((a,x)=>a+x.p,0)/core.length : 0;
-  const ds = daysSince(rec.lastCooked);
-  const recent = ds!==null&&ds<7;
-  return {st,core,cov,recent,ds,score:cov*100+(rec.rating||0)*3-(recent?15:0)};
-};
-
-// SINGLE RECIPE PDF (HTML zum Drucken / als PDF speichern)
-const makeRecipePDF = (name, rec, customImg) => {
-  const title = dn(name);
-  const ings = (rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
-  const steps = (rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+'</span><p>'+s+'</p></div>').join("");
-  const desc = rec.description ? '<p class="desc">'+rec.description+'</p>' : '';
-  const meta = recCat(rec)+(rec.cuisine?(" · "+rec.cuisine):"");
-  const imgUrl = customImg || foodImg(name);
-  const css = `
-    @page{margin:2cm}
-    body{font-family:Georgia,serif;color:#1A1917;max-width:760px;margin:0 auto;padding:0}
-    .meta{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C17D3C;font-weight:700;margin-bottom:10px}
-    h1{font-size:38px;font-weight:400;letter-spacing:-1px;margin:0 0 18px}
-    img{width:100%;height:300px;object-fit:cover;border-radius:4px;margin-bottom:20px;display:block}
-    .desc{font-style:italic;font-size:15px;line-height:1.8;color:#4A4843;margin:0 0 24px}
-    .tag{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C17D3C;margin:24px 0 10px}
-    ul{list-style:none;padding:0;margin:0}
-    ul li{font-size:14px;padding:7px 0;border-bottom:1px solid #F0EEE9}
-    .step{display:flex;gap:14px;margin-bottom:14px}
-    .num{width:26px;height:26px;border-radius:50%;border:1px solid #1A1917;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:system-ui,sans-serif}
-    .step p{font-size:14px;line-height:1.7;margin:0;padding-top:2px}
-  `;
-  return '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>'+title+'</title><style>'+css+'</style></head><body>'+
-    '<div class="meta">'+meta+'</div>'+
-    '<h1>'+title+'</h1>'+
-    '<img src="'+imgUrl+'" alt="'+title+'" onerror="this.style.display=\'none\'">'+
-    desc+
-    '<div class="tag">Zutaten</div><ul>'+ings+'</ul>'+
-    '<div class="tag">Zubereitung</div>'+steps+
-    '</body></html>';
-};
-
-// PDF COOKBOOK
-const makePDF = (recipes, customImgs) => {
-  const sections = [];
-  CATS.forEach(cat=>{
-    const items = Object.entries(recipes).filter(([k,v])=>recCat(v)===cat);
-    if(items.length) sections.push({title:cat, items});
-  });
-
-  const recipeHTML = ([key,rec])=>{
-    const name=dn(key);
-    const ings=(rec.ingredients||[]).map(i=>"<li>"+i+"</li>").join("");
-    const steps=(rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+"</span><p>"+s+"</p></div>").join("");
-    const imgUrl=(customImgs&&customImgs[key])||foodImg(key);
-    const desc=rec.description?'<p class="desc">'+rec.description+'</p>':'';
-    return '<div class="recipe"><h2>'+name+'</h2><img src="'+imgUrl+'" alt="'+name+'" onerror="this.style.display=\'none\'">'+desc+'<div class="tag">Zutaten</div><ul>'+ings+'</ul><div class="tag">Zubereitung</div>'+steps+'</div>';
-  };
-
-  const sectionsHTML = sections.map(sec=>'<div class="section"><h1 class="section-title">'+sec.title+'</h1>'+sec.items.map(recipeHTML).join("")+'</div>').join("");
-
-  const css = `
-    @page{margin:2cm}
-    body{font-family:Georgia,serif;color:#1A1917;max-width:900px;margin:0 auto;padding:0}
-    .cover{text-align:center;padding:120px 40px;border-bottom:1px solid #E8E6E1;page-break-after:always}
-    .cover h1{font-size:52px;font-weight:400;letter-spacing:-2px;margin-bottom:12px}
-    .cover p{color:#8A8780;font-size:15px}
-    .toc{padding:40px;page-break-after:always}
-    .toc h2{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C17D3C;margin-bottom:24px}
-    .toc-section{font-weight:700;font-size:13px;margin:14px 0 4px;color:#1A1917}
-    .toc-item{font-size:13px;color:#8A8780;padding:2px 0}
-    .section{page-break-before:always}
-    .section-title{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C17D3C;margin-bottom:40px;padding-bottom:10px;border-bottom:1px solid #E8E6E1;font-weight:700}
-    .recipe{margin-bottom:60px;padding-bottom:60px;border-bottom:1px solid #E8E6E1;page-break-inside:avoid}
-    .recipe h2{font-size:28px;font-weight:400;margin-bottom:16px}
-    .recipe img{width:100%;height:260px;object-fit:cover;border-radius:4px;margin-bottom:20px;display:block}
-    .recipe .desc{font-style:italic;font-size:14px;line-height:1.8;color:#4A4843;margin:0 0 16px}
-    .tag{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C17D3C;margin:20px 0 10px}
-    ul{list-style:none;padding:0}
-    ul li{font-size:14px;padding:7px 0;border-bottom:1px solid #F0EEE9}
-    .step{display:flex;gap:14px;margin-bottom:14px}
-    .num{width:26px;height:26px;border-radius:50%;border:1px solid #1A1917;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:system-ui,sans-serif}
-    .step p{font-size:14px;line-height:1.7;margin:0;padding-top:2px}
-    @media print{.section{page-break-before:always}.recipe{page-break-inside:avoid}}
-  `;
-
-  const tocHTML = sections.map(sec=>'<div class="toc-section">'+sec.title+'</div>'+sec.items.map(([k])=>'<div class="toc-item">'+dn(k)+'</div>').join("")).join("");
-
-  return '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Kochbuch</title><style>'+css+'</style></head><body>'+
-    '<div class="cover"><h1>Mein Kochbuch</h1><p>'+new Date().toLocaleDateString("de-DE")+" - "+Object.keys(recipes).length+' Rezepte</p></div>'+
-    '<div class="toc"><h2>Inhalt</h2>'+tocHTML+'</div>'+
-    sectionsHTML+'</body></html>';
-};
-
-// IMAGE PREP FOR AI IMPORT
-const compressImageToBase64 = (file, opts = {}) => {
-  const { maxEdge = 1600, quality = 0.82 } = opts;
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Bild konnte nicht gelesen werden."));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Bild konnte nicht verarbeitet werden."));
-      img.onload = () => {
-        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Canvas-Kontext nicht verfügbar."));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error("Bildkomprimierung fehlgeschlagen."));
-              return;
-            }
-            const outReader = new FileReader();
-            outReader.onerror = () => reject(new Error("Komprimiertes Bild konnte nicht gelesen werden."));
-            outReader.onload = () => {
-              const dataUrl = String(outReader.result || "");
-              const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : "";
-              resolve({
-                base64,
-                mimeType: "image/jpeg",
-                previewUrl: URL.createObjectURL(blob),
-              });
-            };
-            outReader.readAsDataURL(blob);
-          },
-          "image/jpeg",
-          quality
-        );
-      };
-      img.src = String(reader.result || "");
-    };
-    reader.readAsDataURL(file);
-  });
-};
-
-// AI API - Anthropic in Claude artifact, Gemini on Vercel
-const callClaude = async (messages, system) => {
-  const isArtifact = window.location.hostname.includes("claude.ai") ||
-                     window.location.protocol === "blob:";
-  if (isArtifact) {
-    // Direct Anthropic call in Claude.ai artifact
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,system,messages}),
-    });
-    if(!r.ok) throw new Error("Anthropic Fehler "+r.status);
-    const d = await r.json();
-    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-    const b = d.content&&d.content.find(x=>x.type==="text");
-    return b?b.text:"";
-  } else {
-    // KI backend via Vercel serverless function
-    const r = await fetch("/api/gemini", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({system, messages}),
-    });
-    if(!r.ok) {
-      const errText = await r.text();
-      throw new Error("KI Fehler "+r.status+": "+errText.slice(0,300));
-    }
-    const d = await r.json();
-    if(d.error) throw new Error(d.error);
-    return d.text||"";
-  }
-};
-
-// Verstaendliche Fehlermeldung fuer KI-Aufrufe (Extrahieren + Generieren)
-const kiErrText = (msg) => {
-  if(msg.includes("404")) return "Die KI-API ist nicht erreichbar (404). Das Gemini-Modell wurde nicht gefunden. Bitte den Vercel-Log pruefen.";
-  if(msg.includes("429")) return "Zu viele Anfragen (429). Bitte 1 Minute warten und erneut versuchen. Details: "+msg;
-  if(msg.includes("413")) return "Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.";
-  if(msg.includes("GEMINI_API_KEY not configured")) return "Server-Konfiguration fehlt: GEMINI_API_KEY ist nicht gesetzt. Bitte in Vercel unter Settings → Environment Variables eintragen und danach neu deployen.";
-  if(msg.includes("API_KEY_INVALID") || msg.includes("401")) return "Der Gemini API Key ist ungueltig. Bitte in Vercel einen gueltigen GEMINI_API_KEY von aistudio.google.com/apikey eintragen und danach neu deployen.";
-  if(msg.includes("500")) return "Serverfehler bei der KI-Anfrage (500). Bitte Vercel-Logs und Umgebungsvariablen pruefen.";
-  return null;
-};
-
-// HELPERS
-const emptyPlan = () => {
-  const p={};
-  DAYS.forEach(d=>{p[d]={meals:{},cook:""};MEALS.forEach(m=>{p[d].meals[m]="";});});
-  return p;
-};
-const randCode = () => Math.random().toString(36).slice(2,8).toUpperCase();
-const initials = (name) => name?name.split(" ").map(w=>w[0]||"").join("").toUpperCase().slice(0,2):"?";
+// Poll-Takt: nur plans/<CODE>/meta, Teile werden bei geaendertem Zeitstempel nachgeladen
+const POLL_MS = 10000;
+const DEFAULT_SETTINGS = { aiImages:false };
+const asList = (p) => Array.isArray(p) ? p : (p && typeof p==="object" ? Object.values(p) : []);
+const asObj = (o) => (o && typeof o==="object" && !Array.isArray(o)) ? o : {};
+const ERR_NET = "Keine Verbindung zur Datenbank.";
+const isLocalDev = typeof window!=="undefined" && (window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1");
+// Entwicklerhinweis gehoert in die Konsole, nicht in die Oberflaeche
+if(isLocalDev) console.info("Wochenplan: Lokal mit dem Vite-Dev-Server ist die KI-Function nicht verfügbar. Für KI-Import und -Vorschlag die Server-Umgebung oder die deployte App nutzen.");
 
 // APP
 export default function App() {
   const [screen,setScreen]           = useState("loading");
-  const [myCode]                     = useState(randCode);
+  const [myCode]                     = useState(()=>randCode(10));
   const [joinInput,setJoinInput]     = useState("");
   const [nameInput,setNameInput]     = useState("");
+  const [nameHint,setNameHint]       = useState(false);   // "Plan starten" ohne Namen
+  const [joinErr,setJoinErr]         = useState("");      // Meldung unter dem Beitritt
+  const [joinOffer,setJoinOffer]     = useState("");      // Code, fuer den "Neuen Plan anlegen" angeboten wird
+  const [joinBusy,setJoinBusy]       = useState(false);
   const [activeCode,setActiveCode]   = useState("");
   const [userName,setUserName]       = useState("");
   const [participants,setParticipants] = useState([]);
+  const [settings,setSettings]       = useState(DEFAULT_SETTINGS);
   const [lastSync,setLastSync]       = useState(null);
   const [syncOk,setSyncOk]           = useState(true);
+  const [syncErr,setSyncErr]         = useState("");
+  const [toast,setToast]             = useState("");      // kurzer Hinweis unten (Zurueck-Taste, geloescht auf anderem Geraet, kopiert)
 
-  const [plan,setPlan]               = useState(emptyPlan);
-  const [recipes,setRecipes]         = useState(DR);
-  const [shopping,setShopping]       = useState([]);
-  const [customItem,setCustomItem]   = useState("");
+  // WOCHEN: plans/<CODE>/weeks/<YYYY-Www>; weekKey = angezeigte Woche
+  const [weeks,setWeeks]             = useState({});
+  const [weekKey,setWeekKey]         = useState(()=>isoWeekKey(todayISO()));
+  const [recipes,setRecipes]         = useState({});      // plans/<CODE>/recipes/<recKey>
+  const [shopping,setShopping]       = useState({});      // plans/<CODE>/shopping/<id>
+  const [images,setImages]           = useState({});      // eigene Bilder (recKey -> dataUrl), recipeImages/<CODE>
 
   const [view,setView]               = useState("plan");
   const [activeCell,setActiveCell]   = useState(null);
   const [cellInput,setCellInput]     = useState("");
-  const [openCat,setOpenCat] = useState(null);
+  const [openCat,setOpenCat]         = useState(null);
   const [cookPicker,setCookPicker]   = useState(null);
 
   const [detailRecipe,setDetailRecipe] = useState(null);
@@ -448,345 +72,585 @@ export default function App() {
   const [editData,setEditData]       = useState(null);
   const [cookStep,setCookStep]       = useState(0);
   const [cookMode,setCookMode]       = useState(false);
-  const [imgLoaded,setImgLoaded]     = useState(false);
 
-  const [importMode,setImportMode]   = useState("text");
-  const [recipeText,setRecipeText]   = useState("");
-  const [recipeImg,setRecipeImg]     = useState(null);
-  const [recipeB64,setRecipeB64]     = useState(null);
-  const [recipeImgType,setRecipeImgType] = useState("image/jpeg");
   const [extracting,setExtracting]   = useState(false);
   const [extracted,setExtracted]     = useState(null);
   const [importErr,setImportErr]     = useState("");
   const [savedMsg,setSavedMsg]       = useState(false);
   const [codeCopied,setCodeCopied]   = useState(false);
-  const [filterMeal,setFilterMeal]   = useState("all");
-  const [recipeSearch,setRecipeSearch] = useState("");
-  const [recipeImgs,setRecipeImgs]   = useState({}); // eigene Bilder (name -> dataUrl), separater FB-Pfad
   const [fontZoom,setFontZoom]       = useState(()=>{ try{ const v=parseFloat(localStorage.getItem(ZOOM_KEY)); return (v>=0.8&&v<=1.4)?v:1; }catch(e){ return 1; } });
   const [rateAfterCook,setRateAfterCook] = useState(false); // Bewertungs-Dialog nach dem Kochen
   const [ratingDraft,setRatingDraft] = useState(0);
   const [noteDraft,setNoteDraft]     = useState("");
-  const [exitToast,setExitToast]     = useState(false);
-  const [addedSlots,setAddedSlots]   = useState({});  // gesperrte "+"-Buttons (day|meal|dish)
-  const [editShopIdx,setEditShopIdx] = useState(null); // Index der gerade editierten Einkaufszeile
+  const [editShopId,setEditShopId]   = useState(null); // Id der gerade editierten Einkaufszeile
   const [editShopText,setEditShopText] = useState("");
   // "WAS KOCHEN WIR HEUTE?" - Verknuepfung zum Haushaltsbuch liegt im Plan (plans/<code>/hb), gilt fuer die Familie
   const [hbLink,setHbLink]           = useState(null);  // {code, cat}
   const [hbBook,setHbBook]           = useState(null);  // geladenes Buch (nur lesend)
-  const [hbInput,setHbInput]         = useState("");
   const [hbLoading,setHbLoading]     = useState(false);
   const [hbErr,setHbErr]             = useState("");
   const [heuteCat,setHeuteCat]       = useState(()=>{ try{ return localStorage.getItem(HEUTE_CAT_KEY)||"all"; }catch(e){ return "all"; } });
-  const [heuteMore,setHeuteMore]     = useState(false);
-  const [aiFast,setAiFast]           = useState(false);
-  const [aiKids,setAiKids]           = useState(false);
-  const [aiCuisine,setAiCuisine]     = useState("Egal");
   const [aiBusy,setAiBusy]           = useState(false);
   const [aiErr,setAiErr]             = useState("");
 
-  const isLocalDev =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-  const canExtract = extracting
-    ? false
-    : importMode === "text"
-      ? !!recipeText.trim()
-      : !!recipeB64;
-
-  const fileRef      = useRef(null);
   const syncTimer    = useRef(null);
-  const pushTimer    = useRef(null);
-  const localChecked = useRef({});
   const cellRef      = useRef(null);
   const cookRef      = useRef(null);
-  const dropRef      = useRef(null);
   const exitArmedRef = useRef(false);
   const handleBackRef= useRef(()=>false);
-  const imgFileRef    = useRef(null);    // Datei-Dialog fuer eigenes Rezeptbild
-  const editingRef    = useRef(false);   // true solange eine Mahlzelle offen ist
-  const pendingPushRef= useRef(false);   // true solange ein Upload aussteht
+  const backHandlers = useRef([]);        // von Ansichten registrierte Schliess-Handler (Dialoge, Menue)
+  const editingRef   = useRef({cell:false,shop:false,recipe:false}); // offene Eingaben: der Teil wird nicht vom Server ueberschrieben
+  const pendingRef   = useRef(0);         // Anzahl laufender eigener Schreibvorgaenge
+  const dirtyRef     = useRef(new Set()); // Teile, deren letztes Schreiben scheiterte: der Poll laedt sie unabhaengig vom Zeitstempel nach
+  const metaRef      = useRef({});        // zuletzt GESEHENE Zeitstempel (nur der Poll setzt sie)
+  const codeRef      = useRef("");
+  const weekKeyRef   = useRef(weekKey);
+  const recipesRef   = useRef(recipes);
+  const shoppingRef  = useRef(shopping);
+  const toastTimer   = useRef(null);
+  codeRef.current = activeCode;
+  weekKeyRef.current = weekKey;
+  recipesRef.current = recipes;
+  shoppingRef.current = shopping;
 
-  useEffect(()=>()=>{ if(recipeImg) URL.revokeObjectURL(recipeImg); },[recipeImg]);
+  const showToast=useCallback((msg,ms)=>{ setToast(msg); clearTimeout(toastTimer.current); toastTimer.current=setTimeout(()=>setToast(""),ms||2500); },[]);
+  const failWrite=(msg)=>{ setSyncOk(false); setSyncErr(msg||"Speichern fehlgeschlagen – Änderung nur auf diesem Gerät."); };
 
-  // LOAD & SYNC - gespeicherte Sitzung wiederherstellen (Teil A)
-  // recipeImages wird bewusst NUR hier einmal geladen (nicht im 10s-Poll - zu gross)
+  // SCHREIBEN - ein gezielter Multi-Path-PATCH auf plans/<CODE> mit Zeitstempeln (Bauplan Abschnitt 4).
+  // Der lokale Zustand ist schon aktualisiert (optimistisch); scheitert das Schreiben, wird die Sync-Leiste rot
+  // und der Teil als "dirty" gemerkt: der naechste Poll laedt ihn nach und gleicht so den lokalen Zustand ab.
+  // metaRef bleibt absichtlich unveraendert: der naechste Poll sieht den neuen Zeitstempel und laedt den Teil
+  // einmal nach - so kommen auch Aenderungen anderer Geraete an, die kurz vor unserem Schreiben passiert sind.
+  const writePlan = useCallback(async(patch,parts)=>{
+    const code=codeRef.current;
+    if(!code) return false;
+    const now=Date.now();
+    const full={...patch,"meta/updatedAt":now};
+    const list=[].concat(parts||[]);
+    list.forEach(p=>{ full["meta/"+p+"UpdatedAt"]=now; });
+    pendingRef.current++;
+    const ok=await fbPatch("plans/"+code,full);
+    pendingRef.current=Math.max(0,pendingRef.current-1);
+    if(ok){ setLastSync(now); if(dirtyRef.current.size===0){ setSyncOk(true); setSyncErr(""); } }
+    else { list.forEach(p=>dirtyRef.current.add(p)); failWrite(); }
+    return ok;
+  },[]);
+
+  // Reste aufraeumen, die durch Feld-PATCHes auf geloeschte Eintraege entstanden sind (Geister-Rezepte, Posten ohne text)
+  const cleanupServer=(recipesRaw,shoppingRaw)=>{
+    const patch={}, parts=[];
+    if(recipesRaw!==undefined){ const g=ghostKeys(asObj(recipesRaw)); if(g.length){ g.forEach(k=>{ patch["recipes/"+k]=null; }); parts.push("recipes"); } }
+    if(shoppingRaw!==undefined&&!Array.isArray(shoppingRaw)){ const o=orphanIds(asObj(shoppingRaw)); if(o.length){ o.forEach(id=>{ patch["shopping/"+id]=null; }); parts.push("shopping"); } }
+    if(parts.length) writePlan(patch,parts);
+  };
+
+  // Zustand aus den geladenen Plandaten setzen (Beitritt, Migration)
+  const applyPlanData = (data,imgs)=>{
+    const ws={}; Object.keys(asObj(data.weeks)).forEach(k=>{ ws[k]=normalizeWeek(data.weeks[k]); });
+    setWeeks(ws);
+    setShopping(Array.isArray(data.shopping)?migrateShopping(data.shopping):asObj(data.shopping));
+    setRecipes(normalizeRecipes(asObj(data.recipes)));
+    setParticipants(asList(data.participants).filter(Boolean));
+    setHbLink(data.hb&&data.hb.code?data.hb:null);
+    setSettings({...DEFAULT_SETTINGS,...asObj(data.settings)});
+    if(imgs!==undefined) setImages(asObj(imgs));
+    metaRef.current={...asObj(data.meta)};
+    dirtyRef.current=new Set();
+    setLastSync((data.meta&&data.meta.updatedAt)||Date.now());setSyncOk(true);setSyncErr("");
+  };
+
+  // POLL - alle 10 s nur meta; Teile nur nachladen, wenn sich ihr Zeitstempel geaendert hat oder ein Schreiben scheiterte (dirty).
+  // Laufende eigene Schreibvorgaenge brechen den Poll nicht mehr ab; sie verhindern nur das Uebernehmen (canApply).
+  const pollMeta = useCallback(async(code)=>{
+    if(!code) return;
+    const meta=await fbGet("plans/"+code+"/meta");
+    if(code!==codeRef.current) return;
+    if(meta===undefined){ setSyncOk(false); setSyncErr(ERR_NET); return; }
+    if(meta===null){ setSyncOk(false); setSyncErr("Plan wurde nicht gefunden."); return; }
+    const prev=metaRef.current||{}, ed=editingRef.current, wk=weekKeyRef.current, dirty=dirtyRef.current;
+    const seen={...prev}; const jobs=[];
+    const canApply=()=>pendingRef.current===0&&code===codeRef.current;   // kein eigener Schreibvorgang dazwischen gestartet
+    const need=(part)=>meta[part+"UpdatedAt"]!==prev[part+"UpdatedAt"]||dirty.has(part);
+    if(need("weeks")&&!ed.cell){
+      // Sichtbare und aktuelle Woche frisch laden; andere gecachte Wochen verwerfen (werden beim Oeffnen frisch geholt)
+      const cur=isoWeekKey(todayISO()), keys=[...new Set([wk,cur])];
+      jobs.push(Promise.all(keys.map(k=>fbGet("plans/"+code+"/weeks/"+k))).then(ws=>{
+        if(ws.every(w=>w!==undefined)&&canApply()){
+          setWeeks(()=>{ const n={}; keys.forEach((k,i)=>{ n[k]=normalizeWeek(ws[i]); }); return n; });
+          seen.weeksUpdatedAt=meta.weeksUpdatedAt; dirty.delete("weeks");
+        }
+      }));
+    }
+    if(need("shopping")&&!ed.shop){
+      jobs.push(fbGet("plans/"+code+"/shopping").then(s=>{ if(s!==undefined&&canApply()){ setShopping(Array.isArray(s)?migrateShopping(s):asObj(s)); seen.shoppingUpdatedAt=meta.shoppingUpdatedAt; dirty.delete("shopping"); cleanupServer(undefined,s); } }));
+    }
+    if(need("recipes")&&!ed.recipe){
+      jobs.push(fbGet("plans/"+code+"/recipes").then(r=>{ if(r!==undefined&&canApply()){ setRecipes(normalizeRecipes(asObj(r))); seen.recipesUpdatedAt=meta.recipesUpdatedAt; dirty.delete("recipes"); cleanupServer(r,undefined); } }));
+    }
+    if(need("people")){
+      jobs.push(Promise.all([fbGet("plans/"+code+"/participants"),fbGet("plans/"+code+"/hb"),fbGet("plans/"+code+"/settings")]).then(([p,h,st])=>{
+        if(!canApply()) return;
+        if(p!==undefined) setParticipants(asList(p).filter(Boolean));
+        if(h!==undefined) setHbLink(prevL=>{ const n=(h&&h.code)?h:null; return (prevL&&n&&prevL.code===n.code&&prevL.cat===n.cat)?prevL:n; });
+        if(st!==undefined) setSettings({...DEFAULT_SETTINGS,...asObj(st)});
+        if(p!==undefined&&h!==undefined&&st!==undefined){ seen.peopleUpdatedAt=meta.peopleUpdatedAt; dirty.delete("people"); }
+      }));
+    }
+    await Promise.all(jobs);
+    if(code!==codeRef.current) return;
+    seen.updatedAt=meta.updatedAt; seen.createdAt=meta.createdAt;
+    metaRef.current=seen;
+    setLastSync(meta.updatedAt||Date.now());
+    if(dirty.size===0){ setSyncOk(true); setSyncErr(""); }   // Fehler erst loeschen, wenn der Abgleich gelungen ist
+  },[]);
+
+  const startPolling = useCallback((code)=>{
+    if(syncTimer.current)clearInterval(syncTimer.current);
+    syncTimer.current=setInterval(()=>pollMeta(code),POLL_MS);
+  },[pollMeta]);
+
+  useEffect(()=>()=>{clearInterval(syncTimer.current);clearTimeout(toastTimer.current);},[]);
+
+  // Alte Bilder (recipeImages/<Name>) einzeln nach recipeImages/<CODE>/<key> kopieren; liefert {imgs, ok}
+  const copyOldImages = async(code,recipesObj,existing)=>{
+    const rootImgs=await fbGet("recipeImages");
+    if(rootImgs===undefined) return {imgs:{},ok:false};
+    const imgs={}; let ok=true;
+    for(const name of Object.keys(asObj(rootImgs))){
+      const v=rootImgs[name], k=recKey(name);
+      if(typeof v!=="string"||!v.startsWith("data:")||!recipesObj[k]||(existing&&existing[k])) continue;
+      if(await fbPatch("recipeImages/"+code,{[k]:v})) imgs[k]=v; else ok=false;
+    }
+    return {imgs,ok};
+  };
+
+  // MIGRATION (Bauplan Abschnitt 5): Altbestand plan/shopping-Array/globalRecipes einmalig in die neue Form bringen.
+  // Deterministische Ids und ein zweiter Blick auf meta kurz vor dem Schreiben, damit zwei gleichzeitig beitretende
+  // Geraete dasselbe schreiben bzw. das zweite nur noch laedt. Bilder werden vorher einzeln kopiert; erst wenn alle da sind,
+  // steht meta/imagesMigrated, sonst wird beim naechsten Beitritt nachgeholt.
+  // Liefert die neuen Plandaten (oder null bei Netzfehler). plan, updatedAt (alt) und globalRecipes bleiben stehen.
+  const migratePlan = async(code,pd)=>{
+    const now=Date.now(), wk=isoWeekKey(todayISO());
+    const patch={};
+    const weeksNew={...asObj(pd.weeks)};
+    if(!weeksNew[wk]){ weeksNew[wk]=migrateWeek(pd.plan); patch["weeks/"+wk]=weeksNew[wk]; }
+    let shoppingNew=pd.shopping;
+    if(Array.isArray(pd.shopping)||!pd.shopping){ shoppingNew=migrateShopping(Array.isArray(pd.shopping)?pd.shopping:[],now); patch.shopping=Object.keys(shoppingNew).length?shoppingNew:null; }
+    let recipesNew=asObj(pd.recipes), imgs={}, imgsOk=true;
+    if(!pd.recipes){
+      const gr=await fbGet("globalRecipes");
+      if(gr===undefined) return null;
+      recipesNew={};
+      Object.keys(asObj(gr)).forEach(name=>{ const k=recKey(name); if(k&&gr[name]&&typeof gr[name]==="object") recipesNew[k]=normalizeRecipe(k,gr[name],now); });
+      if(Object.keys(recipesNew).length) patch.recipes=recipesNew;
+      const r=await copyOldImages(code,recipesNew); imgs=r.imgs; imgsOk=r.ok;
+    }
+    const meta={createdAt:pd.updatedAt||now,updatedAt:now,weeksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now};
+    if(imgsOk) meta.imagesMigrated=true;
+    patch.meta=meta;
+    const settingsNew={...DEFAULT_SETTINGS,...asObj(pd.settings)};
+    if(!pd.settings) patch.settings=settingsNew;
+    // Hat inzwischen ein anderes Geraet migriert? Dann nur laden statt schreiben.
+    const m2=await fbGet("plans/"+code+"/meta");
+    if(m2===undefined) return null;
+    if(m2&&m2.updatedAt){ const fresh=await fbGet("plans/"+code); if(!fresh||!fresh.meta) return null; return {...fresh,_imgs:undefined}; }
+    if(!(await fbPatch("plans/"+code,patch))) return null;
+    if(!imgsOk) failWrite("Rezeptbilder konnten nicht übernommen werden – wird beim nächsten Beitritt nachgeholt.");
+    return {...pd,weeks:weeksNew,shopping:shoppingNew||{},recipes:recipesNew,meta,settings:settingsNew,_imgs:imgs};
+  };
+
+  // BEITRITT - nur bestehende Plaene; create = "Plan starten" / "Neuen Plan mit diesem Code anlegen";
+  // restore = Sitzung wiederherstellen (legt NIE einen Plan an)
+  const handleJoin = async(code,name,opts)=>{
+    const o=opts||{};
+    const nm=(name!==undefined?name:nameInput).trim();
+    if(!nm){ setNameHint(true); if(o.restore) setScreen("join"); return false; }
+    const c=normCode(code);
+    if(!CODE_RE.test(c)){ setJoinErr("Der Code hat 6 bis 16 Zeichen (Buchstaben und Ziffern)."); setJoinOffer(""); if(o.restore) setScreen("join"); return false; }
+    if(joinBusy) return false;
+    setJoinBusy(true);setJoinErr("");setJoinOffer("");setNameHint(false);
+    const fail=(msg,offer)=>{ setJoinErr(msg); setJoinOffer(offer||""); setJoinBusy(false); if(o.restore) setScreen("join"); return false; };
+    const pd=await fbGet("plans/"+c);
+    if(pd===undefined) return fail(ERR_NET);
+    let data=pd, imgs;
+    if(!pd||!pd.meta){
+      if(pd&&pd.plan){                                           // Altbestand -> migrieren
+        data=await migratePlan(c,pd);
+        if(!data) return fail(ERR_NET);
+        imgs=data._imgs;
+      }else if(o.create&&!o.restore){                            // neuer Plan (nur ausdruecklich)
+        const now=Date.now(), wk=isoWeekKey(todayISO());
+        data={participants:[nm],settings:{...DEFAULT_SETTINGS},weeks:{[wk]:emptyWeek()},
+              meta:{createdAt:now,updatedAt:now,weeksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now,imagesMigrated:true}};
+        if(!(await fbPatch("plans/"+c,data))) return fail(ERR_NET);
+      }else{
+        return fail("Kein Plan mit diesem Code.",o.restore?"":c);
+      }
+    }
+    // Teilnehmer per PATCH ergaenzen (nie PUT), nur wenn der Name fehlt
+    const ep=asList(data.participants).filter(Boolean);
+    let parts=ep;
+    if(!ep.includes(nm)){
+      parts=[...ep,nm];
+      const now=Date.now();
+      if(!(await fbPatch("plans/"+c,{participants:parts,"meta/peopleUpdatedAt":now,"meta/updatedAt":now}))) return fail(ERR_NET);
+      data={...data,participants:parts,meta:{...data.meta,peopleUpdatedAt:now,updatedAt:now}};
+    }
+    if(imgs===undefined){ const im=await fbGet("recipeImages/"+c); imgs=im===undefined?{}:asObj(im); }   // Bilder einmal beim Start
+    // Bildkopie der Migration nachholen, falls sie damals scheiterte
+    if(data.plan&&data.meta&&!data.meta.imagesMigrated){
+      const r=await copyOldImages(c,normalizeRecipes(asObj(data.recipes)),imgs);
+      imgs={...imgs,...r.imgs};
+      if(r.ok) await fbPatch("plans/"+c,{"meta/imagesMigrated":true});
+    }
+    applyPlanData(data,imgs);
+    cleanupServer(data.recipes,data.shopping);
+    setActiveCode(c);codeRef.current=c;setUserName(nm);setScreen("app");startPolling(c);
+    setJoinBusy(false);
+    try{ localStorage.setItem(SESSION_KEY,JSON.stringify({code:c,name:nm})); }catch(e){}
+    return true;
+  };
+  const startPlan=()=>handleJoin(myCode,undefined,{create:true});
+  const joinPlan=()=>handleJoin(joinInput);
+  const createWithCode=()=>joinOffer&&handleJoin(joinOffer,undefined,{create:true});
+
+  // LOAD - gespeicherte Sitzung wiederherstellen (legt nie einen Plan an)
   useEffect(()=>{
     (async()=>{
-      const [gr,imgs] = await Promise.all([fbGet("globalRecipes"),fbGet("recipeImages")]);
-      if(gr) setRecipes(Object.assign({},DR,gr));
-      if(imgs) setRecipeImgs(imgs);
       let session=null;
       try{ const raw=localStorage.getItem(SESSION_KEY); if(raw) session=JSON.parse(raw); }catch(e){}
       if(session&&session.code&&session.name){
-        await handleJoin(session.code,session.name);
+        setNameInput(session.name);
+        await handleJoin(session.code,session.name,{restore:true});
       }else{
         setScreen("join");
       }
     })();
   },[]);
 
-  const pushSync = useCallback(async(code,p,s,r,parts)=>{
-    if(!code)return;
-    await Promise.all([
-      // PATCH statt PUT: andere Felder im Plan (z.B. hb = Haushaltsbuch-Verknuepfung) bleiben erhalten
-      fbPatch("plans/"+code,{plan:p,shopping:s,participants:parts||[],updatedAt:Date.now()}),
-      fbPatch("globalRecipes",r),
-    ]);
-    setLastSync(Date.now());setSyncOk(true);
-  },[]);
-
-  const pullSync = useCallback(async(code)=>{
-    if(!code)return;
-    const [pd,gr] = await Promise.all([fbGet("plans/"+code),fbGet("globalRecipes")]);
-    if(pd){
-      // Lokale Bearbeitung schuetzen: Plan UND Einkaufsliste NICHT vom Server
-      // ueberschreiben, solange eine Zelle offen ist oder ein Upload aussteht.
-      const busy = editingRef.current || pendingPushRef.current;
-      if(!busy){
-        const inc=pd.plan||emptyPlan();
-        DAYS.forEach(d=>{if(!inc[d])inc[d]={meals:{},cook:""};if(!inc[d].meals)inc[d]={meals:inc[d]||{},cook:""};});
-        setPlan(inc);
-        setShopping(prev=>{
-          const remote=pd.shopping||[];
-          return remote.map(item=>({text:item.text,checked:localChecked.current.hasOwnProperty(item.text)?localChecked.current[item.text]:item.checked,cat:item.cat||"Sonstiges"}));
-        });
-        if(pd.participants)setParticipants(pd.participants);
-      }
-      setHbLink(prev=>{ const n=pd.hb||null; return (prev&&n&&prev.code===n.code&&prev.cat===n.cat)?prev:n; });
-      setLastSync(pd.updatedAt||Date.now());setSyncOk(true);
-    }else setSyncOk(false);
-    if(gr)setRecipes(Object.assign({},DR,gr));
-  },[]);
-
-  const startPolling = useCallback((code)=>{
-    if(syncTimer.current)clearInterval(syncTimer.current);
-    syncTimer.current=setInterval(()=>pullSync(code),10000);
-  },[pullSync]);
-
-  useEffect(()=>()=>{clearInterval(syncTimer.current);clearTimeout(pushTimer.current);},[]);
-
-  const schedulePush = useCallback((p,s,r,parts)=>{
-    if(!activeCode)return;
-    pendingPushRef.current=true;
-    clearTimeout(pushTimer.current);
-    pushTimer.current=setTimeout(()=>{
-      pushSync(activeCode,p,s,r,parts||participants).then(()=>{localChecked.current={};pendingPushRef.current=false;});
-    },700);
-  },[activeCode,pushSync,participants]);
-
-  const handleJoin = async(code,name)=>{
-    const nm=(name!==undefined?name:nameInput).trim();
-    const c=code.toUpperCase().trim();
-    if(!c||!nm)return;
-    let initParts=[nm];
-    const [ex,gr]=await Promise.all([fbGet("plans/"+c),fbGet("globalRecipes")]);
-    if(ex){
-      const inc=ex.plan||emptyPlan();
-      DAYS.forEach(d=>{if(!inc[d])inc[d]={meals:{},cook:""};if(!inc[d].meals)inc[d]={meals:inc[d]||{},cook:""};});
-      setPlan(inc);setShopping(ex.shopping||[]);
-      const ep=ex.participants||[];
-      initParts=ep.includes(nm)?ep:[...ep,nm];
-      setParticipants(initParts);
-      setHbLink(ex.hb||null);
-    }else{
-      setParticipants(initParts);
-      setHbLink(null);
-      await fbPut("plans/"+c,{plan:emptyPlan(),shopping:[],participants:initParts,updatedAt:Date.now()});
-    }
-    if(gr)setRecipes(Object.assign({},DR,gr));
-    setActiveCode(c);setUserName(nm);setScreen("app");startPolling(c);
-    try{ localStorage.setItem(SESSION_KEY,JSON.stringify({code:c,name:nm})); }catch(e){}
-  };
-
   // PLAN VERLASSEN - Sitzung loeschen, zurueck zum Join-Screen
   const leavePlan=()=>{
-    if(!window.confirm("Plan verlassen? Mit deinem Code kannst du jederzeit zurueckkehren."))return;
+    if(!window.confirm("Plan verlassen? Mit deinem Code kannst du jederzeit zurückkehren."))return;
     clearInterval(syncTimer.current);
-    clearTimeout(pushTimer.current);
     try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
-    setActiveCode("");setUserName("");setJoinInput("");setView("plan");
+    setActiveCode("");codeRef.current="";setUserName("");setJoinInput("");setJoinErr("");setJoinOffer("");setView("plan");
+    setWeeks({});setShopping({});setRecipes({});setImages({});setParticipants([]);setSettings(DEFAULT_SETTINGS);metaRef.current={};dirtyRef.current=new Set();
     setHbLink(null);setHbBook(null);setHbErr("");
-    setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);
+    setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);setExtracted(null);
     setScreen("join");
   };
 
+  // WOCHE - angezeigte Woche aus weeks lesen; jede Woche wird beim Oeffnen frisch vom Server geholt (kein veralteter Cache)
+  const curWeekKey=isoWeekKey(todayISO());
+  const week=useMemo(()=>normalizeWeek(weeks[weekKey]),[weeks,weekKey]);
+  const selectWeek=async(key)=>{
+    setWeekKey(key);
+    if(!codeRef.current) return;
+    const w=await fbGet("plans/"+codeRef.current+"/weeks/"+key);
+    if(w!==undefined&&!editingRef.current.cell) setWeeks(p=>({...p,[key]:normalizeWeek(w)}));
+  };
+  // Slot schreiben: erst optimistisch lokal, dann gegen den Serverstand der Zelle abgleichen (fn wird auf beide angewandt),
+  // damit zwei Geraete, die kurz nacheinander dieselbe Zelle aendern, nichts verlieren
+  const writeSlot=async(wkKey,day,meal,fn)=>{
+    const apply=(prev,arr)=>{ const w=normalizeWeek(prev[wkKey]); w[day].meals[meal]=arr; return {...prev,[wkKey]:w}; };
+    const local=slotList(normalizeWeek(weeks[wkKey])[day].meals[meal]);
+    setWeeks(prev=>apply(prev,fn(slotList(normalizeWeek(prev[wkKey])[day].meals[meal]))));
+    const srv=codeRef.current?await fbGet("plans/"+codeRef.current+"/weeks/"+wkKey+"/"+day+"/meals/"+meal):undefined;
+    const arr=fn(srv===undefined?local:slotList(srv));
+    setWeeks(prev=>apply(prev,arr));
+    return writePlan({["weeks/"+wkKey+"/"+day+"/meals/"+meal]:arr},"weeks");
+  };
   // MEAL & COOK - ein Slot kann mehrere Rezepte enthalten (Array)
-  const addDish=(day,meal,name)=>{
+  const addDish=(day,meal,name,wkKey)=>{
     const nm=(name||"").trim();
     if(!nm)return;
-    setPlan(prev=>{
-      const n=JSON.parse(JSON.stringify(prev));
-      if(!n[day])n[day]={meals:{},cook:""};
-      if(!n[day].meals)n[day].meals={};
-      const cur=n[day].meals[meal];
-      const arr=Array.isArray(cur)?cur.slice():(cur?[cur]:[]);   // alte Einzel-Strings migrieren
-      if(!arr.includes(nm))arr.push(nm);                          // keine Duplikate
-      n[day].meals[meal]=arr;
-      schedulePush(n,shopping,recipes,participants);
-      return n;
-    });
+    const key=recipes[nm]?nm:(recipes[recKey(nm)]?recKey(nm):nm);     // Rezeptschluessel oder freier Text
+    return writeSlot(wkKey||weekKey,day,meal,arr=>arr.includes(key)?arr:[...arr,key]);
   };
-  const removeDish=(day,meal,name)=>{
-    setPlan(prev=>{
-      const n=JSON.parse(JSON.stringify(prev));
-      const cur=n[day]&&n[day].meals&&n[day].meals[meal];
-      const arr=Array.isArray(cur)?cur.slice():(cur?[cur]:[]);
-      n[day].meals[meal]=arr.filter(d=>d!==name);
-      schedulePush(n,shopping,recipes,participants);
-      return n;
-    });
-    setAddedSlots(s=>{const n={...s};delete n[day+"|"+meal+"|"+name];return n;});
-  };
-
-  const setCookForDay=(day,person)=>{
-    setPlan(prev=>{
-      const n=JSON.parse(JSON.stringify(prev));
-      if(!n[day])n[day]={meals:{},cook:""};
-      n[day].cook=n[day].cook===person?"":person;
-      schedulePush(n,shopping,recipes,participants);
-      return n;
-    });
+  const removeDish=(day,meal,name,wkKey)=>writeSlot(wkKey||weekKey,day,meal,arr=>arr.filter(d=>d!==name));
+  const setCook=(day,person)=>{
+    const val=(week[day]&&week[day].cook)===person?"":(person||"");
+    setWeeks(prev=>{ const w=normalizeWeek(prev[weekKey]); w[day].cook=val; return {...prev,[weekKey]:w}; });
+    writePlan({["weeks/"+weekKey+"/"+day+"/cook"]:val},"weeks");
     setCookPicker(null);
   };
-
-  // SHOPPING - Zutaten eines Rezepts zur Liste; gleiche Zutat erhoeht die Menge (aggregateIngs)
-  const addIngsToList=(dishKey)=>{
-    const rec=recipes[dishKey];
-    if(!rec||!rec.ingredients||!rec.ingredients.length)return;
-    setShopping(prev=>{
-      const newItems=aggregateIngs([...prev.map(x=>x.text),...rec.ingredients]).map(text=>({
-        text,checked:prev.find(x=>x.text===text)?.checked||false,cat:shopCat(text)
-      }));
-      schedulePush(plan,newItems,recipes,participants);
-      return newItems;
-    });
-  };
-
-  const generateShopping=()=>{
-    const rawIngs=[];const dishes=[];
-    DAYS.forEach(day=>MEALS.forEach(meal=>{
-      const slot=plan[day]&&plan[day].meals&&plan[day].meals[meal];
-      const list=Array.isArray(slot)?slot:(slot?[slot]:[]);
-      list.forEach(dish=>{
-        if(!dish)return;
-        const rec=recipes[dish];
-        if(rec&&rec.ingredients&&rec.ingredients.length) rec.ingredients.forEach(i=>rawIngs.push(i));
-        else dishes.push(dn(dish)+" (Zutaten prüfen)");
+  // Letzte Woche in die angezeigte Woche uebernehmen: Vorwoche und Zielwoche frisch lesen, nur leere Slots fuellen
+  const copyLastWeek=async()=>{
+    const code=codeRef.current; if(!code) return false;
+    const prevKey=shiftWeek(weekKey,-1);
+    const [ps,ts]=await Promise.all([fbGet("plans/"+code+"/weeks/"+prevKey),fbGet("plans/"+code+"/weeks/"+weekKey)]);
+    if(ps===undefined||ts===undefined){ failWrite(ERR_NET); return false; }
+    const src=normalizeWeek(ps), target=normalizeWeek(ts);
+    const patch={};
+    Object.keys(target).forEach(day=>{
+      Object.keys(target[day].meals).forEach(meal=>{
+        if(!target[day].meals[meal].length&&src[day].meals[meal].length){ target[day].meals[meal]=[...src[day].meals[meal]]; patch["weeks/"+weekKey+"/"+day+"/meals/"+meal]=target[day].meals[meal]; }
       });
-    }));
-    const agg=aggregateIngs(rawIngs);
-    const next=[
-      ...agg.map(t=>({text:t,checked:false,cat:shopCat(t)})),
-      ...[...new Set(dishes)].map(t=>({text:t,checked:false,cat:"Sonstiges"}))
-    ];
-    localChecked.current={};
-    setAddedSlots({});
-    setShopping(next);schedulePush(plan,next,recipes,participants);setView("shopping");
+      if(!target[day].cook&&src[day].cook){ target[day].cook=src[day].cook; patch["weeks/"+weekKey+"/"+day+"/cook"]=src[day].cook; }
+    });
+    setWeeks(prev=>({...prev,[weekKey]:target}));
+    if(!Object.keys(patch).length) return true;
+    return writePlan(patch,"weeks");
+  };
+  // Woche abschliessen: Auswahl [{key, iso}] in die Kochhistorie der Rezepte, alles in EINEM Multi-Path-PATCH.
+  // Die Rezepte werden vorher frisch gelesen, damit keine geloeschten wiederbelebt und keine fremden Daten ueberschrieben werden.
+  const closeWeek=async(selection)=>{
+    const byKey={};
+    (selection||[]).forEach(s=>{ if(s&&s.iso&&recipes[s.key]) (byKey[s.key]=byKey[s.key]||[]).push(s.iso); });
+    const keys=Object.keys(byKey);
+    if(!keys.length) return false;
+    const srv=codeRef.current?await fbGet("plans/"+codeRef.current+"/recipes"):undefined;
+    const base=srv===undefined?recipes:normalizeRecipes(asObj(srv));
+    const now=Date.now(), patch={}, upd={}; let gone=0;
+    keys.forEach(k=>{
+      let rec=base[k];
+      if(!rec){ gone++; return; }
+      byKey[k].forEach(iso=>{ rec={...rec,...addCooked(rec,iso)}; });
+      upd[k]={...rec,updatedAt:now};
+      patch["recipes/"+k+"/cooked"]=rec.cooked; patch["recipes/"+k+"/lastCooked"]=rec.lastCooked; patch["recipes/"+k+"/updatedAt"]=now;
+    });
+    if(gone) showToast(gone===1?"Ein Rezept wurde auf einem anderen Gerät gelöscht.":gone+" Rezepte wurden auf einem anderen Gerät gelöscht.");
+    if(!Object.keys(upd).length) return false;
+    setRecipes(prev=>{ const n={...prev,...upd}; keys.forEach(k=>{ if(!base[k]) delete n[k]; }); return n; });
+    writePlan(patch,"recipes");
+    return true;
   };
 
-  const toggleCheck=(i)=>setShopping(prev=>{
-    const n=prev.map((x,idx)=>idx===i?{...x,checked:!x.checked}:x);
-    localChecked.current[n[i].text]=n[i].checked;
-    schedulePush(plan,n,recipes,participants);return n;
-  });
-  const removeItem=(i)=>setShopping(prev=>{const n=prev.filter((_,j)=>j!==i);schedulePush(plan,n,recipes,participants);return n;});
+  // SHOPPING - Objekt <id> -> Posten; jede Aenderung schreibt nur ihren Pfad
+  const household=Math.max(2,participants.length);                   // Haushaltsgroesse fuer die Mengen (Bauplan Abschnitt 9)
+  // Zutaten eines Rezepts (skaliert auf servings) auf die Liste; opts.slot merkt die Plan-Zelle ("+"-Sperre im Plan)
+  const addRecipeToShopping=(dishKey,servings,opts)=>{
+    const rec=recipes[dishKey];
+    if(!rec||!rec.ingredients||!rec.ingredients.length)return false;
+    const ings=scaledIngredients(rec,servings>0?servings:household);
+    const {next,patch}=addIngredients(shoppingRef.current,ings,{src:"manuell",slot:(opts&&opts.slot)||""});
+    if(!Object.keys(patch).length)return false;
+    setShopping(next);
+    writePlan(patch,"shopping");
+    return true;
+  };
+  // Einkaufsliste aus dem Plan: ZUSAMMENFUEHREN statt ersetzen (Bauplan Abschnitt 9)
+  const buildShoppingFromPlan=()=>{
+    const items=planItems(week,recipes,undefined,{servings:household});
+    const {next,patch}=mergeShopping(shoppingRef.current,items);
+    if(Object.keys(patch).length){ setShopping(next); writePlan(patch,"shopping"); }
+    setView("shopping");
+  };
+  // Existiert der Posten noch auf dem Server? null = auf anderem Geraet entfernt -> lokal entfernen, Hinweis
+  const shopItemGone=async(id)=>{
+    const t=codeRef.current?await fbGet("plans/"+codeRef.current+"/shopping/"+id+"/text"):undefined;
+    if(t!==null) return false;
+    setShopping(prev=>{ const n={...prev}; delete n[id]; return n; });
+    showToast("Dieser Posten wurde auf einem anderen Gerät entfernt.");
+    return true;
+  };
+  const toggleShopItem=async(id)=>{
+    const it=shopping[id]; if(!it)return;
+    const v=!it.checked;
+    setShopping(prev=>prev[id]?{...prev,[id]:{...prev[id],checked:v}}:prev);
+    if(await shopItemGone(id)) return;
+    writePlan({["shopping/"+id+"/checked"]:v},"shopping");
+  };
+  const forceBuy=async(id)=>{
+    if(!shopping[id])return;
+    setShopping(prev=>prev[id]?{...prev,[id]:{...prev[id],forceBuy:true,checked:false}}:prev);
+    if(await shopItemGone(id)) return;
+    writePlan({["shopping/"+id+"/forceBuy"]:true,["shopping/"+id+"/checked"]:false},"shopping");
+  };
+  const removeShopItem=(id)=>{
+    setShopping(prev=>{const n={...prev};delete n[id];return n;});
+    writePlan({["shopping/"+id]:null},"shopping");
+  };
+  const editShopItem=async(id,text)=>{
+    const txt=String(text||"").trim();
+    if(!txt){ removeShopItem(id); return; }                           // leerer Text = Eintrag loeschen
+    const fields={text:txt,cat:shopCat(txt),key:ingKey(txt)};
+    setShopping(prev=>prev[id]?{...prev,[id]:{...prev[id],...fields}}:prev);
+    if(await shopItemGone(id)) return;
+    writePlan({["shopping/"+id+"/text"]:txt,["shopping/"+id+"/cat"]:fields.cat,["shopping/"+id+"/key"]:fields.key},"shopping");
+  };
   const saveShopEdit=()=>{
-    if(editShopIdx===null)return;
-    const idx=editShopIdx, txt=editShopText.trim();
-    setShopping(prev=>{
-      const n=txt
-        ? prev.map((x,j)=>j===idx?{...x,text:txt,cat:shopCat(txt)}:x)
-        : prev.filter((_,j)=>j!==idx);   // leerer Text = Eintrag loeschen
-      schedulePush(plan,n,recipes,participants);
-      return n;
-    });
-    setEditShopIdx(null);setEditShopText("");
+    if(editShopId===null)return;
+    const id=editShopId, txt=editShopText;
+    setEditShopId(null);setEditShopText("");
+    if(shopping[id]&&shopping[id].text===txt.trim())return;
+    editShopItem(id,txt);
   };
   const clearShopping=()=>{
     if(!window.confirm("Einkaufsliste komplett löschen?"))return;
-    localChecked.current={};
-    setAddedSlots({});
-    setEditShopIdx(null);
-    setShopping([]);schedulePush(plan,[],recipes,participants);
+    setEditShopId(null);
+    setShopping({});
+    writePlan({shopping:null},"shopping");
   };
-  const addCustom=()=>{
-    if(!customItem.trim())return;
-    const txt=customItem.trim();
-    setShopping(prev=>{const n=[...prev,{text:txt,checked:false,cat:shopCat(txt)}];schedulePush(plan,n,recipes,participants);return n;});
-    setCustomItem("");
-  };
-
-  // DROPDOWN: Rezepte nach Kategorie (Rubrik) gruppieren
-  const getRecipesByCat=()=>{
-    const byCat={}; CATS.forEach(c=>byCat[c]=[]);
-    Object.keys(recipes).forEach(name=>{
-      const c=recCat(recipes[name]);
-      if(!byCat[c])byCat[c]=[];
-      byCat[c].push(name);
-    });
-    return byCat;
-  };
-  // Eine Namensliste nach Kueche untergruppieren (fuer Hauptgericht)
-  const groupByCuisine=(names)=>{
-    const groups=[];
-    CUISINE_LIST.forEach(cuisine=>{
-      const items=names.filter(n=>((recipes[n]&&recipes[n].cuisine)||"")===cuisine);
-      if(items.length)groups.push({cuisine,items});
-    });
-    const assigned=new Set(groups.flatMap(g=>g.items));
-    const rest=names.filter(n=>!assigned.has(n));
-    if(rest.length)groups.push({cuisine:"Weitere",items:rest});
-    return groups;
+  const addShopItem=(text)=>{
+    const txt=String(text||"").trim();
+    if(!txt)return;
+    const id=newShopId(), item=makeShopItem(txt,{src:"manuell",order:nextOrder(shoppingRef.current)});
+    setShopping(prev=>({...prev,[id]:item}));
+    writePlan({["shopping/"+id]:item},"shopping");
   };
 
-  // RECIPE EXTRACT
-  const extractRecipe=async()=>{
-    if(!canExtract) return;
+  // REZEPTE - einzeln unter recipes/<recKey>; Felder (Bewertung, Notiz, Kochdatum) als Feld-PATCH.
+  // Vor dem Feld-PATCH wird geprueft, ob das Rezept auf dem Server noch existiert - sonst entstuende ein Geister-Rezept.
+  const recipeGone=async(key)=>{
+    const nm=codeRef.current?await fbGet("plans/"+codeRef.current+"/recipes/"+key+"/name"):undefined;
+    if(nm!==null) return false;
+    setRecipes(prev=>{ const n={...prev}; delete n[key]; return n; });
+    if(detailRecipe===key){ setDetailRecipe(null); setEditMode(false); setEditData(null); setCookMode(false); setRateAfterCook(false); }
+    showToast("Dieses Rezept wurde auf einem anderen Gerät gelöscht.");
+    return true;
+  };
+  const patchRecipe=async(key,fields)=>{
+    if(!recipes[key])return false;
+    const now=Date.now();
+    setRecipes(prev=>prev[key]?{...prev,[key]:{...prev[key],...fields,updatedAt:now}}:prev);
+    if(await recipeGone(key)) return false;
+    const patch={["recipes/"+key+"/updatedAt"]:now};
+    Object.keys(fields).forEach(f=>{ patch["recipes/"+key+"/"+f]=fields[f]; });
+    return writePlan(patch,"recipes");
+  };
+  const rateRecipe=(key,rating)=>patchRecipe(key,{rating});
+  const noteRecipe=(key,notes)=>patchRecipe(key,{notes});
+  // Kochdatum: Historie frisch vom Server, damit zwei Geraete nichts gegenseitig ueberschreiben
+  const markCooked=async(key,iso)=>{
+    const rec=recipes[key]; if(!rec) return false;
+    const d=iso||todayISO();
+    setRecipes(prev=>prev[key]?{...prev,[key]:{...prev[key],...addCooked(prev[key],d)}}:prev);
+    const srv=codeRef.current?await fbGet("plans/"+codeRef.current+"/recipes/"+key):undefined;
+    if(srv===null){ await recipeGone(key); return false; }
+    const base=srv&&typeof srv==="object"?normalizeRecipe(key,srv):rec;
+    const c=addCooked(base,d), now=Date.now();
+    setRecipes(prev=>prev[key]?{...prev,[key]:{...prev[key],...c,updatedAt:now}}:prev);
+    return writePlan({["recipes/"+key+"/cooked"]:c.cooked,["recipes/"+key+"/lastCooked"]:c.lastCooked,["recipes/"+key+"/updatedAt"]:now},"recipes");
+  };
+  // Ganzes Rezept speichern (neu oder ersetzen). opts.keepMeta: Bewertung, Notizen, Kochhistorie und createdAt
+  // des vorhandenen Rezepts (frisch vom Server) bleiben erhalten.
+  const saveRecipe=async(key,recipe,opts)=>{
+    const k=recKey(key); if(!k)return null;
+    let rec=normalizeRecipe(k,{...recipe,name:recipe.name||k});
+    if(opts&&opts.keepMeta){
+      const srv=codeRef.current?await fbGet("plans/"+codeRef.current+"/recipes/"+k):undefined;
+      const old=srv&&typeof srv==="object"?normalizeRecipe(k,srv):recipes[k];
+      if(old) rec={...rec,rating:old.rating,notes:old.notes,cooked:old.cooked,lastCooked:old.lastCooked,createdAt:old.createdAt};
+    }
+    setRecipes(prev=>({...prev,[k]:rec}));
+    writePlan({["recipes/"+k]:rec},"recipes");
+    return k;
+  };
+  // Startrezepte auf Wunsch in den Plan uebernehmen (nur fehlende Schluessel)
+  const adoptStarters=()=>{
+    const st=starterRecipes();
+    const patch={}, add={};
+    Object.keys(st).forEach(k=>{ if(!recipes[k]){ patch["recipes/"+k]=st[k]; add[k]=st[k]; } });
+    if(!Object.keys(patch).length)return;
+    setRecipes(prev=>({...prev,...add}));
+    writePlan(patch,"recipes");
+  };
+  // Eintrag der Klassiker-Basis ins Kochbuch der Familie kopieren (source "klassiker")
+  const adoptClassic=async(classic)=>{
+    if(!classic||!classic.name) return null;
+    const k=recKey(classic.name);
+    if(recipes[k]){ showToast("„"+recName(recipes[k],k)+"“ ist schon im Kochbuch."); return k; }
+    const {veg,...rest}=classic;
+    const key=await saveRecipe(k,{...rest,source:"klassiker"});
+    if(key) showToast("„"+classic.name+"“ ins Kochbuch übernommen.");
+    return key;
+  };
+  const deleteRecipe=async(key)=>{
+    if(!window.confirm("Rezept '"+recName(recipes[key],key)+"' wirklich löschen?"))return;
+    setRecipes(prev=>{const n={...prev};delete n[key];return n;});
+    setDetailRecipe(null);setEditMode(false);setEditData(null);
+    writePlan({["recipes/"+key]:null},"recipes");
+    if(images[key]){
+      setImages(prev=>{const n={...prev};delete n[key];return n;});
+      if(!(await fbPatch("recipeImages/"+codeRef.current,{[key]:null}))) failWrite("Bild konnte nicht gelöscht werden.");
+    }
+  };
+
+  // IMPORT - Text oder Foto einer Rezeptseite (extract, woertlich) oder Foto eines fertigen Gerichts (suggest, KI-Vorschlag)
+  // args: {mode:"text"|"photo"|"dish", text, image:{base64, mimeType}}
+  const extractRecipe=async(args)=>{
+    const a=args||{}; const mode=a.mode||"text";
+    if(extracting) return;
+    if(mode==="text"&&!(a.text||"").trim()) return;
+    if(mode!=="text"&&!(a.image&&a.image.base64)) return;
     setExtracting(true);setImportErr("");setExtracted(null);
     try{
-      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"category\":\"Hauptgericht\",\"cuisine\":\"Italienisch\"}. Für category wähle genau eine aus: Frühstück, Hauptgericht, Kinderessen, Schnelle Küche, Beilagen & Salate, Soßen & Dips, Snacks. Kinderessen = einfache, milde Gerichte, die Kinder gern mögen; Schnelle Küche = in maximal ca. 20 Minuten fertig. Für cuisine (vor allem bei Hauptgericht, Kinderessen und Schnelle Küche relevant) wähle aus: Schwäbisch, Italienisch, Asiatisch, Indisch, Naher Osten, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
-      let messages;
-      if(importMode==="photo"&&recipeB64&&recipeImgType){
-        messages=[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:recipeImgType,data:recipeB64}},
-          {type:"text",text:"Beschreibe das Gericht auf dem Bild und erstelle daraus ein eigenes Rezept mit Zutaten und Mengenangaben sowie einer detaillierten Schritt-fuer-Schritt-Kochanleitung. Antworte ausschliesslich mit dem JSON-Objekt, kein anderer Text."}
-        ]}];
+      const imgPart=a.image?{type:"image",source:{type:"base64",media_type:a.image.mimeType||"image/jpeg",data:a.image.base64}}:null;
+      if(mode==="dish"){
+        // Fertiges Gericht: bekanntes Gericht benennen -> KI-Vorschlag, als solcher gekennzeichnet
+        const messages=[{role:"user",content:[imgPart,{type:"text",text:"Welches bekannte Gericht ist auf dem Bild zu sehen? Nenne den gebräuchlichen Namen, die Herkunft und ein typisches Rezept dazu. Antworte ausschließlich mit dem JSON-Objekt."}]}];
+        const parsed=parseJsonBlock(await callAI({mode:"suggest",system:buildSuggestPrompt(),messages}));
+        setExtracted(suggestionFromAnswer(parsed,{}));
       }else{
-        messages=[{role:"user",content:"Extrahiere und vervollständige dieses Rezept:\n\n"+recipeText}];
+        const messages=mode==="photo"
+          ? [{role:"user",content:[imgPart,{type:"text",text:"Schreibe das Rezept auf diesem Bild wörtlich ab. Antworte ausschließlich mit dem JSON-Objekt, kein anderer Text."}]}]
+          : [{role:"user",content:"Schreibe dieses Rezept ab:\n\n"+a.text}];
+        const parsed=parseJsonBlock(await callAI({mode:"extract",system:buildExtractPrompt(),messages}));
+        if(!parsed.name) throw new Error("Kein Rezeptname erkannt");
+        if(!Array.isArray(parsed.ingredients)||parsed.ingredients.length===0) throw new Error("Keine Zutaten erkannt");
+        let stepsGenerated=parsed.stepsGenerated===true;
+        // Fehlen die Schritte ganz, einmal nachgenerieren lassen - und als ergaenzt kennzeichnen
+        if(!Array.isArray(parsed.steps)||parsed.steps.length===0){
+          const stepSystem="Erstelle eine detaillierte Schritt-für-Schritt-Kochanleitung. Antworte NUR mit JSON-Array ohne Markdown: [\"Schritt 1\",\"Schritt 2\"]";
+          const stepRaw=await callAI({mode:"extract",system:stepSystem,messages:[{role:"user",content:"Rezept: "+parsed.name+"\nZutaten: "+parsed.ingredients.join(", ")}]});
+          let steps; try{ steps=parseJsonBlock(stepRaw,"array"); }catch(e){ steps=["Zubereitung laut Rezept."]; }
+          parsed.steps=steps; stepsGenerated=true;
+        }
+        const sv=parseInt(parsed.servings,10), mn=parseInt(parsed.minutes,10);
+        setExtracted({
+          name:String(parsed.name).trim(),ingredients:parsed.ingredients.map(String),steps:parsed.steps.map(String),description:parsed.description||"",
+          category:CATS.includes(parsed.category)?parsed.category:"Hauptgericht",cuisine:CUISINE_LIST.includes(parsed.cuisine)?parsed.cuisine:"International",
+          servings:sv>0?sv:4,minutes:mn>0?mn:"",origin:typeof parsed.origin==="string"?parsed.origin:"",sourceNote:"",stepsGenerated,ai:false,
+        });
       }
-      const raw=await callClaude(messages,system);
-      // Robust JSON extraction - find the first { ... } block
-      const jsonMatch=raw.match(/\{[\s\S]*\}/);
-      if(!jsonMatch) throw new Error("Kein JSON in Antwort: "+raw.slice(0,200));
-      const parsed=JSON.parse(jsonMatch[0]);
-      if(!parsed.name) throw new Error("Kein Rezeptname erkannt");
-      if(!parsed.ingredients||parsed.ingredients.length===0) throw new Error("Keine Zutaten erkannt");
-      // Auto-generate steps if missing
-      if(!parsed.steps||parsed.steps.length===0){
-        const stepSystem="Erstelle eine detaillierte Schritt-fuer-Schritt-Kochanleitung. Antworte NUR mit JSON-Array ohne Markdown: [\"Schritt 1\",\"Schritt 2\"]";
-        const stepRaw=await callClaude([{role:"user",content:"Rezept: "+parsed.name+"\nZutaten: "+parsed.ingredients.join(", ")}],stepSystem);
-        const stepMatch=stepRaw.match(/\[[\s\S]*\]/);
-        parsed.steps=stepMatch?JSON.parse(stepMatch[0]):["Zubereitung laut Rezept."];
-      }
-      setExtracted(parsed);
     }catch(e){
       console.error("Extract error:",e);
       const msg = (e && e.message) ? e.message : "Unbekannter Fehler";
-      setImportErr(kiErrText(msg)||("Fehler: "+msg+". Bitte Text oder Foto pruefen und erneut versuchen."));
+      setImportErr(kiErrText(msg)||("Fehler: "+msg+". Bitte Text oder Foto prüfen und erneut versuchen."));
     }
     setExtracting(false);
   };
+  // KI-Antwort (Vorschlag) in das Ergebnisobjekt bringen; ohne Herkunft oder gebraeuchlichen Namen = "freie Kombination"
+  const suggestionFromAnswer=(parsed,o)=>{
+    if(!parsed.name) throw new Error("Kein Rezeptname erhalten");
+    if(!Array.isArray(parsed.ingredients)||!parsed.ingredients.length) throw new Error("Keine Zutaten erhalten");
+    if(!Array.isArray(parsed.steps)||!parsed.steps.length) throw new Error("Keine Kochanleitung erhalten");
+    let name=String(parsed.name).trim();
+    if(recipesRef.current[recKey(name)]) name+=" (neu)";                       // vorhandenes Rezept nicht ueberschreiben
+    const origin=typeof parsed.origin==="string"?parsed.origin.trim():"", bekanntAls=typeof parsed.bekanntAls==="string"?parsed.bekanntAls.trim():"";
+    const freeCombo=!origin||!bekanntAls||/(-[^\s-]+){3,}/.test(name);          // auch Bindestrich-Ketten gelten nicht als Klassiker
+    return {
+      name,bekanntAls,ingredients:parsed.ingredients.map(String),steps:parsed.steps.map(String),description:parsed.description||"",
+      cuisine:CUISINE_LIST.includes(parsed.cuisine)?parsed.cuisine:(o.cuisine&&o.cuisine!=="Egal"?o.cuisine:"International"),
+      category:CATS.includes(parsed.category)?parsed.category:(o.category||"Hauptgericht"),
+      ai:true,freeCombo,origin,sourceNote:"",servings:parseInt(parsed.servings,10)||4,minutes:parseInt(parsed.minutes,10)||"",stepsGenerated:false,
+      genutzt:Array.isArray(parsed.genutzt)?parsed.genutzt:[],
+      fehlt:Array.isArray(parsed.fehlt)?parsed.fehlt:[],
+    };
+  };
 
-  const saveRecipe=async()=>{
-    if(!extracted||!extracted.name)return;
-    const rec={ingredients:extracted.ingredients||[],steps:extracted.steps||[],description:extracted.description||"",cuisine:extracted.cuisine||"International",category:extracted.category||"Hauptgericht"};
-    const key=extracted.name;
-    setRecipes(prev=>{const n={...prev,[key]:rec};schedulePush(plan,shopping,n,participants);return n;});
-    const patch={};patch[key]=rec;await fbPatch("globalRecipes",patch);
-    if(extracted.ai){ setExtracted(null); setDetailRecipe(key); return; }   // KI-Vorschlag: direkt zum Rezept (Kochmodus)
+  // Erkanntes Rezept / KI-Vorschlag ins Kochbuch uebernehmen.
+  // Gibt es den Namen schon (Import), entscheidet die Ansicht: opts.replace (Bewertung, Notizen, Kochhistorie bleiben) oder opts.copy.
+  // Liefert true, wenn gespeichert wurde, "exists", wenn eine Entscheidung noetig ist.
+  const saveExtracted=async(opts)=>{
+    const o=opts||{};
+    if(!extracted||!extracted.name)return false;
+    let name=String(extracted.name).trim();
+    const exists=!!recipes[recKey(name)];
+    if(exists&&!extracted.ai&&!o.replace&&!o.copy) return "exists";
+    if(exists&&o.copy){ let i=2, base=name; name=base+" (Kopie)"; while(recipes[recKey(name)]){ name=base+" (Kopie "+(i++)+")"; } }
+    const key=await saveRecipe(name,{
+      name,ingredients:extracted.ingredients||[],steps:extracted.steps||[],description:extracted.description||"",
+      cuisine:extracted.cuisine||"International",category:extracted.category||"Hauptgericht",
+      source:extracted.ai?"ki":"import",origin:(extracted.origin||"").trim(),sourceNote:(extracted.sourceNote||"").trim(),stepsGenerated:!!extracted.stepsGenerated,
+      servings:parseInt(extracted.servings,10)||4,minutes:parseInt(extracted.minutes,10)||null,
+    },{keepMeta:exists&&o.replace});
+    if(!key)return false;
+    if(extracted.ai){ setExtracted(null); openRecipe(key); return true; }   // KI-Vorschlag: direkt zum Rezept (Kochmodus)
     setSavedMsg(true);
-    setTimeout(()=>{setSavedMsg(false);setExtracted(null);setRecipeText("");setRecipeImg(null);setRecipeB64(null);},2000);
+    setTimeout(()=>{setSavedMsg(false);setExtracted(null);},2000);
+    return true;
   };
 
   // HAUSHALTSBUCH verbinden / laden / trennen (nur GET auf das Buch, Verknuepfung im Plan)
@@ -797,203 +661,175 @@ export default function App() {
     const bk=await hbGet(l.code);
     setHbLoading(false);
     if(bk===undefined){setHbErr("Haushaltsbuch gerade nicht erreichbar.");return;}
-    if(!bk){setHbErr("Das verknuepfte Haushaltsbuch wurde nicht gefunden.");setHbBook(null);return;}
+    if(!bk){setHbErr("Das verknüpfte Haushaltsbuch wurde nicht gefunden.");setHbBook(null);return;}
     setHbBook(bk);
   };
-  const connectHb=async()=>{
-    const c=hbInput.toUpperCase().replace(/[^A-Z0-9]/g,"");
-    if(!HB_CODE_RE.test(c)){setHbErr("Der Code hat 6 bis 16 Zeichen (Buchstaben und Ziffern).");return;}
+  const connectHb=async(codeArg)=>{
+    const c=String(codeArg||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    if(!HB_CODE_RE.test(c)){setHbErr("Der Code hat 6 bis 16 Zeichen (Buchstaben und Ziffern).");return false;}
     setHbLoading(true);setHbErr("");
     const bk=await hbGet(c);
     setHbLoading(false);
-    if(bk===undefined){setHbErr("Haushaltsbuch nicht erreichbar. Code pruefen oder spaeter erneut versuchen.");return;}
-    if(!bk){setHbErr("Kein Haushaltsbuch mit diesem Code gefunden.");return;}
+    if(bk===undefined){setHbErr("Haushaltsbuch nicht erreichbar. Code prüfen oder später erneut versuchen.");return false;}
+    if(!bk){setHbErr("Kein Haushaltsbuch mit diesem Code gefunden.");return false;}
     const cats=hbCats(bk);
     const link={code:c,cat:cats.includes("Lebensmittel")?"Lebensmittel":(cats[0]||"Lebensmittel")};
-    setHbLink(link);setHbBook(bk);setHbInput("");
-    await fbPatch("plans/"+activeCode,{hb:link});
+    setHbLink(link);setHbBook(bk);
+    writePlan({hb:link},"people");
+    return true;
   };
-  const setHbCat=async(cat)=>{
+  const setHbCat=(cat)=>{
     const link={...hbLink,cat};
     setHbLink(link);
-    await fbPatch("plans/"+activeCode,{hb:link});
+    writePlan({hb:link},"people");
   };
-  const disconnectHb=async()=>{
-    if(!window.confirm("Verknuepfung zum Haushaltsbuch trennen? (Das Haushaltsbuch selbst bleibt unveraendert.)"))return;
+  const disconnectHb=()=>{
+    if(!window.confirm("Verknüpfung zum Haushaltsbuch trennen? (Das Haushaltsbuch selbst bleibt unverändert.)"))return;
     setHbLink(null);setHbBook(null);setHbErr("");
-    await fbPatch("plans/"+activeCode,{hb:null});
+    writePlan({hb:null},"people");
   };
-  // Rubriken des Buchs (gespeicherte Liste, sonst aus den Eintraegen)
-  const hbCats=(bk)=>{
-    if(bk&&Array.isArray(bk.categories)&&bk.categories.length) return bk.categories;
-    const s=new Set(Object.values((bk&&bk.entries)||{}).map(e=>e&&e.category).filter(Boolean));
-    return s.size?[...s]:["Lebensmittel"];
+  // EINSTELLUNGEN des Plans (z. B. aiImages)
+  const setSetting=(name,value)=>{
+    setSettings(prev=>({...prev,[name]:value}));
+    writePlan({["settings/"+name]:value},"people");
   };
 
-  // REZEPT MIT KI ERFINDEN - auf Basis des wahrscheinlichen Bestands aus dem Haushaltsbuch
-  const generateRecipe=async()=>{
+  // BEKANNTES GERICHT FINDEN (KI) - auf Basis des wahrscheinlichen Bestands aus dem Haushaltsbuch; args {fast, kids, cuisine}
+  const suggestRecipe=async(args)=>{
+    const o=args||{};
     if(aiBusy)return;
     setAiBusy(true);setAiErr("");
     try{
       const items=stock.filter(s=>s.p>=0.25).slice(0,50);
       const fmt=(arr)=>arr.map(s=>s.name+" ("+Math.round(s.p*100)+" %)").join(", ");
       const hi=items.filter(s=>s.p>=0.6), mid=items.filter(s=>s.p>=0.4&&s.p<0.6), lo=items.filter(s=>s.p<0.4);
-      const category=aiKids?"Kinderessen":aiFast?"Schnelle Küche":"Hauptgericht";
+      const category=o.kids?"Kinderessen":o.fast?"Schnelle Küche":"Hauptgericht";
       const wishes=[
-        aiFast?"SCHNELL: in hoechstens 25 Minuten komplett fertig.":"",
-        aiKids?"KINDERESSEN: mild (nicht scharf), einfach, ohne Alkohol, ein Gericht, das Kinder gern essen.":"",
-        aiCuisine!=="Egal"?"KUECHE: "+aiCuisine+".":"",
+        o.fast?"SCHNELL: in höchstens 25 Minuten komplett fertig.":"",
+        o.kids?"KINDERESSEN: mild (nicht scharf), einfach, ohne Alkohol, ein Gericht, das Kinder gern essen.":"",
+        o.cuisine&&o.cuisine!=="Egal"?"KÜCHE: "+o.cuisine+".":"",
       ].filter(Boolean);
-      const system="Du bist ein Kochassistent fuer eine Familie. Erfinde EIN alltagstaugliches Rezept fuer heute (ca. 4 Portionen). "+
-        "Zutaten immer mit Menge zuerst, z. B. \"2 Paprika\", \"200 g Reis\". Schreibe eine kurze Beschreibung (2–3 Saetze) und eine klare Schritt-fuer-Schritt-Anleitung. "+
-        "Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"200 g Reis\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"cuisine\":\"Italienisch\",\"genutzt\":[\"Paprika\"],\"fehlt\":[\"Sahne\"]}. "+
-        "Fuer cuisine waehle aus: "+CUISINE_LIST.join(", ")+".";
       let user;
       if(items.length){
-        user="Lebensmittel laut Einkaeufen im Haushaltsbuch. Die Prozentzahl ist die Wahrscheinlichkeit, dass noch etwas davon da ist (aeltere und frische Einkaeufe verblassen schneller). "+
-          "Die Namen stammen von Kassenbons und koennen abgekuerzt sein – schreibe im Rezept normale Zutatennamen.\n\n"+
+        user="Lebensmittel laut Einkäufen im Haushaltsbuch. Die Prozentzahl ist die Wahrscheinlichkeit, dass noch etwas davon da ist (ältere und frische Einkäufe verblassen schneller). "+
+          "Die Namen stammen von Kassenbons und können abgekürzt sein – schreibe im Rezept normale Zutatennamen.\n\n"+
           (hi.length?"SEHR WAHRSCHEINLICH DA: "+fmt(hi)+"\n":"")+
           (mid.length?"VERMUTLICH DA: "+fmt(mid)+"\n":"")+
           (lo.length?"VIELLEICHT NOCH DA: "+fmt(lo)+"\n":"")+
           "IMMER VORHANDEN: "+BASIC_LABEL+"\n\n"+
-          "Regeln:\n1. Baue das Rezept vor allem aus SEHR WAHRSCHEINLICH DA.\n2. VIELLEICHT-Zutaten nur ergaenzend.\n"+
-          "3. Bevorzuge frische Zutaten mit hoher Wahrscheinlichkeit, die bald verderben (Obst, Gemuese, Fleisch, Fisch, Milchprodukte), damit sie verbraucht werden.\n"+
-          "4. Hoechstens 3 Zutaten, die NICHT in der Liste stehen – diese ins Feld \"fehlt\" (Basics nicht auffuehren).\n"+
+          "Regeln:\n1. Wähle ein bekanntes Gericht, das vor allem aus SEHR WAHRSCHEINLICH DA besteht.\n2. VIELLEICHT-Zutaten nur ergänzend.\n"+
+          "3. Bevorzuge frische Zutaten mit hoher Wahrscheinlichkeit, die bald verderben (Obst, Gemüse, Fleisch, Fisch, Milchprodukte), damit sie verbraucht werden.\n"+
+          "4. Höchstens 3 Zutaten, die NICHT in der Liste stehen – diese ins Feld \"fehlt\" (Basics nicht aufführen).\n"+
           "5. In \"genutzt\" die verwendeten Lebensmittel aus der Liste.\n";
       }else{
-        user="Es liegen keine Einkaufsdaten vor. Erfinde ein Rezept mit ueblichen Zutaten; \"genutzt\" und \"fehlt\" bleiben leer.\n";
+        user="Es liegen keine Einkaufsdaten vor. Nenne ein bekanntes Gericht mit üblichen Zutaten; \"genutzt\" und \"fehlt\" bleiben leer.\n";
       }
-      if(wishes.length) user+="\nWuensche: "+wishes.join(" ")+"\n";
-      const names=Object.keys(recipes).slice(0,80).map(dn);
+      if(wishes.length) user+="\nWünsche: "+wishes.join(" ")+"\n";
+      const names=Object.keys(recipes).slice(0,80).map(k=>recName(recipes[k],k));
       if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";
-      const raw=await callClaude([{role:"user",content:user}],system);
-      const jsonMatch=raw.match(/\{[\s\S]*\}/);
-      if(!jsonMatch) throw new Error("Kein JSON in Antwort: "+raw.slice(0,200));
-      const parsed=JSON.parse(jsonMatch[0]);
-      if(!parsed.name) throw new Error("Kein Rezeptname erhalten");
-      if(!Array.isArray(parsed.ingredients)||!parsed.ingredients.length) throw new Error("Keine Zutaten erhalten");
-      if(!Array.isArray(parsed.steps)||!parsed.steps.length) throw new Error("Keine Kochanleitung erhalten");
-      let name=String(parsed.name).trim();
-      if(recipes[name]) name+=" (neu)";                       // vorhandenes Rezept nicht ueberschreiben
-      setExtracted({
-        name,ingredients:parsed.ingredients,steps:parsed.steps,description:parsed.description||"",
-        cuisine:CUISINE_LIST.includes(parsed.cuisine)?parsed.cuisine:(aiCuisine!=="Egal"?aiCuisine:"International"),
-        category,ai:true,
-        genutzt:Array.isArray(parsed.genutzt)?parsed.genutzt:[],
-        fehlt:Array.isArray(parsed.fehlt)?parsed.fehlt:[],
-      });
+      const parsed=parseJsonBlock(await callAI({mode:"suggest",system:buildSuggestPrompt(),messages:[{role:"user",content:user}]}));
+      setExtracted(suggestionFromAnswer(parsed,{cuisine:o.cuisine,category}));
       setImportErr("");setView("recipes");
       setTimeout(()=>{ const el=document.getElementById("ki-vorschlag"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },60);
     }catch(e){
-      console.error("Generate error:",e);
+      console.error("Suggest error:",e);
       const msg=(e&&e.message)?e.message:"Unbekannter Fehler";
       setAiErr(kiErrText(msg)||("Fehler: "+msg+". Bitte erneut versuchen."));
     }
     setAiBusy(false);
   };
 
-  // RECIPE EDITING
-  const startEdit=(name)=>{
-    const rec=recipes[name];
-    setEditData({name,ingredients:[...rec.ingredients],steps:[...rec.steps],description:rec.description||"",cuisine:rec.cuisine||"International",category:recCat(rec)});
+  // REZEPT BEARBEITEN
+  const startEdit=(key)=>{
+    const rec=recipes[key];
+    if(!rec)return;
+    setEditData({name:recName(rec,key),ingredients:[...rec.ingredients],steps:[...rec.steps],description:rec.description||"",cuisine:rec.cuisine||"International",category:recCat(rec),
+      servings:rec.servings||4,minutes:rec.minutes||"",origin:rec.origin||"",sourceNote:rec.sourceNote||""});
     setEditMode(true);
   };
-
+  // Speichern: nur die editierten Felder als Feld-PATCH (Bewertung, Notizen, Kochhistorie anderer Geraete bleiben).
+  // Beim Umbenennen: altes Rezept frisch lesen, mit den Editorfeldern zusammenfuehren, unter dem neuen Schluessel schreiben,
+  // altes loeschen, Bild mitnehmen und alle Planzellen (frisch gelesen) auf den neuen Schluessel umstellen.
   const saveEdit=async()=>{
-    if(!editData)return;
-    // Bestehende Felder (z.B. rating, notes) erhalten, nur die editierten ueberschreiben
-    const rec={...(recipes[detailRecipe]||{}),ingredients:editData.ingredients,steps:editData.steps,description:editData.description||"",cuisine:editData.cuisine,category:editData.category};
-    const isRenamed=editData.name!==detailRecipe;
-    setRecipes(prev=>{
-      const n={...prev};
-      if(isRenamed){delete n[detailRecipe];}
-      n[editData.name]=rec;
-      schedulePush(plan,shopping,n,participants);
-      return n;
-    });
-    const patch={};patch[editData.name]=rec;
-    if(isRenamed){const del={};del[detailRecipe]=null;await fbPatch("globalRecipes",del);}
-    await fbPatch("globalRecipes",patch);
-    if(isRenamed&&recipeImgs[detailRecipe]){
-      const img=recipeImgs[detailRecipe];
-      setRecipeImgs(prev=>{const n={...prev};delete n[detailRecipe];n[editData.name]=img;return n;});
-      const ip={};ip[detailRecipe]=null;ip[editData.name]=img;
-      await fbPatch("recipeImages",ip);
+    if(!editData||!detailRecipe)return;
+    const oldKey=detailRecipe, code=codeRef.current;
+    const name=(editData.name||"").trim()||recName(recipes[oldKey],oldKey);
+    const newKey=recKey(name)||oldKey;
+    if(newKey!==oldKey&&recipes[newKey]){ window.alert("Ein Rezept mit diesem Namen gibt es schon."); return; }
+    const servings=parseInt(editData.servings,10), minutes=parseInt(editData.minutes,10);
+    const fields={name,ingredients:editData.ingredients.filter(x=>x.trim()),steps:editData.steps.filter(x=>x.trim()),description:editData.description||"",cuisine:editData.cuisine,category:editData.category,
+      servings:servings>0?servings:4,minutes:minutes>0?minutes:null,origin:(editData.origin||"").trim(),sourceNote:(editData.sourceNote||"").trim()};
+    const now=Date.now();
+    if(newKey===oldKey){
+      setRecipes(prev=>prev[oldKey]?{...prev,[oldKey]:{...prev[oldKey],...fields,updatedAt:now}}:prev);
+      setEditMode(false);setEditData(null);
+      if(await recipeGone(oldKey)) return;
+      const patch={["recipes/"+oldKey+"/updatedAt"]:now};
+      Object.keys(fields).forEach(f=>{ patch["recipes/"+oldKey+"/"+f]=fields[f]; });
+      writePlan(patch,"recipes");
+      return;
     }
-    setDetailRecipe(editData.name);
+    // Umbenennen
+    const [srv,allWeeks]=await Promise.all([code?fbGet("plans/"+code+"/recipes/"+oldKey):undefined,code?fbGet("plans/"+code+"/weeks"):undefined]);
+    if(srv===null){ await recipeGone(oldKey); return; }
+    const old=srv&&typeof srv==="object"?normalizeRecipe(oldKey,srv):(recipes[oldKey]||{});
+    const rec={...old,...fields,updatedAt:now};
+    const patch={["recipes/"+newKey]:rec,["recipes/"+oldKey]:null};
+    const parts=["recipes"];
+    const ws=allWeeks&&typeof allWeeks==="object"?allWeeks:weeks;
+    const localWeeks={};
+    Object.keys(asObj(ws)).forEach(wk=>{
+      const w=normalizeWeek(ws[wk]); let touched=false;
+      Object.keys(w).forEach(day=>Object.keys(w[day].meals).forEach(meal=>{
+        const arr=w[day].meals[meal];
+        if(arr.includes(oldKey)){ const n=[...new Set(arr.map(d=>d===oldKey?newKey:d))]; w[day].meals[meal]=n; patch["weeks/"+wk+"/"+day+"/meals/"+meal]=n; touched=true; }
+      }));
+      if(touched) localWeeks[wk]=w;
+    });
+    if(Object.keys(localWeeks).length) parts.push("weeks");
+    setRecipes(prev=>{ const n={...prev}; delete n[oldKey]; n[newKey]=rec; return n; });
+    setWeeks(prev=>{ const n={...prev}; Object.keys(localWeeks).forEach(wk=>{ if(n[wk]||wk===weekKey||wk===curWeekKey) n[wk]=localWeeks[wk]; }); return n; });
+    setDetailRecipe(newKey);
     setEditMode(false);setEditData(null);
+    writePlan(patch,parts);
+    if(images[oldKey]){
+      const img=images[oldKey];
+      setImages(prev=>{const n={...prev};delete n[oldKey];n[newKey]=img;return n;});
+      if(!(await fbPatch("recipeImages/"+code,{[oldKey]:null,[newKey]:img}))) failWrite("Bild konnte beim Umbenennen nicht übertragen werden.");
+    }
   };
 
-  // Bewertung/Notizen am Rezept speichern (lokal + global)
-  const updateRecipeMeta=(name,patchObj)=>{
-    const rec=recipes[name];
-    if(!rec)return;
-    const updated={...rec,...patchObj};
-    setRecipes(prev=>{const n={...prev,[name]:updated};schedulePush(plan,shopping,n,participants);return n;});
-    const patch={};patch[name]=updated;
-    fbPatch("globalRecipes",patch);
-  };
-
-  // EIGENES REZEPTBILD hochladen / zuruecksetzen (separater Pfad recipeImages)
-  const uploadRecipeImg=async(file)=>{
-    if(!file||!detailRecipe)return;
+  // EIGENES REZEPTBILD hochladen / zuruecksetzen (recipeImages/<CODE>/<recKey>)
+  const uploadImage=async(key,file)=>{
+    if(!file||!key)return false;
     try{
       const c=await compressImageToBase64(file,{maxEdge:900,quality:0.72});
       if(c.previewUrl) URL.revokeObjectURL(c.previewUrl);
       const dataUrl="data:"+(c.mimeType||"image/jpeg")+";base64,"+c.base64;
-      if(dataUrl.length>1500000){window.alert("Das Bild ist auch komprimiert noch zu groß. Bitte ein kleineres Foto wählen.");return;}
-      const name=detailRecipe;
-      // Wichtig: imgLoaded VOR dem src-Wechsel zuruecksetzen, nicht nach dem
-      // Cloud-Speichern - sonst wird das laengst geladene Bild unsichtbar geschaltet.
-      setImgLoaded(false);
-      setRecipeImgs(prev=>({...prev,[name]:dataUrl}));
-      const patch={};patch[name]=dataUrl;
-      const ok=await fbPatchChecked("recipeImages",patch);
-      if(!ok) window.alert("Das Bild wird angezeigt, konnte aber NICHT in der Cloud gespeichert werden (nach Neuladen weg). Bitte in der Firebase Console die Regeln um 'recipeImages' erweitern.");
-    }catch(e){window.alert("Bild konnte nicht verarbeitet werden.");}
+      if(dataUrl.length>1500000){window.alert("Das Bild ist auch komprimiert noch zu groß. Bitte ein kleineres Foto wählen.");return false;}
+      setImages(prev=>({...prev,[key]:dataUrl}));
+      const ok=await fbPatch("recipeImages/"+codeRef.current,{[key]:dataUrl});
+      if(!ok){ failWrite("Bild konnte nicht in der Cloud gespeichert werden."); window.alert("Das Bild wird angezeigt, konnte aber NICHT in der Cloud gespeichert werden (nach Neuladen weg)."); }
+      return ok;
+    }catch(e){window.alert("Bild konnte nicht verarbeitet werden.");return false;}
   };
-  const resetRecipeImg=async()=>{
-    if(!detailRecipe)return;
-    const name=detailRecipe;
-    setImgLoaded(false);
-    setRecipeImgs(prev=>{const n={...prev};delete n[name];return n;});
-    const patch={};patch[name]=null;
-    const ok=await fbPatchChecked("recipeImages",patch);
-    if(!ok) window.alert("Zurücksetzen konnte nicht in der Cloud gespeichert werden. Bitte Firebase-Regeln um 'recipeImages' erweitern.");
+  const resetImage=async(key)=>{
+    if(!key)return;
+    setImages(prev=>{const n={...prev};delete n[key];return n;});
+    const ok=await fbPatch("recipeImages/"+codeRef.current,{[key]:null});
+    if(!ok) failWrite("Zurücksetzen des Bilds konnte nicht gespeichert werden.");
   };
 
-  const deleteRecipe=async(name)=>{
-    if(!window.confirm("Rezept '"+dn(name)+"' wirklich löschen?"))return;
-    setRecipes(prev=>{const n={...prev};delete n[name];schedulePush(plan,shopping,n,participants);return n;});
-    const del={};del[name]=null;await fbPatch("globalRecipes",del);
-    if(recipeImgs[name]){
-      setRecipeImgs(prev=>{const n={...prev};delete n[name];return n;});
-      const ip={};ip[name]=null;await fbPatch("recipeImages",ip);
-    }
-    setDetailRecipe(null);setEditMode(false);
-  };
-
-  // SINGLE RECIPE PDF (Druckdialog -> "Als PDF speichern")
-  const downloadRecipePDF=(name)=>{
-    const rec=recipes[name];
-    if(!rec)return;
-    const html=makeRecipePDF(name,rec,recipeImgs[name]);
+  // PDF (Druckdialog -> "Als PDF speichern"); Bilder nur eigene Fotos oder - bei aiImages - Symbolbilder
+  const openPrint=(html)=>{
     const w=window.open("","_blank");
-    if(!w)return;
+    if(!w){ showToast("Das Druckfenster wurde blockiert. Bitte Pop-ups für diese Seite erlauben."); return; }
     w.document.write(html);
     w.document.close();
     setTimeout(()=>{w.print();},1000);
   };
-
-  // PDF COOKBOOK
-  const downloadPDF=()=>{
-    const html=makePDF(recipes,recipeImgs);
-    const w=window.open("","_blank");
-    if(!w)return;
-    w.document.write(html);
-    w.document.close();
-    setTimeout(()=>{w.print();},1000);
-  };
+  const downloadRecipePDF=(key)=>{ const rec=recipes[key]; if(rec) openPrint(makeRecipePDF(key,rec,images[key],settings.aiImages)); };
+  const downloadPDF=()=>openPrint(makeCookbookPDF(recipes,images,settings.aiImages));
 
   // CLOSE DROPDOWNS
   useEffect(()=>{
@@ -1005,29 +841,36 @@ export default function App() {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
-  // Notiz-Entwurf laden, wenn ein Rezept geoeffnet wird
+  // Notiz-Entwurf laden, wenn ein Rezept geoeffnet wird; Detail schliessen, wenn das Rezept (anderswo) verschwunden ist
   useEffect(()=>{
     if(detailRecipe&&recipes[detailRecipe]) setNoteDraft(recipes[detailRecipe].notes||"");
   },[detailRecipe]);
+  useEffect(()=>{
+    if(screen==="app"&&detailRecipe&&!recipes[detailRecipe]){ setDetailRecipe(null); setEditMode(false); setEditData(null); setCookMode(false); setRateAfterCook(false); }
+  },[recipes,detailRecipe,screen]);
 
   // SCHRIFTZOOM auf die ganze App anwenden (body-Ebene erfasst alle Ansichten)
   useEffect(()=>{
     document.body.style.zoom=fontZoom;
     try{ localStorage.setItem(ZOOM_KEY,String(fontZoom)); }catch(e){}
   },[fontZoom]);
-  const zoomStep=(d)=>setFontZoom(z=>Math.min(1.4,Math.max(0.8,Math.round((z+d)*10)/10)));
+  const zoom=(d)=>setFontZoom(z=>Math.min(1.4,Math.max(0.8,Math.round((z+d)*10)/10)));
 
-  // Sync-Schutz: merkt sich, ob gerade eine Mahlzelle oder Einkaufszeile offen ist (siehe pullSync)
-  editingRef.current = activeCell!==null || editShopIdx!==null;
+  // Sync-Schutz: offene Planzelle, Einkaufszeile oder Rezept-Editor -> der Teil wird nicht vom Server ueberschrieben
+  editingRef.current = {cell:activeCell!==null, shop:editShopId!==null, recipe:editMode};
 
-  // BACK BUTTON (Teil B): schliesst die oberste offene Ebene statt aus der App zu fliegen.
-  // handleBackRef wird bei jedem Render aktualisiert, damit der popstate-Listener
-  // immer den aktuellen Zustand sieht (keine veralteten Closures).
+  // ZURUECK-TASTE: schliesst die oberste offene Ebene statt aus der App zu fliegen.
+  // Ansichten registrieren eigene Dialoge (Woche abschliessen, Menue, Wochenplan-Auswahl) ueber registerBackHandler.
+  // handleBackRef wird bei jedem Render aktualisiert, damit der popstate-Listener immer den aktuellen Zustand sieht.
+  const registerBackHandler=useCallback((fn)=>{ backHandlers.current.push(fn); return ()=>{ backHandlers.current=backHandlers.current.filter(f=>f!==fn); }; },[]);
   handleBackRef.current=()=>{
+    for(let i=backHandlers.current.length-1;i>=0;i--){ if(backHandlers.current[i]()) return true; }
+    if(activeCell!==null){ setActiveCell(null); setOpenCat(null); return true; }
+    if(cookPicker!==null){ setCookPicker(null); return true; }
     if(rateAfterCook){ setRateAfterCook(false); return true; }
     if(cookMode){ setCookMode(false); return true; }
     if(editMode){ setEditMode(false); setEditData(null); return true; }
-    if(detailRecipe){ setDetailRecipe(null); setImgLoaded(false); return true; }
+    if(detailRecipe){ setDetailRecipe(null); return true; }
     return false;
   };
   useEffect(()=>{
@@ -1043,830 +886,137 @@ export default function App() {
         window.history.back();
       }else{                                     // erster Druck auf der Hauptansicht -> Hinweis zeigen
         exitArmedRef.current=true;
-        setExitToast(true);
+        showToast("Nochmal „Zurück“ drücken zum Verlassen",2500);
         window.history.pushState({wp:1},"");
-        setTimeout(()=>{exitArmedRef.current=false;setExitToast(false);},2500);
+        setTimeout(()=>{exitArmedRef.current=false;},2500);
       }
     };
     window.addEventListener("popstate",onPop);
     return()=>window.removeEventListener("popstate",onPop);
   },[screen]);
 
-  // HEUTE: Buch beim Oeffnen des Reiters laden (nicht im 10s-Poll), Bestand + Rangliste berechnen
+  // HEUTE / EINKAUF: Buch beim Oeffnen des Reiters laden (nicht im 10s-Poll), Bestand + Rangliste berechnen
   useEffect(()=>{
-    if(view==="heute"&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
+    if((view==="heute"||view==="shopping")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
   },[view,hbLink&&hbLink.code]);
   useEffect(()=>{ try{ localStorage.setItem(HEUTE_CAT_KEY,heuteCat); }catch(e){} },[heuteCat]);
   const stock=useMemo(()=>hbStock(hbBook,hbLink&&hbLink.cat),[hbBook,hbLink&&hbLink.cat]);
+  // Rangliste (Bauplan Abschnitt 7): "Bewaehrt" = gekocht und >= 3 Sterne, "Schnell" = <= 30 Min. oder Rubrik,
+  // Fruehstueck erscheint nach 11 Uhr nur ueber den eigenen Chip
+  const heuteFilter=(r,c)=>{
+    const skip=["Beilagen & Salate","Soßen & Dips"];
+    const lateForBreakfast=new Date().getHours()>=11;
+    const general=!skip.includes(c)&&!(lateForBreakfast&&c==="Frühstück");
+    if(heuteCat==="all") return general;
+    if(heuteCat==="proven") return general&&isProven(r);
+    if(heuteCat==="Schnelle Küche") return c==="Schnelle Küche"||(r.minutes>0&&r.minutes<=30&&general);
+    return c===heuteCat;
+  };
   const ranked=useMemo(()=>{
     if(view!=="heute") return [];
-    const skip=["Beilagen & Salate","Soßen & Dips"];
     return Object.keys(recipes)
-      .filter(n=>{ const c=recCat(recipes[n]); return heuteCat==="all"?!skip.includes(c):c===heuteCat; })
+      .filter(n=>heuteFilter(recipes[n],recCat(recipes[n])))
       .map(n=>({name:n,...scoreRecipe(recipes[n],stock)}))
       .sort((a,b)=>b.score-a.score);
   },[view,recipes,stock,heuteCat]);
+  // Aus der Klassiker-Basis: die drei Eintraege, die zum Vorrat am besten passen und noch nicht im Kochbuch sind (taeglich rotierend)
+  const classicPicks=useMemo(()=>{
+    if(view!=="heute") return [];
+    const dayIdx=Math.floor(Date.now()/86400000);
+    return CLASSICS
+      .filter(c=>!recipes[recKey(c.name)]&&(heuteCat==="proven"?false:heuteFilter(c,c.category)))
+      .map((c,i)=>({classic:c,i,...scoreRecipe(c,stock)}))
+      .sort((a,b)=>(b.cov-a.cov)||(((a.i+dayIdx)%7)-((b.i+dayIdx)%7))||(a.i-b.i))
+      .slice(0,3);
+  },[view,recipes,stock,heuteCat]);
+  // HEUTE IM PLAN: Slots des heutigen Tages aus der aktuellen Woche, aktueller Slot zuerst
+  const todayPlan=useMemo(()=>{
+    const d=normalizeWeek(weeks[curWeekKey])[todayDayKey()];
+    return slotOrderNow().flatMap(meal=>slotList(d&&d.meals[meal]).map(key=>({meal,key})));
+  },[weeks,curWeekKey,view]);
 
-  const getDishes=(day,meal)=>{
-    const v=plan[day]&&plan[day].meals&&plan[day].meals[meal];
-    if(!v)return [];
-    return Array.isArray(v)?v:[v];
+  // EINKAUFSLISTE in Bloecken (Bauplan Abschnitt 9): Liste, "Wahrscheinlich da" (stockP >= 0,6), "Vorrat pruefen" (Grundvorrat)
+  const shopList=useMemo(()=>shoppingList(shopping).map(it=>{ const st=stock.length?ingStatus(it.text,stock):null; return {...it,stockP:st&&!st.basic?st.p:0}; }),[shopping,stock]);
+  const shopMain=useMemo(()=>shopList.filter(it=>isListed(it)&&(it.forceBuy||it.stockP<0.6)),[shopList]);
+  const shopLikely=useMemo(()=>shopList.filter(it=>isListed(it)&&!it.forceBuy&&it.stockP>=0.6),[shopList]);
+  const shopBasics=useMemo(()=>shopList.filter(it=>it.basic&&!it.forceBuy),[shopList]);
+  const shopGroups=useMemo(()=>groupShopping(shopMain),[shopMain]);
+  const unchecked=shopMain.filter(x=>!x.checked).length;
+  const addedSlots=useMemo(()=>addedSlotKeys(shopping),[shopping]);
+  // Liste teilen: Klartext ueber navigator.share, sonst Zwischenablage
+  const shareShopping=async()=>{
+    const text=shoppingText([...shopMain,...shopLikely]);
+    if(!text){ showToast("Die Einkaufsliste ist leer."); return; }
+    try{
+      if(navigator.share){ await navigator.share({title:"Einkaufsliste",text}); return; }
+      await navigator.clipboard.writeText(text); showToast("Einkaufsliste in die Zwischenablage kopiert.");
+    }catch(e){ if(e&&e.name!=="AbortError") showToast("Teilen nicht möglich."); }
   };
-  const getCook=(day)=>plan[day]&&plan[day].cook||"";
-  const unchecked=shopping.filter(x=>!x.checked).length;
+
   const curRec=detailRecipe?recipes[detailRecipe]:null;
-  const curIngs=curRec?(curRec.ingredients||[]):[];
-  const curSteps=curRec?(curRec.steps||[]):[];
 
-  // GROUP SHOPPING BY SUPERMARKET CATEGORY
-  const shoppingGrouped=()=>{
-    const groups={};
-    const catOrder=["Obst & Gemüse","Fleisch & Fisch","Milch & Käse","Backwaren","Trockenwaren","Konserven","Gewürze & Öle","Getränke","Sonstiges"];
-    shopping.forEach((item,i)=>{
-      const cat=item.cat||shopCat(item.text);
-      if(!groups[cat])groups[cat]=[];
-      groups[cat].push({...item,idx:i});
-    });
-    return catOrder.filter(c=>groups[c]&&groups[c].length).map(c=>({cat:c,items:groups[c]}));
+  // Code in die Zwischenablage, kurz "KOPIERT" zeigen
+  const copyCode=()=>{try{navigator.clipboard.writeText(activeCode);}catch(e){}setCodeCopied(true);setTimeout(()=>setCodeCopied(false),2000);};
+  // Rezept oeffnen: Detailansicht frisch (Schritt 0, kein Kochmodus, kein Editor)
+  const openRecipe=(key)=>{setDetailRecipe(key);setCookStep(0);setCookMode(false);setEditMode(false);setEditData(null);};
+  // Kochmodus "Fertig": Kochdatum eintragen, Bewertungsdialog oeffnen
+  const finishCook=()=>{markCooked(detailRecipe,todayISO());setCookMode(false);setCookStep(0);setRatingDraft((curRec&&curRec.rating)||0);setNoteDraft((curRec&&curRec.notes)||"");setRateAfterCook(true);};
+  // Bewertungsdialog speichern (Bewertung + Notiz in einem Feld-PATCH)
+  const saveRating=()=>{ patchRecipe(detailRecipe,{rating:ratingDraft,notes:noteDraft}); setRateAfterCook(false); };
+
+  // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
+  const state={
+    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,settings,household,
+    weekKey,week,curWeekKey,todayPlan,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,addedSlots,classics:CLASSICS,classicPicks,ranked,heuteCat,
+    syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
+    importState:{importErr,extracting,extracted,savedMsg},
+    // Rahmen und Dialoge
+    view,activeCell,cellInput,openCat,cookPicker,codeCopied,editShopId,editShopText,
+    detailRecipe,curRec,editMode,editData,cookStep,cookMode,rateAfterCook,ratingDraft,noteDraft,
+    joinState:{myCode,joinInput,nameInput,nameHint,joinErr,joinOffer,joinBusy},
+  };
+  const api={
+    // Plan
+    setWeekKey:selectWeek,addDish,removeDish,setCook,copyLastWeek,closeWeek,
+    // Einkauf
+    buildShoppingFromPlan,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,forceBuy,shareShopping,
+    // Rezepte
+    openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
+    // KI
+    extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
+    // Haushaltsbuch, Einstellungen, Sitzung
+    connectHb,setHbCat,disconnectHb,reloadHb:loadHb,setSetting,zoom,leavePlan,
+    // Rahmen
+    setView,copyCode,showToast,registerBackHandler,setHeuteCat,
+    setActiveCell,setCellInput,setOpenCat,setCookPicker,cellRef,cookRef,
+    setEditShopId,setEditShopText,saveShopEdit,
+    // Detail, Editor, Kochmodus
+    closeRecipe:()=>{setDetailRecipe(null);setEditMode(false);setEditData(null);},setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit:()=>{setEditMode(false);setEditData(null);},
+    downloadRecipePDF,downloadPDF,finishCook,setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,
+    // Beitritt
+    setNameInput,setJoinInput,startPlan,joinPlan,createWithCode,
   };
 
-  // UI VARS
-  var content = null;
-
-  // LOADING
+  // ANSICHT WAEHLEN
   if(screen==="loading"){
-    content=(
+    return(
       <div style={{minHeight:"100vh",background:C.dark,display:"flex",alignItems:"center",justifyContent:"center",color:C.muted,fontFamily:SF,fontSize:"13px",letterSpacing:"1px"}}>
         Laden...
       </div>
     );
   }
-
-  // JOIN
-  else if(screen==="join"){
-    content=(
-      <div style={{minHeight:"100vh",background:C.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",fontFamily:SF}}>
-        <div style={{width:"100%",maxWidth:"380px"}}>
-          <div style={{textAlign:"center",marginBottom:"24px"}}>
-            <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px",textTransform:"uppercase",marginBottom:"16px"}}>Wochenplan</div>
-            <div style={{color:"#fff",fontSize:"40px",fontFamily:SER,marginBottom:"4px",lineHeight:"1.1"}}>Gemeinsam kochen.</div>
-            <div style={{color:"rgba(255,255,255,0.45)",fontSize:"26px",fontFamily:"'Dancing Script', 'Segoe Script', cursive",marginBottom:"8px"}}>by Mero</div>
-            <div style={{color:"rgba(255,255,255,0.3)",fontSize:"13px"}}>Planen - Einkaufen - Geniessen</div>
-          </div>
-          <div style={{marginBottom:"24px",textAlign:"center"}}>
-            <div style={{color:"rgba(255,255,255,0.4)",fontSize:"13px",lineHeight:"1.6"}}>Nie wieder der fragende Blick in den leeren Kühlschrank:</div>
-            <div style={{color:C.accent,fontStyle:"italic",fontSize:"13px",lineHeight:"1.6"}}>"Was kochen wir heute?"</div>
-          </div>
-          <div style={{marginBottom:"12px"}}>
-            <label style={{color:"rgba(255,255,255,0.4)",fontSize:"10px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"6px"}}>Dein Name</label>
-            <input value={nameInput} onChange={e=>setNameInput(e.target.value)} placeholder="z.B. Anna" style={{width:"100%",padding:"12px 16px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"#fff",fontSize:"15px",outline:"none",boxSizing:"border-box",fontFamily:SF}} />
-          </div>
-          <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",padding:"16px",marginBottom:"10px"}}>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"10px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"4px"}}>NEUEN PLAN ERSTELLEN</div>
-            <div style={{color:"rgba(255,255,255,0.2)",fontSize:"11px",marginBottom:"12px"}}>Teile den Code mit deiner Familie.</div>
-            <div style={{background:"rgba(193,125,60,0.1)",border:"1px solid rgba(193,125,60,0.3)",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}}>
-              <span style={{color:"rgba(255,255,255,0.3)",fontSize:"11px",letterSpacing:"1px"}}>CODE</span>
-              <span style={{color:C.accent,fontSize:"20px",fontWeight:"700",letterSpacing:"6px"}}>{myCode}</span>
-            </div>
-            <button onClick={()=>handleJoin(myCode)} style={{width:"100%",padding:"12px",background:nameInput.trim()?C.accent:"#2d2d2d",border:"none",color:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:nameInput.trim()?"pointer":"default",fontFamily:SF}}>PLAN STARTEN</button>
-          </div>
-          <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",padding:"16px"}}>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"10px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"4px"}}>BEITRETEN</div>
-            <div style={{color:"rgba(255,255,255,0.2)",fontSize:"11px",marginBottom:"10px"}}>Code eingeben den du erhalten hast.</div>
-            <input value={joinInput} onChange={e=>setJoinInput(e.target.value.toUpperCase())} placeholder="CODE" maxLength={6} style={{width:"100%",padding:"12px 16px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#fff",fontSize:"20px",fontWeight:"700",letterSpacing:"6px",outline:"none",boxSizing:"border-box",textAlign:"center",marginBottom:"10px",fontFamily:SF}} />
-            <button onClick={()=>handleJoin(joinInput)} style={{width:"100%",padding:"12px",background:(joinInput.length>=4&&nameInput.trim())?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.02)",border:"none",color:(joinInput.length>=4&&nameInput.trim())?"#fff":"rgba(255,255,255,0.2)",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:(joinInput.length>=4&&nameInput.trim())?"pointer":"default",fontFamily:SF}}>BEITRETEN</button>
-          </div>
-        </div>
-      </div>
+  if(screen==="join") return <Join state={state} api={api} />;
+  if(cookMode&&detailRecipe&&curRec) return <CookMode state={state} api={api} />;
+  if(detailRecipe&&curRec&&!cookMode) return <RecipeDetail state={state} api={api} />;
+  if(screen==="app"){
+    return(
+      <Shell state={state} api={api}>
+        {view==="heute"&&<Heute state={state} api={api} />}
+        {view==="plan"&&<Plan state={state} api={api} />}
+        {view==="shopping"&&<Shopping state={state} api={api} />}
+        {view==="recipes"&&<Recipes state={state} api={api} />}
+      </Shell>
     );
   }
-
-  // COOK MODE
-  else if(cookMode&&detailRecipe&&curRec){
-    content=(
-      <div style={{minHeight:"100vh",background:C.dark,fontFamily:SF,display:"flex",flexDirection:"column"}}>
-        <div style={{padding:"20px 24px",display:"flex",alignItems:"center",gap:"16px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-          <button onClick={()=>setCookMode(false)} style={{background:"rgba(255,255,255,0.07)",border:"none",color:"rgba(255,255,255,0.6)",padding:"8px 14px",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF}}>ZURUECK</button>
-          <div style={{flex:1,fontFamily:SER,color:"#fff",fontSize:"18px"}}>{dn(detailRecipe)}</div>
-          <div style={{color:C.accent,fontSize:"12px",fontWeight:"700",letterSpacing:"1px"}}>{cookStep+1} / {curSteps.length}</div>
-        </div>
-        <div style={{display:"flex",gap:"4px",padding:"0 24px",marginTop:"20px"}}>
-          {curSteps.map((_,i)=>(
-            <div key={i} onClick={()=>setCookStep(i)} style={{height:"2px",flex:1,background:i<=cookStep?C.accent:"rgba(255,255,255,0.12)",cursor:"pointer",transition:"background 0.3s"}} />
-          ))}
-        </div>
-        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"48px 32px"}}>
-          <div style={{fontSize:"72px",fontFamily:SER,color:C.accent,marginBottom:"32px",lineHeight:1}}>{cookStep+1}</div>
-          <div style={{fontSize:"22px",color:"rgba(255,255,255,0.9)",fontFamily:SER,textAlign:"center",lineHeight:"1.7",maxWidth:"360px"}}>{curSteps[cookStep]}</div>
-        </div>
-        <div style={{padding:"24px",display:"flex",gap:"12px"}}>
-          <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} style={{flex:1,padding:"14px",border:"none",background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.7)",fontSize:"13px",letterSpacing:"1px",cursor:cookStep===0?"default":"pointer",fontFamily:SF}}>ZURUECK</button>
-          {cookStep<curSteps.length-1
-            ?<button onClick={()=>setCookStep(s=>s+1)} style={{flex:2,padding:"14px",border:"none",background:C.accent,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>WEITER</button>
-            :<button onClick={()=>{updateRecipeMeta(detailRecipe,{lastCooked:todayISO()});setCookMode(false);setCookStep(0);setRatingDraft(curRec.rating||0);setNoteDraft(curRec.notes||"");setRateAfterCook(true);}} style={{flex:2,padding:"14px",border:"none",background:C.ok,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>FERTIG</button>
-          }
-        </div>
-      </div>
-    );
-  }
-
-  // RECIPE DETAIL
-  else if(detailRecipe&&curRec&&!cookMode){
-    content=(
-      <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF}}>
-        {/* BEWERTUNGS-DIALOG nach dem Kochen */}
-        {rateAfterCook&&(
-          <div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}} onClick={()=>setRateAfterCook(false)}>
-            <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:"400px",background:C.white,border:"1px solid "+C.border,padding:"22px"}}>
-              <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"6px"}}>Guten Appetit!</div>
-              <div style={{fontSize:"20px",fontFamily:SER,color:C.text,marginBottom:"16px"}}>Wie war {dn(detailRecipe)}?</div>
-              <Stars value={ratingDraft} onRate={setRatingDraft} size={32} />
-              <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
-              <div style={{display:"flex",gap:"8px",marginTop:"14px"}}>
-                <button onClick={()=>{updateRecipeMeta(detailRecipe,{rating:ratingDraft,notes:noteDraft});setRateAfterCook(false);}} style={{flex:2,padding:"13px",background:C.ok,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>SPEICHERN</button>
-                <button onClick={()=>setRateAfterCook(false)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ÜBERSPRINGEN</button>
-              </div>
-            </div>
-          </div>
-        )}
-        <div style={{position:"relative",height:"260px",background:C.dark,overflow:"hidden"}}>
-          <img src={recipeImgs[detailRecipe]||foodImg(detailRecipe)} alt={dn(detailRecipe)} onLoad={()=>setImgLoaded(true)} onError={()=>setImgLoaded(true)} style={{width:"100%",height:"100%",objectFit:"cover",opacity:imgLoaded?0.75:0,transition:"opacity 0.6s"}} />
-          {!imgLoaded&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.3)",fontSize:"12px",letterSpacing:"1px"}}>BILD WIRD GELADEN...</div>}
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.dark+")"}} />
-          <button onClick={()=>{setDetailRecipe(null);setImgLoaded(false);setEditMode(false);setEditData(null);}} style={{position:"absolute",top:16,left:16,background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.8)",padding:"8px 14px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ZURUECK</button>
-          {/* Eigenes Bild hochladen / Standard wiederherstellen */}
-          <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)uploadRecipeImg(f);e.target.value="";}} />
-          <div style={{position:"absolute",top:16,right:16,display:"flex",gap:"6px"}}>
-            <button onClick={()=>imgFileRef.current&&imgFileRef.current.click()} style={{background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.8)",padding:"8px 12px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>BILD ÄNDERN</button>
-            {recipeImgs[detailRecipe]&&<button onClick={resetRecipeImg} style={{background:"rgba(0,0,0,0.4)",border:"none",color:"rgba(255,255,255,0.6)",padding:"8px 12px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>STANDARD</button>}
-          </div>
-          <div style={{position:"absolute",bottom:24,left:24,right:24}}>
-            <div style={{color:C.accent,fontSize:"10px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"6px"}}>{recCat(curRec)}{curRec.cuisine?" / "+curRec.cuisine:""}</div>
-            <div style={{color:"#fff",fontSize:"28px",fontFamily:SER,lineHeight:"1.2"}}>{dn(detailRecipe)}</div>
-          </div>
-        </div>
-
-        <div style={{padding:"16px 16px 60px"}}>
-          {!editMode?(
-            <div>
-              <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
-                {curSteps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{flex:2,padding:"13px",background:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>KOCHMODUS</button>}
-                <button onClick={()=>startEdit(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.text,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>BEARBEITEN</button>
-                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ALS PDF</button>
-              </div>
-              {curRec.description&&(
-                <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
-                  <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"10px"}}>Beschreibung</div>
-                  <div style={{fontSize:"14px",color:C.text,lineHeight:"1.7",fontFamily:SER,fontStyle:"italic"}}>{curRec.description}</div>
-                </div>
-              )}
-              {/* BEWERTUNG & NOTIZEN */}
-              <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
-                <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"10px"}}>Bewertung & Notizen</div>
-                <Stars value={curRec.rating||0} onRate={r=>updateRecipeMeta(detailRecipe,{rating:r})} />
-                <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))updateRecipeMeta(detailRecipe,{notes:noteDraft});}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
-              </div>
-              <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
-                <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"14px"}}>Zutaten</div>
-                {curIngs.map((ing,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:i<curIngs.length-1?"1px solid "+C.border:"none"}}>
-                    <div style={{width:"4px",height:"4px",borderRadius:"50%",background:C.accent,flexShrink:0}} />
-                    <span style={{fontSize:"14px",color:C.text}}>{ing}</span>
-                  </div>
-                ))}
-              </div>
-              {curSteps.length>0&&(
-                <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
-                  <div style={{fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"16px"}}>Zubereitung</div>
-                  {curSteps.map((step,i)=>(
-                    <div key={i} style={{display:"flex",gap:"14px",marginBottom:i<curSteps.length-1?"18px":"0"}}>
-                      <div style={{width:"26px",height:"26px",borderRadius:"50%",border:"1px solid "+(i===0?C.accent:C.border),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"11px",fontWeight:"700",color:i===0?C.accent:C.muted}}>{i+1}</div>
-                      <div style={{paddingTop:"4px",fontSize:"14px",color:C.text,lineHeight:"1.7"}}>{step}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <button onClick={()=>deleteRecipe(detailRecipe)} style={{width:"100%",padding:"12px",background:"none",border:"1px solid #FFCDD2",color:C.err,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>REZEPT LOESCHEN</button>
-            </div>
-          ):(
-            <div>
-              <div style={{fontSize:"10px",color:C.accent,fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"10px"}}>REZEPT BEARBEITEN</div>
-              <div style={{marginBottom:"10px"}}>
-                <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Name</label>
-                <input value={editData.name} onChange={e=>setEditData(d=>({...d,name:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"10px 12px",fontSize:"15px",fontFamily:SER,color:C.text,outline:"none",boxSizing:"border-box",background:C.white}} />
-              </div>
-              <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Kategorie</label>
-                  <select value={editData.category} onChange={e=>setEditData(d=>({...d,category:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"10px 12px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                    {CATS.map(c=><option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Küche</label>
-                  <select value={editData.cuisine} onChange={e=>setEditData(d=>({...d,cuisine:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"10px 12px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                    {CUISINE_LIST.map(c=><option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{marginBottom:"10px"}}>
-                <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Beschreibung</label>
-                <textarea value={editData.description||""} onChange={e=>setEditData(d=>({...d,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white}} />
-              </div>
-              <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"10px"}}>
-                <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"10px"}}>Zutaten</div>
-                {editData.ingredients.map((ing,i)=>(
-                  <div key={i} style={{display:"flex",gap:"8px",padding:"5px 0",borderBottom:i<editData.ingredients.length-1?"1px solid "+C.border:"none"}}>
-                    <div style={{width:"4px",height:"4px",borderRadius:"50%",background:C.accent,flexShrink:0,marginTop:"10px"}} />
-                    <input value={ing} onChange={e=>setEditData(d=>{const a=[...d.ingredients];a[i]=e.target.value;return{...d,ingredients:a};})} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,padding:"4px 0"}} />
-                    <button onClick={()=>setEditData(d=>({...d,ingredients:d.ingredients.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"16px",lineHeight:1}}>x</button>
-                  </div>
-                ))}
-                <button onClick={()=>setEditData(d=>({...d,ingredients:[...d.ingredients,""]}))} style={{marginTop:"8px",background:"none",border:"1px solid "+C.border,padding:"5px 12px",cursor:"pointer",color:C.muted,fontSize:"11px",letterSpacing:"0.5px",fontFamily:SF}}>+ Zutat</button>
-              </div>
-              <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"14px"}}>
-                <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"10px"}}>Schritte</div>
-                {editData.steps.map((step,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"8px",padding:"6px 0",borderBottom:i<editData.steps.length-1?"1px solid "+C.border:"none"}}>
-                    <span style={{color:C.accent,fontSize:"11px",fontWeight:"700",minWidth:"16px",paddingTop:"4px"}}>{i+1}.</span>
-                    <textarea value={step} onChange={e=>setEditData(d=>{const a=[...d.steps];a[i]=e.target.value;return{...d,steps:a};})} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,resize:"none",lineHeight:"1.5",minHeight:"36px"}} />
-                    <button onClick={()=>setEditData(d=>({...d,steps:d.steps.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"16px",flexShrink:0}}>x</button>
-                  </div>
-                ))}
-                <button onClick={()=>setEditData(d=>({...d,steps:[...d.steps,""]}))} style={{marginTop:"8px",background:"none",border:"1px solid "+C.border,padding:"5px 12px",cursor:"pointer",color:C.muted,fontSize:"11px",letterSpacing:"0.5px",fontFamily:SF}}>+ Schritt</button>
-              </div>
-              <div style={{display:"flex",gap:"8px"}}>
-                <button onClick={saveEdit} style={{flex:2,padding:"13px",background:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>SPEICHERN</button>
-                <button onClick={()=>{setEditMode(false);setEditData(null);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>ABBRECHEN</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // MAIN APP
-  else if(screen==="app"){
-    const shopGroups=shoppingGrouped();
-
-    content=(
-      <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF}}>
-        {/* EXIT HINWEIS (Teil B) */}
-        {exitToast&&(
-          <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:9999,background:"rgba(0,0,0,0.88)",color:"#fff",padding:"10px 18px",borderRadius:"6px",fontSize:"12px",letterSpacing:"0.5px",fontFamily:SF,boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
-            Nochmal „Zurueck" druecken zum Verlassen
-          </div>
-        )}
-        {/* HEADER */}
-        {/* flexWrap: auf schmalen Handys rutschen A-/A+/VERLASSEN rechtsbuendig in eine zweite Zeile */}
-        <div style={{background:C.dark,padding:"12px 16px",display:"flex",flexWrap:"wrap",alignItems:"center",gap:"8px 10px"}}>
-          <div style={{flex:"1 1 auto",minWidth:0}}>
-            <div style={{color:C.err,fontSize:"36px",fontWeight:"600",fontFamily:"'Dancing Script',cursive",lineHeight:1.05,marginBottom:"1px",whiteSpace:"nowrap"}}>Wochenplan</div>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"11px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
-          </div>
-          <button onClick={()=>{navigator.clipboard.writeText(activeCode);setCodeCopied(true);setTimeout(()=>setCodeCopied(false),2000);}} style={{background:"rgba(193,125,60,0.15)",border:"1px solid rgba(193,125,60,0.25)",padding:"5px 10px",textAlign:"center",cursor:"pointer",fontFamily:SF}}>
-            <div style={{color:"rgba(255,255,255,0.35)",fontSize:"8px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"1px"}}>{codeCopied?"KOPIERT":"CODE KOPIEREN"}</div>
-            <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px"}}>{activeCode}</div>
-          </button>
-          <button onClick={()=>zoomStep(-0.1)} title="Schrift kleiner" style={{marginLeft:"auto",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom<=0.8?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"12px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A−</button>
-          <button onClick={()=>zoomStep(0.1)} title="Schrift größer" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom>=1.4?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"14px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A+</button>
-          <button onClick={leavePlan} title="Plan verlassen" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.55)",padding:"7px 10px",fontSize:"10px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>VERLASSEN</button>
-        </div>
-
-        {/* SYNC */}
-        <div style={{background:syncOk?"#1A2620":"#261A1A",borderBottom:"1px solid "+(syncOk?"#2E5040":"#502020"),padding:"4px 16px",display:"flex",alignItems:"center",gap:"6px"}}>
-          <div style={{width:"6px",height:"6px",borderRadius:"50%",background:syncOk?C.ok:C.err}} />
-          <span style={{fontSize:"10px",color:syncOk?"#4CAF7D":C.err}}>{syncOk?(lastSync?"Sync "+new Date(lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"Verbunden"):"Verbindungsfehler"}</span>
-          <span style={{marginLeft:"auto",fontSize:"9px",color:C.subtle}}>alle 10 Sek.</span>
-        </div>
-
-        {/* TABS */}
-        <div style={{display:"flex",background:C.white,borderBottom:"1px solid "+C.border,padding:"0 12px",overflowX:"auto"}}>
-          {[{id:"heute",label:"Heute"},{id:"plan",label:"Wochenplan"},{id:"shopping",label:"Einkauf"+(unchecked>0?" ("+unchecked+")":"")},{id:"recipes",label:"Rezepte"},{id:"cookbook",label:"Kochbuch"}].map(t=>(
-            <button key={t.id} onClick={()=>setView(t.id)} style={{padding:"12px 13px",border:"none",borderBottom:view===t.id?"2px solid "+C.accent:"2px solid transparent",color:view===t.id?C.accent:C.muted,fontWeight:view===t.id?"700":"400",fontSize:"12px",letterSpacing:"0.5px",whiteSpace:"nowrap",background:"none",cursor:"pointer",fontFamily:SF}}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* HEUTE VIEW - Was kochen wir heute? */}
-        {view==="heute"&&(()=>{
-          const hasStock=stock.length>0;
-          const label={fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"8px"};
-          const chip=(on)=>({padding:"6px 12px",border:"1px solid "+(on?C.accent:C.border),background:on?C.abg:C.white,color:on?C.accent:C.muted,fontSize:"11px",fontWeight:on?"700":"400",cursor:"pointer",fontFamily:SF});
-          const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
-          const meta=(r)=>{
-            const parts=[];
-            if(hasStock) parts.push(Math.round(r.cov*100)+" % wahrscheinlich da");
-            if(r.ds!==null) parts.push(r.ds===0?"heute gekocht":r.ds===1?"gestern gekocht":"vor "+r.ds+" Tagen gekocht");
-            return parts.join(" · ");
-          };
-          const top=ranked[0];
-          const rest=ranked.slice(1,heuteMore?10:4);
-          return(
-          <div style={{padding:"12px",paddingBottom:"80px"}}>
-            <div style={{fontFamily:SER,fontSize:"24px",color:C.text,margin:"4px 2px 12px"}}>Was kochen wir heute?</div>
-
-            {/* Kategorie-Filter */}
-            <div style={{display:"flex",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
-              {[{id:"all",label:"Alle Gerichte"},{id:"Hauptgericht",label:"Hauptgericht"},{id:"Kinderessen",label:"Kinderessen"},{id:"Schnelle Küche",label:"Schnelle Küche"},{id:"Frühstück",label:"Frühstück"}].map(f=>(
-                <button key={f.id} onClick={()=>{setHeuteCat(f.id);setHeuteMore(false);}} style={chip(heuteCat===f.id)}>{f.label}</button>
-              ))}
-            </div>
-
-            {/* Haushaltsbuch */}
-            {!hbLink?(
-              <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"14px"}}>
-                <div style={label}>Haushaltsbuch verbinden</div>
-                <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Mit dem Code eures Haushaltsbuchs werden die Lebensmittel-Einkäufe berücksichtigt – frische Sachen verblassen nach ein paar Tagen, Vorräte nach Wochen. Es wird nur gelesen, nie etwas geändert.</div>
-                <div style={{display:"flex",gap:"6px"}}>
-                  <input value={hbInput} onChange={e=>setHbInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter")connectHb();}} placeholder="BUCH-CODE" style={{flex:1,minWidth:0,border:"1px solid "+C.border,padding:"10px 12px",fontSize:"14px",letterSpacing:"2px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C"}} />
-                  <button onClick={connectHb} disabled={hbLoading||!hbInput.trim()} style={{padding:"10px 14px",background:C.accent,border:"none",color:C.dark,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF,opacity:hbLoading||!hbInput.trim()?0.5:1}}>{hbLoading?"…":"VERBINDEN"}</button>
-                </div>
-                {hbErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{hbErr}</div>}
-              </div>
-            ):(
-              <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:"6px 10px",fontSize:"11px",color:C.muted,marginBottom:"12px",padding:"0 2px"}}>
-                <span style={{width:"6px",height:"6px",borderRadius:"50%",background:hbErr?C.err:hasStock?C.ok:C.subtle,flexShrink:0}} />
-                <span>{hbLoading?"Haushaltsbuch wird geladen…":hbErr?hbErr:hbBook?("Haushaltsbuch: "+stock.filter(s=>s.p>=0.25).length+" Lebensmittel wahrscheinlich da"):"Haushaltsbuch verbunden"}</span>
-                {hbBook&&(
-                  <select value={hbLink.cat} onChange={e=>setHbCat(e.target.value)} title="Rubrik der Lebensmittel-Einkäufe" style={{border:"1px solid "+C.border,background:C.white,color:C.muted,fontSize:"11px",padding:"2px 4px",fontFamily:SF,outline:"none"}}>
-                    {hbCats(hbBook).map(c=><option key={c} value={c}>{c}</option>)}
-                  </select>
-                )}
-                <button onClick={()=>loadHb()} disabled={hbLoading} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",cursor:"pointer",padding:0,fontFamily:SF}}>aktualisieren</button>
-                <button onClick={disconnectHb} style={{background:"none",border:"none",color:C.subtle,fontSize:"11px",cursor:"pointer",padding:0,fontFamily:SF}}>trennen</button>
-              </div>
-            )}
-
-            {/* Bester Vorschlag */}
-            {!top?(
-              <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px",fontSize:"13px",color:C.muted}}>Keine Rezepte in dieser Kategorie – lass dir unten eins von der KI erfinden.</div>
-            ):(
-              <div onClick={()=>setDetailRecipe(top.name)} style={{background:C.white,border:"1px solid "+C.accent,marginBottom:"10px",cursor:"pointer"}}>
-                <img key={top.name} src={recipeImgs[top.name]||foodImg(top.name)} alt="" style={{width:"100%",height:"150px",objectFit:"cover",display:"block",background:C.dark}} />
-                <div style={{padding:"14px"}}>
-                  <div style={{...label,marginBottom:"4px"}}>Vorschlag für heute</div>
-                  <div style={{fontFamily:SER,fontSize:"22px",color:C.text,lineHeight:1.2,marginBottom:"4px"}}>{dn(top.name)}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"12px",color:C.muted,marginBottom:"10px",flexWrap:"wrap"}}>
-                    {(recipes[top.name].rating||0)>0&&<span style={{color:"#E8B547"}}>{"★".repeat(recipes[top.name].rating)}</span>}
-                    <span>{meta(top)||recCat(recipes[top.name])}</span>
-                  </div>
-                  {hasStock&&(
-                    <div style={{display:"flex",flexWrap:"wrap",gap:"5px"}}>
-                      {top.core.map((z,i)=>(
-                        <span key={i} title={z.src?("aus Einkauf: "+z.src):"nicht in den Einkäufen"} style={{fontSize:"11px",padding:"3px 8px",border:"1px solid "+pColor(z.p),color:pColor(z.p)}}>{z.name}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Weitere Vorschlaege */}
-            {rest.length>0&&(
-              <div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"8px"}}>
-                {rest.map((r,i)=>(
-                  <div key={r.name} onClick={()=>setDetailRecipe(r.name)} style={{display:"flex",alignItems:"center",gap:"10px",padding:"11px 14px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none",cursor:"pointer"}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontFamily:SER,fontSize:"15px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(r.name)}</div>
-                      <div style={{fontSize:"11px",color:C.muted}}>{meta(r)||recCat(recipes[r.name])}</div>
-                    </div>
-                    {hasStock&&<div style={{fontSize:"13px",fontWeight:"700",color:pColor(r.cov),flexShrink:0}}>{Math.round(r.cov*100)} %</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-            {ranked.length>4&&(
-              <button onClick={()=>setHeuteMore(m=>!m)} style={{width:"100%",padding:"10px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF,marginBottom:"18px"}}>{heuteMore?"WENIGER":"MEHR VORSCHLÄGE"}</button>
-            )}
-            {!hbLink&&top&&<div style={{fontSize:"11px",color:C.subtle,margin:"-8px 2px 18px"}}>Ohne Haushaltsbuch sortiert nach Bewertung und Abwechslung.</div>}
-
-            {/* KI */}
-            <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px"}}>
-              <div style={label}>Nichts dabei? Neues Rezept</div>
-              <div style={{display:"flex",gap:"6px",marginBottom:"10px"}}>
-                <button onClick={()=>setAiFast(v=>!v)} style={{...chip(aiFast),flex:1,padding:"10px"}}>{aiFast?"✓ ":""}Schnell</button>
-                <button onClick={()=>setAiKids(v=>!v)} style={{...chip(aiKids),flex:1,padding:"10px"}}>{aiKids?"✓ ":""}Kinderessen</button>
-              </div>
-              <div style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",marginBottom:"6px"}}>Küche (optional)</div>
-              <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"12px"}}>
-                {["Egal",...CUISINE_LIST.filter(c=>c!=="Schnell")].map(c=>(
-                  <button key={c} onClick={()=>setAiCuisine(c)} style={{...chip(aiCuisine===c),padding:"5px 10px"}}>{c}</button>
-                ))}
-              </div>
-              {isLocalDev&&<div style={{marginBottom:"10px",fontSize:"11px",color:C.muted}}>Hinweis: Lokal mit npm run dev ist /api/gemini nicht verfügbar – vercel dev oder die deployte App nutzen.</div>}
-              <button onClick={generateRecipe} disabled={aiBusy} style={{width:"100%",padding:"13px",background:aiBusy?C.subtle:C.accent,border:"none",color:C.dark,fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:aiBusy?"default":"pointer",fontFamily:SF}}>
-                {aiBusy?"KI ÜBERLEGT…":"REZEPT MIT KI ERFINDEN"}
-              </button>
-              <div style={{fontSize:"11px",color:C.subtle,marginTop:"6px",lineHeight:"1.4"}}>{hasStock?"Nutzt vor allem die Lebensmittel, die wahrscheinlich noch da sind.":"Ohne Einkaufsdaten erfindet die KI frei nach deiner Auswahl."}</div>
-              {aiErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{aiErr}</div>}
-            </div>
-          </div>
-          );
-        })()}
-
-        {/* PLAN VIEW */}
-        {view==="plan"&&(
-          <div style={{padding:"12px",paddingBottom:"80px"}}>
-            {DAYS.map((day,di)=>{
-              const cookName=getCook(day);
-              return(
-                <div key={day} style={{marginBottom:"10px",background:C.white,border:"1px solid "+C.border}}>
-                  {/* Day header */}
-                  <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",borderBottom:"1px solid "+C.border}}>
-                    <div>
-                      <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1px",textTransform:"uppercase"}}>{day}</div>
-                      <div style={{fontSize:"13px",fontWeight:"600",color:C.text}}>{DAYFUL[di]}</div>
-                    </div>
-                    <div style={{flex:1}} />
-                    {/* Cook picker */}
-                    <div style={{position:"relative"}} ref={cookPicker===day?cookRef:null}>
-                      <button onClick={()=>setCookPicker(cookPicker===day?null:day)} style={{display:"flex",alignItems:"center",gap:"7px",padding:"5px 10px",background:cookName?C.abg:C.bg,border:"1px solid "+(cookName?C.accent:C.border),cursor:"pointer",fontFamily:SF}}>
-                        {cookName?(
-                          <span style={{display:"flex",alignItems:"center",gap:"6px"}}>
-                            <span style={{width:"20px",height:"20px",borderRadius:"50%",background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",fontWeight:"800",color:"#fff",flexShrink:0}}>{initials(cookName)}</span>
-                            <span style={{fontSize:"11px",color:C.accent,fontWeight:"600",maxWidth:"70px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cookName}</span>
-                          </span>
-                        ):(
-                          <span style={{fontSize:"11px",color:C.muted}}>Wer kocht?</span>
-                        )}
-                      </button>
-                      {cookPicker===day&&(
-                        <div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:999,background:C.white,border:"1px solid "+C.border,boxShadow:"0 8px 24px rgba(0,0,0,0.10)",minWidth:"160px"}}>
-                          {participants.map(p=>(
-                            <button key={p} onMouseDown={e=>{e.preventDefault();setCookForDay(day,p);}} style={{width:"100%",padding:"10px 14px",textAlign:"left",background:cookName===p?C.abg:C.white,color:cookName===p?C.accent:C.text,fontSize:"13px",display:"flex",alignItems:"center",gap:"9px",borderBottom:"1px solid "+C.border,border:"none",cursor:"pointer",fontFamily:SF}}>
-                              <span style={{width:"22px",height:"22px",borderRadius:"50%",background:cookName===p?C.accent:C.border,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",fontWeight:"800",color:cookName===p?"#fff":C.muted,flexShrink:0}}>{initials(p)}</span>
-                              {p}
-                              {cookName===p&&<span style={{marginLeft:"auto",color:C.accent,fontSize:"12px"}}>v</span>}
-                            </button>
-                          ))}
-                          {cookName&&<button onMouseDown={e=>{e.preventDefault();setCookForDay(day,"");}} style={{width:"100%",padding:"8px 14px",textAlign:"center",background:"none",color:C.muted,fontSize:"11px",border:"none",cursor:"pointer",fontFamily:SF}}>Auswahl entfernen</button>}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Meals */}
-                  {MEALS.map(meal=>{
-                    const key=day+"-"+meal;
-                    const isActive=activeCell===key;
-                    const dishes=getDishes(day,meal);
-
-                    return(
-                      <div key={meal} style={{position:"relative"}} ref={isActive?cellRef:null}>
-                        <div style={{display:"flex",alignItems:"stretch",background:isActive?C.abg:"transparent",transition:"background 0.15s"}}>
-                          <div style={{width:"100px",padding:"10px 10px",flexShrink:0}}>
-                            <div style={{fontSize:"10px",fontWeight:"700",color:isActive?C.accent:C.subtle,letterSpacing:"0.5px",textTransform:"uppercase",lineHeight:"1.2",whiteSpace:"nowrap"}}>{ML[meal]}</div>
-                          </div>
-                          <div style={{width:"1px",background:C.border,alignSelf:"stretch"}} />
-                          <div style={{flex:1,padding:"4px 10px",minWidth:0}}>
-                            {/* zugewiesene Rezepte */}
-                            {dishes.map(d=>{
-                              const hasR=!!recipes[d];
-                              const addKey=day+"|"+meal+"|"+d;
-                              const isAdded=!!addedSlots[addKey];
-                              return(
-                                <div key={d} style={{display:"flex",alignItems:"center",gap:"4px",padding:"5px 0",borderBottom:"1px solid "+C.border}}>
-                                  <span style={{flex:1,fontSize:"13px",color:C.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(d)}</span>
-                                  {hasR&&(isAdded
-                                    ? <span title="bereits zur Einkaufsliste hinzugefügt" style={{color:C.ok,fontSize:"18px",padding:"8px 10px",lineHeight:1,flexShrink:0,opacity:0.85}}>✓</span>
-                                    : <button onClick={()=>{addIngsToList(d);setAddedSlots(s=>({...s,[addKey]:true}));}} title="Zutaten zur Einkaufsliste" style={{color:C.ok,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>+</button>
-                                  )}
-                                  {hasR&&<button onClick={()=>{setDetailRecipe(d);setCookStep(0);setCookMode(false);setImgLoaded(false);}} style={{color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"0.5px",background:"none",border:"none",cursor:"pointer",padding:"8px 8px",fontFamily:SF,flexShrink:0}}>REZEPT</button>}
-                                  <button onClick={()=>removeDish(day,meal,d)} title="Entfernen" style={{color:C.subtle,fontSize:"20px",background:"none",border:"none",cursor:"pointer",padding:"8px 10px",lineHeight:1,flexShrink:0}}>×</button>
-                                </div>
-                              );
-                            })}
-                            {/* Hinzufuegen-Zeile */}
-                            {isActive
-                              ?<input autoFocus value={cellInput} onChange={e=>setCellInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&cellInput.trim()){addDish(day,meal,cellInput);setCellInput("");setActiveCell(null);setOpenCat(null);}if(e.key==="Escape"){setActiveCell(null);setOpenCat(null);}}} placeholder="Suchen oder eingeben..." style={{width:"100%",border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",padding:"8px 0",fontFamily:SF}} />
-                              :<button onClick={()=>{setActiveCell(key);setCellInput("");setOpenCat(null);}} style={{width:"100%",textAlign:"left",padding:"8px 0",fontSize:"13px",color:C.subtle,fontStyle:"italic",background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>+ Hinzufügen...</button>
-                            }
-                          </div>
-                        </div>
-                        {meal!==MEALS[MEALS.length-1]&&<div style={{height:"1px",background:C.border,marginLeft:"100px"}} />}
-
-                        {/* KATEGORIE-DROPDOWN */}
-                        {isActive&&(()=>{
-                          const byCat=getRecipesByCat();
-                          const catsToShow=openCat?[openCat]:CATS;
-                          const flt=(names)=>names.filter(s=>!cellInput||dn(s).toLowerCase().includes(cellInput.toLowerCase()));
-                          const itemBtn=(s)=>(
-                            <button key={s} onMouseDown={e=>{e.preventDefault();addDish(day,meal,s);setCellInput("");setActiveCell(null);setOpenCat(null);}} onMouseEnter={e=>e.currentTarget.style.background=C.abg} onMouseLeave={e=>e.currentTarget.style.background=C.white} style={{width:"100%",padding:"9px 14px",border:"none",borderBottom:"1px solid "+C.border,background:dishes.includes(s)?C.abg:C.white,textAlign:"left",cursor:"pointer",fontSize:"13px",color:C.text,display:"flex",alignItems:"center",justifyContent:"space-between",fontFamily:SF}}>
-                              <span>{dishes.includes(s)?"✓ ":""}{dn(s)}</span>
-                              {recipes[s]&&<span style={{fontSize:"9px",color:C.accent,fontWeight:"700",letterSpacing:"0.5px"}}>REZEPT</span>}
-                            </button>
-                          );
-                          return(
-                          <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:C.white,border:"2px solid "+C.accent,borderRadius:"4px",boxShadow:"0 14px 36px rgba(0,0,0,0.55)"}}>
-                            {/* Kategorie-Tabs */}
-                            <div style={{display:"flex",gap:"0",overflowX:"auto",borderBottom:"1px solid "+C.border,background:C.bg}}>
-                              <button onMouseDown={e=>{e.preventDefault();setOpenCat(null);}} style={{padding:"7px 10px",border:"none",background:openCat===null?C.white:"transparent",color:openCat===null?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,whiteSpace:"nowrap",borderBottom:openCat===null?"2px solid "+C.accent:"2px solid transparent"}}>ALLE</button>
-                              {CATS.map(c=>(
-                                <button key={c} onMouseDown={e=>{e.preventDefault();setOpenCat(openCat===c?null:c);}} style={{padding:"7px 10px",border:"none",background:openCat===c?C.white:"transparent",color:openCat===c?C.accent:C.muted,fontSize:"10px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,flexShrink:0,whiteSpace:"nowrap",borderBottom:openCat===c?"2px solid "+C.accent:"2px solid transparent"}}>{c.toUpperCase()}</button>
-                              ))}
-                            </div>
-                            <div style={{maxHeight:"360px",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-                              {catsToShow.map(cat=>{
-                                const names=flt(byCat[cat]||[]);
-                                if(!names.length)return null;
-                                return(
-                                  <div key={cat}>
-                                    <div style={{padding:"7px 14px 5px",fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"1.5px",textTransform:"uppercase",background:C.bg,borderTop:"1px solid "+C.border,borderBottom:"1px solid "+C.border}}>{cat}</div>
-                                    {CATS_WITH_CUISINE.includes(cat)
-                                      ? groupByCuisine(names).map(g=>(
-                                          <div key={g.cuisine}>
-                                            <div style={{padding:"5px 14px 3px 22px",fontSize:"9px",fontWeight:"700",color:C.subtle,letterSpacing:"1.5px",textTransform:"uppercase"}}>{g.cuisine}</div>
-                                            {g.items.map(itemBtn)}
-                                          </div>
-                                        ))
-                                      : names.map(itemBtn)
-                                    }
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {cellInput&&(
-                              <div style={{padding:"7px 14px",borderTop:"1px solid "+C.border,background:C.bg}}>
-                                <button onMouseDown={e=>{e.preventDefault();addDish(day,meal,cellInput);setCellInput("");setActiveCell(null);setOpenCat(null);}} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>+ "{cellInput}" hinzufügen</button>
-                              </div>
-                            )}
-                          </div>
-                          );
-                        })()}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-            <button onClick={generateShopping} style={{width:"100%",padding:"14px",background:C.dark,border:"none",color:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",marginTop:"4px",fontFamily:SF}}>GESAMTE EINKAUFSLISTE GENERIEREN</button>
-          </div>
-        )}
-
-        {/* SHOPPING VIEW */}
-        {view==="shopping"&&(
-          <div style={{padding:"12px",paddingBottom:"80px"}}>
-            {shopping.length===0?(
-              <div style={{textAlign:"center",padding:"64px 24px",color:C.muted}}>
-                <div style={{fontSize:"40px",fontFamily:SER,color:C.subtle,marginBottom:"16px"}}>-</div>
-                <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Einkaufsliste ist leer. Generiere sie über den Wochenplan oder füge einzelne Gerichte über das + Symbol hinzu.</div>
-                <button onClick={()=>setView("plan")} style={{padding:"12px 24px",background:C.dark,border:"none",color:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"1.5px",cursor:"pointer",fontFamily:SF}}>ZUM WOCHENPLAN</button>
-              </div>
-            ):(
-              <div>
-                {/* Progress */}
-                <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"10px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:"7px"}}>
-                    <span style={{fontSize:"11px",color:C.muted,letterSpacing:"0.5px",textTransform:"uppercase"}}>Erledigt</span>
-                    <span style={{fontSize:"11px",fontWeight:"700",color:C.ok}}>{shopping.length-unchecked} / {shopping.length}</span>
-                  </div>
-                  <div style={{background:C.border,height:"2px"}}>
-                    <div style={{height:"100%",width:((shopping.length-unchecked)/shopping.length*100)+"%",background:C.ok,transition:"width 0.4s"}} />
-                  </div>
-                </div>
-
-                {/* Grouped by supermarket category */}
-                {shopGroups.map(group=>(
-                  <div key={group.cat} style={{marginBottom:"10px"}}>
-                    <div style={{fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",padding:"8px 14px",background:C.bg,border:"1px solid "+C.border,borderBottom:"none"}}>{group.cat}</div>
-                    <div style={{background:C.white,border:"1px solid "+C.border}}>
-                      {group.items.map((item,gi)=>(
-                        <div key={item.idx} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",borderBottom:gi<group.items.length-1?"1px solid "+C.border:"none",background:C.white,transition:"background 0.15s"}}>
-                          <button onClick={()=>toggleCheck(item.idx)} style={{width:"28px",height:"28px",border:"2px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",borderRadius:"4px"}}>
-                            {item.checked&&<span style={{color:"#fff",fontSize:"15px",fontWeight:"800"}}>✓</span>}
-                          </button>
-                          {editShopIdx===item.idx
-                            ?<input autoFocus value={editShopText} onChange={e=>setEditShopText(e.target.value)} onBlur={saveShopEdit} onKeyDown={e=>{if(e.key==="Enter")saveShopEdit();if(e.key==="Escape"){setEditShopIdx(null);setEditShopText("");}}} style={{flex:1,fontSize:"14px",color:C.text,background:"#16161C",border:"1px solid "+C.accent,padding:"6px 8px",outline:"none",fontFamily:SF,minWidth:0}} />
-                            :<span onClick={()=>{setEditShopIdx(item.idx);setEditShopText(item.text);}} title="Tippen zum Bearbeiten" style={{flex:1,fontSize:"14px",color:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",transition:"all 0.15s",cursor:"pointer"}}>{item.text}</span>
-                          }
-                          <button onClick={()=>removeItem(item.idx)} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"20px",lineHeight:1,padding:"6px 8px",flexShrink:0}}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Add custom */}
-                <div style={{background:C.white,border:"1px solid "+C.border,padding:"9px",display:"flex",gap:"8px",marginTop:"4px"}}>
-                  <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." style={{flex:1,border:"1px solid "+C.border,padding:"9px 12px",fontSize:"13px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C"}} />
-                  <button onClick={addCustom} style={{background:C.dark,border:"none",color:"#fff",padding:"9px 16px",cursor:"pointer",fontSize:"18px",fontWeight:"700"}}>+</button>
-                </div>
-                <button onClick={clearShopping} style={{width:"100%",marginTop:"10px",padding:"12px",background:"none",border:"1px solid "+C.err,color:C.err,fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",cursor:"pointer",fontFamily:SF}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* RECIPES VIEW */}
-        {view==="recipes"&&(
-          <div style={{padding:"12px",paddingBottom:"80px"}}>
-            {/* Import mode toggle */}
-            <div style={{display:"flex",marginBottom:"12px",border:"1px solid "+C.border,background:C.white}}>
-              {[{id:"text",label:"TEXT"},{id:"photo",label:"FOTO"}].map(m=>(
-                <button key={m.id} onClick={()=>{setImportMode(m.id);setExtracted(null);setImportErr("");}} style={{flex:1,padding:"11px",background:importMode===m.id?C.dark:C.white,color:importMode===m.id?"#fff":C.muted,fontWeight:"700",fontSize:"11px",letterSpacing:"2px",cursor:"pointer",border:"none",fontFamily:SF}}>
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Import area */}
-            <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"12px"}}>
-              <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"10px"}}>{importMode==="text"?"REZEPTTEXT EINFUEGEN":"REZEPTFOTO HOCHLADEN"}</div>
-              {isLocalDev&&(
-                <div style={{marginBottom:"10px",padding:"8px 10px",background:"#FFF8EC",border:"1px solid #F1D5AE",color:"#8C5A22",fontSize:"12px",lineHeight:"1.45"}}>
-                  Hinweis: Lokal mit npm run dev ist /api/gemini oft nicht verfuegbar. Nutze vercel dev oder die deployte Vercel-App fuer KI-Extraktion.
-                </div>
-              )}
-              {importMode==="text"
-                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Fehlende Kochanleitung wird automatisch ergänzt..." style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
-                :(
-                  <div>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={async e=>{
-                      const f=e.target.files[0];
-                      if(!f)return;
-                      setImportErr("");
-                      try{
-                        const prevUrl = recipeImg;
-                        const compressed = await compressImageToBase64(f,{maxEdge:1600,quality:0.82});
-                        if(prevUrl) URL.revokeObjectURL(prevUrl);
-                        if(!compressed.base64) throw new Error("Bilddaten fehlen nach Komprimierung.");
-                        if(compressed.base64.length > 3500000) throw new Error("413 Bild zu gross nach Komprimierung.");
-                        setRecipeImgType(compressed.mimeType || "image/jpeg");
-                        setRecipeImg(compressed.previewUrl);
-                        setRecipeB64(compressed.base64);
-                      }catch(err){
-                        console.error("Image import error:",err);
-                        setRecipeImg(null);
-                        setRecipeB64(null);
-                        setRecipeImgType("image/jpeg");
-                        const m = err && err.message ? err.message : "Bild konnte nicht verarbeitet werden";
-                        if(m.includes("413")) setImportErr("Bild weiterhin zu gross. Bitte ein kleineres Foto oder Screenshot verwenden.");
-                        else setImportErr("Bildfehler: "+m);
-                      }finally{
-                        if(e.target) e.target.value = "";
-                      }
-                    }} style={{display:"none"}} />
-                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:recipeImg?"12px":"28px 16px",border:"1px dashed "+C.border,background:"#16161C",cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
-                      {recipeImg?<img src={recipeImg} alt="Rezept" style={{maxHeight:"140px",maxWidth:"100%",objectFit:"contain"}} />:<span style={{fontSize:"14px"}}>Foto auswaehlen (Kochbuchseite, Screenshot, Foto)</span>}
-                    </button>
-                    {recipeImg&&<button onClick={()=>{setRecipeImg(null);setRecipeB64(null);setRecipeImgType("image/jpeg");}} style={{marginTop:"6px",background:"none",border:"none",color:C.err,cursor:"pointer",fontSize:"12px",fontFamily:SF}}>Bild entfernen</button>}
-                  </div>
-                )
-              }
-              {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:"#FDF3F2",border:"1px solid #FFCDD2",color:C.err,fontSize:"12px"}}>{importErr}</div>}
-              <button disabled={!canExtract} onClick={extractRecipe} style={{width:"100%",marginTop:"10px",padding:"12px",background:extracting?C.subtle:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:canExtract?"pointer":"default",fontFamily:SF,opacity:canExtract?1:0.4}}>
-                {extracting?"KI ANALYSIERT (fehlende Schritte werden generiert)...":"REZEPT MIT KI EXTRAHIEREN"}
-              </button>
-            </div>
-
-            {/* Extracted result */}
-            {extracted&&(
-              <div id="ki-vorschlag" style={{background:C.white,border:"1px solid "+C.accent,padding:"14px",marginBottom:"12px"}}>
-                <div style={{fontSize:"10px",color:C.accent,fontWeight:"700",letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"6px"}}>{extracted.ai?"VORSCHLAG DER KI":"ERKANNTES REZEPT"}</div>
-                {extracted.ai&&(extracted.genutzt.length>0||extracted.fehlt.length>0)&&(
-                  <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5",marginBottom:"8px"}}>
-                    {extracted.genutzt.length>0&&<div><span style={{color:C.ok}}>nutzt {extracted.genutzt.length} Zutat{extracted.genutzt.length===1?"":"en"} aus dem Haushaltsbuch</span>: {extracted.genutzt.join(", ")}</div>}
-                    {extracted.fehlt.length>0&&<div><span style={{color:C.accent}}>fehlt evtl.</span>: {extracted.fehlt.join(", ")}</div>}
-                  </div>
-                )}
-                <input value={extracted.name} onChange={e=>setExtracted(r=>({...r,name:e.target.value}))} style={{fontSize:"20px",fontFamily:SER,color:C.text,border:"none",background:"transparent",outline:"none",width:"100%",padding:"4px 0 10px",borderBottom:"1px solid "+C.border,marginBottom:"10px"}} />
-                <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
-                  <div style={{flex:1}}>
-                    <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Kategorie</label>
-                    <select value={extracted.category||"Hauptgericht"} onChange={e=>setExtracted(r=>({...r,category:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"8px 10px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                      {CATS.map(c=><option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div style={{flex:1}}>
-                    <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Küche</label>
-                    <select value={extracted.cuisine||"International"} onChange={e=>setExtracted(r=>({...r,cuisine:e.target.value}))} style={{width:"100%",border:"1px solid "+C.border,padding:"8px 10px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",background:C.white}}>
-                      {CUISINE_LIST.map(c=><option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div style={{marginBottom:"10px"}}>
-                  <label style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>Beschreibung</label>
-                  <textarea value={extracted.description||""} onChange={e=>setExtracted(r=>({...r,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white}} />
-                </div>
-                <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"8px"}}>Zutaten</div>
-                {(extracted.ingredients||[]).map((ing,i)=>(
-                  <div key={i} style={{display:"flex",gap:"8px",padding:"5px 0",borderBottom:i<(extracted.ingredients||[]).length-1?"1px solid "+C.border:"none"}}>
-                    <div style={{width:"4px",height:"4px",borderRadius:"50%",background:C.accent,flexShrink:0,marginTop:"9px"}} />
-                    <input value={ing} onChange={e=>setExtracted(r=>{const a=[].concat(r.ingredients);a[i]=e.target.value;return {...r,ingredients:a};})} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF}} />
-                    <button onClick={()=>setExtracted(r=>({...r,ingredients:r.ingredients.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"14px"}}>x</button>
-                  </div>
-                ))}
-                <button onClick={()=>setExtracted(r=>({...r,ingredients:(r.ingredients||[]).concat([""])}))} style={{marginTop:"6px",background:"none",border:"1px solid "+C.border,padding:"4px 10px",cursor:"pointer",color:C.muted,fontSize:"11px",fontFamily:SF}}>+ Zutat</button>
-                <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",margin:"14px 0 8px"}}>Schritte</div>
-                {(extracted.steps||[]).map((step,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"7px",padding:"5px 0",borderBottom:i<(extracted.steps||[]).length-1?"1px solid "+C.border:"none"}}>
-                    <span style={{color:C.accent,fontSize:"11px",fontWeight:"700",minWidth:"16px",paddingTop:"3px"}}>{i+1}.</span>
-                    <textarea value={step} onChange={e=>setExtracted(r=>{const a=[].concat(r.steps);a[i]=e.target.value;return {...r,steps:a};})} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,resize:"none",lineHeight:"1.5",minHeight:"34px"}} />
-                    <button onClick={()=>setExtracted(r=>({...r,steps:r.steps.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:C.subtle,fontSize:"14px",flexShrink:0}}>x</button>
-                  </div>
-                ))}
-                <button onClick={()=>setExtracted(r=>({...r,steps:(r.steps||[]).concat([""])}))} style={{marginTop:"6px",background:"none",border:"1px solid "+C.border,padding:"4px 10px",cursor:"pointer",color:C.muted,fontSize:"11px",fontFamily:SF}}>+ Schritt</button>
-                <button onClick={saveRecipe} style={{width:"100%",marginTop:"14px",padding:"12px",background:savedMsg?C.ok:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",transition:"background 0.3s",fontFamily:SF}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
-                {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{width:"100%",marginTop:"6px",padding:"10px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>VERWERFEN</button>}
-              </div>
-            )}
-
-            {/* Suche */}
-            <div style={{position:"relative",marginBottom:"10px"}}>
-              <input value={recipeSearch} onChange={e=>setRecipeSearch(e.target.value)} placeholder="Rezept oder Zutat suchen..." style={{width:"100%",border:"1px solid "+(recipeSearch?C.accent:C.border),padding:"11px 38px 11px 12px",fontSize:"14px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C",boxSizing:"border-box"}} />
-              {recipeSearch&&<button onClick={()=>setRecipeSearch("")} style={{position:"absolute",right:"4px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:C.subtle,fontSize:"18px",cursor:"pointer",padding:"6px 10px",lineHeight:1}}>×</button>}
-            </div>
-
-            {/* Kategorie-Filter */}
-            <div style={{display:"flex",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
-              {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c}))].map(f=>(
-                <button key={f.id} onClick={()=>setFilterMeal(f.id)} style={{padding:"6px 12px",border:"1px solid "+(filterMeal===f.id?C.accent:C.border),background:filterMeal===f.id?C.abg:C.white,color:filterMeal===f.id?C.accent:C.muted,fontSize:"11px",fontWeight:filterMeal===f.id?"700":"400",cursor:"pointer",fontFamily:SF}}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Recipe list grouped by cuisine */}
-            {(()=>{
-              const q=recipeSearch.trim().toLowerCase();
-              const matches=([k,v])=>{
-                if(!q) return true;
-                if(dn(k).toLowerCase().includes(q)) return true;
-                return (v.ingredients||[]).some(i=>i.toLowerCase().includes(q));
-              };
-              const filtered = Object.entries(recipes).filter(([k,v])=>(filterMeal==="all"||recCat(v)===filterMeal)&&matches([k,v]));
-              const cuisineMap={};
-              filtered.forEach(([k,v])=>{
-                const c=v.cuisine||"Weitere";
-                if(!cuisineMap[c])cuisineMap[c]=[];
-                cuisineMap[c].push(k);
-              });
-              return Object.entries(cuisineMap).map(([cuisine,keys])=>(
-                <div key={cuisine} style={{marginBottom:"16px"}}>
-                  <div style={{fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px solid "+C.border}}>{cuisine}</div>
-                  {keys.map(name=>{
-                    const rec=recipes[name];
-                    const ings=(rec&&rec.ingredients)||[];
-                    const steps=(rec&&rec.steps)||[];
-                    return(
-                      <button key={name} onClick={()=>{setDetailRecipe(name);setCookStep(0);setCookMode(false);setImgLoaded(false);setEditMode(false);setEditData(null);}} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:"14px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}</div>
-                          <div style={{fontSize:"11px",color:C.muted}}>{recCat(rec)} - {ings.length} Zutaten - {steps.length} Schritte{rec.rating?<span style={{color:"#E8B547"}}> · {"★".repeat(rec.rating)}</span>:null}</div>
-                        </div>
-                        <span style={{color:C.subtle,fontSize:"16px"}}>{">"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ));
-            })()}
-          </div>
-        )}
-
-        {/* COOKBOOK VIEW */}
-        {view==="cookbook"&&(
-          <div style={{padding:"12px",paddingBottom:"80px"}}>
-            <button onClick={downloadPDF} style={{width:"100%",padding:"15px",background:C.dark,border:"none",color:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",marginBottom:"8px",cursor:"pointer",fontFamily:SF}}>
-              KOCHBUCH ALS PDF DRUCKEN / SPEICHERN
-            </button>
-            <div style={{fontSize:"11px",color:C.muted,textAlign:"center",marginBottom:"24px",lineHeight:"1.5"}}>Ein neues Fenster öffnet sich. Dort "Als PDF speichern" im Druckdialog wählen.</div>
-
-            {/* Preview grouped by category */}
-            {(()=>{
-              const sections=[];
-              CATS.forEach(cat=>{
-                const items=Object.entries(recipes).filter(([k,v])=>recCat(v)===cat);
-                if(items.length)sections.push({title:cat,items});
-              });
-              return sections.map(sec=>(
-                <div key={sec.title} style={{marginBottom:"16px"}}>
-                  <div style={{fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px solid "+C.border}}>{sec.title}</div>
-                  {sec.items.map(([name,rec])=>{
-                    const ings=(rec&&rec.ingredients)||[];
-                    const steps=(rec&&rec.steps)||[];
-                    return(
-                      <button key={name} onClick={()=>{setDetailRecipe(name);setCookStep(0);setCookMode(false);setImgLoaded(false);setEditMode(false);setEditData(null);setView("recipes");}} style={{width:"100%",background:C.white,border:"1px solid "+C.border,marginBottom:"5px",overflow:"hidden",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"stretch",fontFamily:SF}}>
-                        <div style={{width:"3px",background:C.accent,flexShrink:0}} />
-                        <div style={{padding:"10px 13px",flex:1}}>
-                          <div style={{fontSize:"13px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}</div>
-                          <div style={{fontSize:"11px",color:C.muted}}>{ings.length} Zutaten - {steps.length} Schritte</div>
-                        </div>
-                        <div style={{padding:"10px",display:"flex",alignItems:"center"}}><span style={{color:C.subtle,fontSize:"15px"}}>{">"}</span></div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ));
-            })()}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return content;
+  return null;
 }

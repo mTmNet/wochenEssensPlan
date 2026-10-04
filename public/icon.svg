@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Wochenplan: Teller mit Gabel und Messer. Hintergrund #13131A, Akzent #D4904A. -->
+  <rect width="512" height="512" rx="112" fill="#13131A"/>
+  <g fill="none" stroke="#D4904A" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Teller -->
+    <circle cx="256" cy="256" r="118" stroke-width="22"/>
+    <circle cx="256" cy="256" r="62" stroke-width="12" opacity="0.7"/>
+    <!-- Gabel links -->
+    <path d="M78 150 V228 Q78 262 108 262 Q138 262 138 228 V150" stroke-width="18"/>
+    <path d="M108 150 V228" stroke-width="18"/>
+    <path d="M108 262 V370" stroke-width="24"/>
+    <!-- Messer rechts -->
+    <path d="M404 150 V370" stroke-width="24"/>
+    <path d="M404 150 Q446 190 440 258 Q436 262 404 262" stroke-width="18"/>
+  </g>
+</svg>

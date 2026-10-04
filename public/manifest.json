@@ -1,0 +1,17 @@
+{
+  "name": "Wochenplan",
+  "short_name": "Wochenplan",
+  "description": "Gemeinsamer Essensplaner mit Einkaufsliste und Rezepten",
+  "lang": "de",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#13131A",
+  "theme_color": "#13131A",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
