@@ -1,6 +1,6 @@
-# Klassiker-Basis
+# Rezept-Basis
 
-Die Klassiker-Basis ist die kuratierte Sammlung etablierter Gerichte, die mit der App ausgeliefert wird (TESTBERICHT.md Abschnitt 5.2, Punkt 3). Sie enthält nur Gerichte, die es so in Kochbüchern gibt: schwäbische und deutsche Hausmannskost, italienische und mediterrane Küche, Gerichte aus dem Nahen Osten, Indien und Ostasien sowie moderne Alltagsstandards. Keine erfundenen Kombinationen, keine Fantasienamen.
+Die Rezept-Basis ist die kuratierte Sammlung etablierter Gerichte, die mit der App ausgeliefert wird (TESTBERICHT.md Abschnitt 5.2, Punkt 3). Sie enthält nur Gerichte, die es so in Kochbüchern gibt: schwäbische und deutsche Hausmannskost, italienische und mediterrane Küche, Gerichte aus dem Nahen Osten, Indien und Ostasien sowie moderne Alltagsstandards. Keine erfundenen Kombinationen, keine Fantasienamen.
 
 Die Rubrik „Heute“ durchsucht die Basis, wenn das eigene Kochbuch nichts Passendes hat, und bietet die drei Einträge an, die zum Vorrat am besten passen und noch nicht im Kochbuch sind („Ins Kochbuch übernehmen“, docs/ARCHITEKTUR.md Abschnitt 7). Beim Übernehmen wird der Eintrag mit `source: "klassiker"` ins Kochbuch der Familie kopiert; die Basis selbst wird nie verändert.
 

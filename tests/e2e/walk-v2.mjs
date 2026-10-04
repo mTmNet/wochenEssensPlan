@@ -119,6 +119,20 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("Rezepte")');
   await page.waitForTimeout(300);
   await shot('02b-recipes-empty');
+  check(await page.isVisible('text=Rezept-Basis ·'), 'Rezepte: leeres Kochbuch zeigt die Rezept-Basis ohne Schalter');
+  // Heute bei leerem Kochbuch: die ganze Rezept-Basis (erst 8, dann alle)
+  await page.click('button:has-text("Heute")');
+  await page.waitForTimeout(400);
+  const baseHead = (await page.locator('text=/Aus der Rezept-Basis \\(\\d+\\)/').first().textContent().catch(()=>'')).trim();
+  const baseN = parseInt((baseHead.match(/\((\d+)\)/)||[])[1]||'0',10);
+  const insBtns = await page.locator('button:has-text("INS KOCHBUCH")').count();
+  check(baseN>50&&insBtns===8&&await page.isVisible(`text=ALLE ${baseN} ANZEIGEN`), 'Heute: leeres Kochbuch zeigt die Rezept-Basis (8 von allen, Knopf "Alle anzeigen")', {baseHead, insBtns});
+  await page.click(`text=ALLE ${baseN} ANZEIGEN`);
+  await page.waitForTimeout(300);
+  check((await page.locator('button:has-text("INS KOCHBUCH")').count())===baseN, 'Heute: "Alle anzeigen" listet die ganze Rezept-Basis');
+  await shot('02d-heute-empty-base');
+  await page.click('button:has-text("Rezepte")');
+  await page.waitForTimeout(300);
   await page.click('text=STARTREZEPTE ÜBERNEHMEN');
   await page.waitForSelector('button:has-text("Pasta Bolognese")');
   await page.waitForTimeout(400);
@@ -398,6 +412,33 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.waitForTimeout(800);
   check(db.wochen.plans[code].hb?.code==='FAMILIE1', 'Haushaltsbuch-Verknuepfung liegt im Plan', db.wochen.plans[code].hb);
   await shot('19-heute-hb');
+  // Vorratsliste: Kacheln, x = "nicht mehr da" (plans/<CODE>/hb/gone), Verblassen-Hinweis, wieder einblenden
+  check(await page.isVisible('button:has-text("AKTUALISIEREN")')&&await page.isVisible('button:has-text("TRENNEN")'), 'Heute: Haushaltsbuch-Karte mit Kacheln Vorrat / Aktualisieren / Trennen');
+  const statusTxt = (await page.locator('text=/Lebensmittel · \\d+ wahrscheinlich da/').first().textContent().catch(()=>'')).trim();
+  const nBefore = parseInt((statusTxt.match(/(\d+) wahrscheinlich/)||[])[1]||'0',10);
+  check(nBefore>5, 'Heute: Statuszeile nennt Rubrik und Anzahl', statusTxt);
+  await page.click('button:has-text("VORRAT")');
+  await page.waitForTimeout(300);
+  check(await page.isVisible('text=Verblasst nach:')&&await page.isVisible('text=Fisch 4 Tage'), 'Vorrat: Hinweis nennt die Tage je Gruppe (Fisch 4 Tage …)');
+  check(await page.isVisible('text=/noch \\d+ Tage/'), 'Vorrat: jede Position zeigt Einkauf und Resttage');
+  const goneBtn = page.locator('button[aria-label$="ist nicht mehr da"]').first();
+  const goneName = (await goneBtn.getAttribute('aria-label')).replace(' ist nicht mehr da','');
+  await goneBtn.click();
+  await page.waitForTimeout(500);
+  const goneKeys = Object.keys(db.wochen.plans[code].hb?.gone||{});
+  const statusAfter = (await page.locator('text=/Lebensmittel · \\d+ wahrscheinlich da/').first().textContent().catch(()=>'')).trim();
+  const nAfter = parseInt((statusAfter.match(/(\d+) wahrscheinlich/)||[])[1]||'0',10);
+  check(goneKeys.length===1&&nAfter===nBefore-1&&!(await page.isVisible(`button[aria-label="${goneName} ist nicht mehr da"]`)), 'Vorrat: x streicht die Position, Markierung liegt unter hb/gone, Zaehler sinkt', {goneName, goneKeys, nBefore, nAfter});
+  check(await page.isVisible('text=1 Position von Hand gestrichen.'), 'Vorrat: Hinweis auf gestrichene Positionen');
+  await shot('19c-heute-vorrat');
+  await page.click('text=wieder einblenden');
+  await page.waitForTimeout(500);
+  check(!db.wochen.plans[code].hb?.gone&&await page.isVisible(`button[aria-label="${goneName} ist nicht mehr da"]`), 'Vorrat: "wieder einblenden" loescht hb/gone und zeigt die Position wieder');
+  // Sortierung nach Wahrscheinlichkeit: Prozentwerte der weiteren Vorschlaege fallen monoton
+  await page.click('button:has-text("VORRAT")');
+  await page.waitForTimeout(200);
+  const pcts = (await page.locator('div[style*="font-size: 14px"][style*="font-weight: 700"]').allTextContents()).map(t=>parseInt(t,10)).filter(x=>!isNaN(x));
+  check(pcts.length>=3&&pcts.every((v,i)=>i===0||v<=pcts[i-1]), 'Heute: Vorschlaege absteigend nach Wahrscheinlichkeit sortiert', pcts);
   // Chip "Bewaehrt": gekocht und >= 3 Sterne -> nur Pasta Carbonara
   await page.click('button:has-text("Bewährt")');
   await page.waitForTimeout(300);

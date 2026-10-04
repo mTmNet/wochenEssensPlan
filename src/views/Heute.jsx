@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { C, SF, SER, micro as label, chip, btn, input } from "../theme.js";
+import { C, SF, SER, micro as label, chip, btn, input, iconBtn } from "../theme.js";
 import { CUISINE_LIST, ML } from "../data.js";
 import { recName, recCat, cookedLabel, cookedCount } from "../logic/recipes.js";
 import { daysSince } from "../logic/weeks.js";
+import { STOCK_MIN, fadeTable } from "../logic/stock.js";
 import DishImage from "../components/DishImage.jsx";
 
 // HEUTE - "Was kochen wir heute?": Heute im Plan, Vorschlaege aus dem Kochbuch (Haushaltsbuch, Bewertung, Kochhistorie),
-// Klassiker-Basis, bekanntes Gericht finden (KI)
+// Rezept-Basis, bekanntes Gericht finden (KI)
 export default function Heute({state,api}){
   const {stock,ranked,heuteCat,hbLink,hbLoading,hbErr,hbBook,images,recipes,todayPlan,aiBusy,aiErr,classicPicks,settings}=state;
-  const {setHeuteCat,connectHb,reloadHb,disconnectHb,openRecipe,setView,suggestRecipe,adoptClassic}=api;
+  const {setHeuteCat,connectHb,reloadHb,disconnectHb,markGone,clearGone,openRecipe,setView,suggestRecipe,adoptClassic}=api;
   const [heuteMore,setHeuteMore]=useState(false);
   const [hbInput,setHbInput]=useState("");
   const [aiFast,setAiFast]=useState(false);
@@ -17,8 +18,14 @@ export default function Heute({state,api}){
   const [aiCuisine,setAiCuisine]=useState("Egal");
   const [adopting,setAdopting]=useState("");
   const [stockOpen,setStockOpen]=useState(false);   // Vorratsliste aus dem Haushaltsbuch auf-/zugeklappt
+  const [classicsMore,setClassicsMore]=useState(false);
   const dn=(k)=>recName(recipes[k],k);
   const hasStock=stock.length>0;
+  const visible=stock.filter(s=>s.p>=STOCK_MIN);          // was in der Vorratsliste steht
+  const goneCount=hbLink&&hbLink.gone?Object.keys(hbLink.gone).length:0;
+  const fades=fadeTable();
+  const emptyBook=Object.keys(recipes).length===0;
+  const shownClassics=emptyBook&&!classicsMore?classicPicks.slice(0,8):classicPicks;
   const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
   const meta=(r)=>{
     const parts=[];
@@ -28,7 +35,7 @@ export default function Heute({state,api}){
   };
   const top=ranked[0];
   const rest=ranked.slice(1,heuteMore?10:4);
-  const linkBtn={background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"10px 8px",minHeight:"40px",fontFamily:SF};
+  const tile={...btn("ghost"),minHeight:"44px",padding:"10px 6px",fontSize:"12px",letterSpacing:"1px",whiteSpace:"nowrap"};
   const doConnect=async()=>{ if(await connectHb(hbInput)) setHbInput(""); };
   const doAdopt=async(c)=>{ setAdopting(c.name); await adoptClassic(c); setAdopting(""); };
   return(
@@ -75,40 +82,44 @@ export default function Heute({state,api}){
         {hbErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{hbErr}</div>}
       </div>
     ):(
-      <div style={{marginBottom:"12px"}}>
-        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:"4px 6px",fontSize:"12px",color:C.muted,padding:"0 2px"}}>
-          <span style={{width:"6px",height:"6px",borderRadius:"50%",background:hbErr?C.err:hasStock?C.ok:C.subtle,flexShrink:0}} />
-          <span style={{flex:"1 1 auto"}}>
-            {hbLoading?"Haushaltsbuch wird geladen…":hbErr?hbErr:(
-              <>Haushaltsbuch <span style={{color:C.text,letterSpacing:"1px",fontWeight:"700"}}>{hbLink.code}</span>{hbBook?(" · "+hbLink.cat+" · "+stock.filter(s=>s.p>=0.25).length+" wahrscheinlich da"):" verbunden"}</>
-            )}
-          </span>
-          <button onClick={()=>reloadHb()} disabled={hbLoading} style={linkBtn}>aktualisieren</button>
-          <button onClick={disconnectHb} style={{...linkBtn,color:C.muted}}>trennen</button>
+      <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"6px"}}>
+          <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hbErr?C.err:hasStock?C.ok:C.subtle,flexShrink:0}} />
+          <span style={{...label,marginBottom:0}}>Haushaltsbuch</span>
         </div>
-        {/* Vorratsliste: worauf sich die Vorschlaege stuetzen */}
-        {hbBook&&hasStock&&(
-          <div style={{background:C.white,border:"1px solid "+C.border,marginTop:"6px"}}>
-            <button onClick={()=>setStockOpen(v=>!v)} aria-expanded={stockOpen} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",minHeight:"40px",background:"none",border:"none",cursor:"pointer",fontFamily:SF,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase"}}>
-              <span>Was wahrscheinlich da ist ({stock.filter(s=>s.p>=0.25).length})</span>
-              <span style={{fontSize:"12px"}}>{stockOpen?"▴":"▾"}</span>
-            </button>
-            {stockOpen&&(
-              <div style={{borderTop:"1px solid "+C.border}}>
-                {stock.filter(s=>s.p>=0.25).map((s,i)=>{
-                  const d=daysSince(s.last);
-                  const when=d===null?"":d===0?"heute":d===1?"gestern":"vor "+d+" Tagen";
-                  return (
-                    <div key={s.key} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",borderTop:i?"1px solid "+C.border:"none",fontSize:"13px"}}>
-                      <span style={{flex:1,minWidth:0,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
-                      <span style={{fontSize:"11px",color:C.muted,flexShrink:0}}>{when}</span>
-                      <span style={{fontSize:"12px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"38px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>
-                    </div>
-                  );
-                })}
-                <div style={{padding:"8px 12px",fontSize:"11px",color:C.subtle,borderTop:"1px solid "+C.border,lineHeight:"1.4"}}>Aus den Einkäufen der Rubrik „{hbLink.cat}“ der letzten 90 Tage. Frisches verblasst nach Tagen, Vorräte nach Wochen; Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
-              </div>
-            )}
+        <div style={{fontSize:"20px",fontWeight:"700",letterSpacing:"3px",color:C.text,marginBottom:"4px"}}>{hbLink.code}</div>
+        <div style={{fontSize:"14px",color:hbErr?C.err:C.muted,lineHeight:"1.5"}}>
+          {hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+" · "+visible.length+" wahrscheinlich da"):"verbunden"}
+        </div>
+        {/* Kacheln: Vorrat auf-/zuklappen, neu laden, trennen */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",marginTop:"12px"}}>
+          <button onClick={()=>setStockOpen(v=>!v)} disabled={!hasStock} aria-expanded={stockOpen} style={{...tile,color:hasStock?C.accent:C.subtle,borderColor:stockOpen?C.accent:C.border,background:stockOpen?C.abg:"none"}}>VORRAT {stockOpen?"▴":"▾"}</button>
+          <button onClick={()=>reloadHb()} disabled={hbLoading} style={{...tile,color:C.accent,opacity:hbLoading?0.5:1}}>↻ AKTUALISIEREN</button>
+          <button onClick={disconnectHb} style={tile}>TRENNEN</button>
+        </div>
+        {/* Vorratsliste: worauf sich die Vorschlaege stuetzen; x = "ist nicht mehr da" */}
+        {stockOpen&&hasStock&&(
+          <div style={{border:"1px solid "+C.border,marginTop:"10px"}}>
+            {visible.map((s,i)=>{
+              const d=daysSince(s.last);
+              const when=d===null?"":d===0?"heute gekauft":d===1?"gestern gekauft":"vor "+d+" Tagen gekauft";
+              const left=s.left<=0?"läuft heute aus":s.left===1?"noch 1 Tag":"noch "+s.left+" Tage";
+              return (
+                <div key={s.key} style={{display:"flex",alignItems:"center",gap:"8px",padding:"6px 4px 6px 12px",borderTop:i?"1px solid "+C.border:"none",minHeight:"48px",boxSizing:"border-box"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:"15px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+                    <div style={{fontSize:"12px",color:C.muted}}>{[when,left].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <span style={{fontSize:"14px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"42px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>
+                  <button onClick={()=>markGone(s.key)} aria-label={s.name+" ist nicht mehr da"} title="Nicht mehr da – aus der Liste streichen" style={{...iconBtn,color:C.muted}}>×</button>
+                </div>
+              );
+            })}
+            <div style={{padding:"10px 12px",fontSize:"12px",color:C.subtle,borderTop:"1px solid "+C.border,lineHeight:"1.5"}}>
+              <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
+              <div>Danach gilt eine Sache als aufgebraucht (unter {Math.round(STOCK_MIN*100)} %). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden. Quelle: Rubrik „{hbLink.cat}“ der letzten 90 Tage, nur lesend.</div>
+              {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position von Hand gestrichen.":goneCount+" Positionen von Hand gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
+            </div>
           </div>
         )}
       </div>
@@ -120,7 +131,7 @@ export default function Heute({state,api}){
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px",fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>
         {heuteCat==="proven"
           ? "Noch nichts Bewährtes: bewährt ist, was mindestens einmal gekocht und mit 3 Sternen oder mehr bewertet wurde."
-          : "Keine Rezepte in dieser Rubrik im Kochbuch. Übernimm unten einen Klassiker, importiere unter „Rezepte“ eigene – oder lass dir von der KI ein bekanntes Gericht nennen."}
+          : "Keine Rezepte in dieser Rubrik im Kochbuch. Übernimm unten ein Gericht aus der Rezept-Basis, importiere unter „Rezepte“ eigene – oder lass dir von der KI ein bekanntes Gericht nennen."}
       </div>
     ):(
       <div onClick={()=>openRecipe(top.name)} role="button" style={{background:C.white,border:"1px solid "+C.accent,marginBottom:"10px",cursor:"pointer"}}>
@@ -149,10 +160,10 @@ export default function Heute({state,api}){
         {rest.map((r,i)=>(
           <div key={r.name} onClick={()=>openRecipe(r.name)} role="button" style={{display:"flex",alignItems:"center",gap:"10px",padding:"11px 14px",minHeight:"48px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none",cursor:"pointer"}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:SER,fontSize:"15px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(r.name)}</div>
-              <div style={{fontSize:"11px",color:C.muted}}>{meta(r)||recCat(recipes[r.name])}</div>
+              <div style={{fontFamily:SER,fontSize:"16px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(r.name)}</div>
+              <div style={{fontSize:"12px",color:C.muted}}>{meta(r)||recCat(recipes[r.name])}</div>
             </div>
-            {hasStock&&<div style={{fontSize:"13px",fontWeight:"700",color:pColor(r.cov),flexShrink:0}}>{Math.round(r.cov*100)} %</div>}
+            {hasStock&&<div style={{fontSize:"14px",fontWeight:"700",color:pColor(r.cov),flexShrink:0}}>{Math.round(r.cov*100)} %</div>}
           </div>
         ))}
       </div>
@@ -160,22 +171,30 @@ export default function Heute({state,api}){
     {ranked.length>4&&(
       <button onClick={()=>setHeuteMore(m=>!m)} style={{...btn("ghost"),width:"100%",letterSpacing:"2px",marginBottom:"18px"}}>{heuteMore?"WENIGER":"MEHR VORSCHLÄGE"}</button>
     )}
-    {!hbLink&&top&&<div style={{fontSize:"11px",color:C.subtle,margin:"-8px 2px 18px"}}>Ohne Haushaltsbuch sortiert nach Bewertung und Abwechslung.</div>}
+    {top&&<div style={{fontSize:"12px",color:C.subtle,margin:"-8px 2px 18px"}}>{hasStock?"Sortiert nach Wahrscheinlichkeit: oben steht, wofür am meisten da ist.":"Ohne Haushaltsbuch sortiert nach Bewertung und Abwechslung."}</div>}
 
-    {/* AUS DER KLASSIKER-BASIS - Quelle 3: etablierte Gerichte, die noch nicht im Kochbuch sind */}
+    {/* AUS DER REZEPT-BASIS - Quelle 3: etablierte Gerichte, die noch nicht im Kochbuch sind; leeres Kochbuch: die ganze Basis */}
     {classicPicks.length>0&&(
       <div style={{background:C.white,border:"1px dashed "+C.border,padding:"14px",marginBottom:"14px"}}>
-        <div style={label}>Aus der Klassiker-Basis</div>
-        <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5",marginBottom:"8px"}}>Etablierte Gerichte mit Herkunft, die noch nicht in eurem Kochbuch stehen{hasStock?" – sortiert nach dem, was wahrscheinlich da ist":""}.</div>
-        {classicPicks.map((p,i)=>(
-          <div key={p.classic.name} style={{display:"flex",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:i<classicPicks.length-1?"1px solid "+C.border:"none",minHeight:"48px"}}>
+        <div style={label}>Aus der Rezept-Basis{emptyBook?" ("+classicPicks.length+")":""}</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"8px"}}>
+          {emptyBook
+            ?"Euer Kochbuch ist noch leer – hier die ganze Rezept-Basis: etablierte Gerichte mit Herkunft, Portionen und Zeit"+(hasStock?", sortiert nach dem, was wahrscheinlich da ist":"")+". „Ins Kochbuch“ übernimmt ein Gericht."
+            :"Etablierte Gerichte mit Herkunft, die noch nicht in eurem Kochbuch stehen"+(hasStock?" – sortiert nach dem, was wahrscheinlich da ist":"")+"."}
+        </div>
+        {shownClassics.map((p,i)=>(
+          <div key={p.classic.name} style={{display:"flex",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:i<shownClassics.length-1?"1px solid "+C.border:"none",minHeight:"48px"}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:SER,fontSize:"15px",color:C.text}}>{p.classic.name}</div>
-              <div style={{fontSize:"11px",color:C.muted}}>{[p.classic.origin,p.classic.minutes?p.classic.minutes+" Min.":"",hasStock?Math.round(p.cov*100)+" % da":""].filter(Boolean).join(" · ")}</div>
+              <div style={{fontFamily:SER,fontSize:"16px",color:C.text}}>{p.classic.name}</div>
+              <div style={{fontSize:"12px",color:C.muted}}>{[p.classic.origin,p.classic.minutes?p.classic.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
             </div>
+            {hasStock&&<span style={{fontSize:"14px",fontWeight:"700",color:pColor(p.cov),flexShrink:0}}>{Math.round(p.cov*100)} %</span>}
             <button onClick={()=>doAdopt(p.classic)} disabled={adopting===p.classic.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0}}>{adopting===p.classic.name?"…":"INS KOCHBUCH"}</button>
           </div>
         ))}
+        {emptyBook&&classicPicks.length>8&&(
+          <button onClick={()=>setClassicsMore(m=>!m)} style={{...btn("ghost"),width:"100%",letterSpacing:"2px",marginTop:"10px"}}>{classicsMore?"WENIGER":"ALLE "+classicPicks.length+" ANZEIGEN"}</button>
+        )}
       </div>
     )}
 

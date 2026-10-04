@@ -7,10 +7,27 @@ import { cookedCount } from "./recipes.js";
 
 export { fold };
 
-const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LIFE) if(s.includes(k)) return d; return 45; };
+const HL_DEFAULT = 45;
+const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LIFE) if(s.includes(k)) return d; return HL_DEFAULT; };
+// Unter dieser Wahrscheinlichkeit gilt eine Sache als "nicht mehr da" (Vorratsliste und Einkauf blenden sie aus)
+export const STOCK_MIN = 0.25;
+// Nach so vielen Tagen faellt eine Sache unter STOCK_MIN (zwei Halbwertszeiten), hoechstens das Betrachtungsfenster
+export const fadeDays = (hl) => Math.min(HB_DAYS, Math.round(hl*Math.log(STOCK_MIN)/Math.log(0.5)));
+const HL_LABEL = {obst:"Obst",gemuese:"Gemüse",fleisch:"Fleisch",wurst:"Wurst",fisch:"Fisch",backwaren:"Backwaren",brot:"Brot",milch:"Milch",kaese:"Käse",getraenk:"Getränke",suess:"Süßes",tiefkuehl:"Tiefkühl"};
+// Tabelle fuer den Hinweis unter der Vorratsliste: [{labels:["Fisch"],days:4}, ...] aufsteigend nach Tagen
+export const fadeTable = () => {
+  const by = {};
+  HALF_LIFE.forEach(([k,hl])=>{ const d=fadeDays(hl); (by[d]=by[d]||[]).push(HL_LABEL[k]||k); });
+  const dDef = fadeDays(HL_DEFAULT);
+  (by[dDef]=by[dDef]||[]).push("übrige Vorräte");
+  return Object.keys(by).map(Number).sort((a,b)=>a-b).map(d=>({labels:by[d],days:d}));
+};
+// Firebase-tauglicher Schluessel fuer die "nicht mehr da"-Markierung (plans/<code>/hb/gone/<goneKey>)
+export const goneKey = (key) => String(key||"").replace(/\s+/g,"_").replace(/[.#$\[\]\/]/g,"");
 
-// Liefert [{key,toks,p,name,sub}] absteigend nach Wahrscheinlichkeit; Mehrfachkaeufe: p = 1 - Prod(1-p_i)
-export const hbStock = (book,cat) => {
+// Liefert [{key,toks,p,name,sub,last,hl,left}] absteigend nach Wahrscheinlichkeit; Mehrfachkaeufe: p = 1 - Prod(1-p_i)
+// gone: {goneKey: "YYYY-MM-DD"} - von Hand als "nicht mehr da" markiert; gilt, bis nach diesem Datum neu gekauft wurde
+export const hbStock = (book,cat,gone) => {
   const map = {};
   if(!book||!book.entries||!cat) return [];
   const now = Date.now();
@@ -27,10 +44,17 @@ export const hbStock = (book,cat) => {
       const p = Math.pow(0.5,Math.max(0,age)/halfLife(sub));
       const prev = map[key];
       // last = juengstes Einkaufsdatum (fuer die Vorratsliste im Reiter Heute)
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:it.sub||"",last:prev&&prev.last>e.date?prev.last:e.date};
+      const hl = halfLife(sub);
+      const last = prev&&prev.last>e.date?prev.last:e.date;
+      const newest = !prev||last!==prev.last;
+      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl};
     });
   });
-  return Object.values(map).sort((a,b)=>b.p-a.p);
+  const g = gone||{};
+  return Object.values(map)
+    .filter(s=>{ const d=g[goneKey(s.key)]; return !d||s.last>d; })
+    .map(s=>{ const age=Math.max(0,(now-new Date(s.last+"T12:00:00").getTime())/86400000); return {...s,left:Math.max(0,Math.round(fadeDays(s.hl)-age))}; })
+    .sort((a,b)=>b.p-a.p);
 };
 // Status einer Rezeptzutat: {name, basic, p, src}
 export const ingStatus = (ing,stock) => {

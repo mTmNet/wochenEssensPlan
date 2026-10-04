@@ -4,10 +4,10 @@ Gemeinsamer Essensplaner für die Familie: Wochenplan mit Datum, Einkaufsliste, 
 
 ## Funktionen
 
-- **Heute** – zeigt zuerst, was für heute geplant ist, dann Vorschläge aus dem eigenen Kochbuch (Filter „Bewährt“ = schon gekocht und gut bewertet), danach passende Gerichte aus der mitgelieferten **Klassiker-Basis** (133 etablierte Gerichte mit Herkunft, Portionen, Zeit), zuletzt „Bekanntes Gericht finden“ per KI. Mit verknüpftem Haushaltsbuch werden die Einkäufe berücksichtigt (wahrscheinlicher Vorrat, frische Sachen verblassen schneller). Es wird nur gelesen.
+- **Heute** – zeigt zuerst, was für heute geplant ist, dann Vorschläge aus dem eigenen Kochbuch (Filter „Bewährt“ = schon gekocht und gut bewertet), danach passende Gerichte aus der mitgelieferten **Rezept-Basis** (133 etablierte Gerichte mit Herkunft, Portionen, Zeit), zuletzt „Bekanntes Gericht finden“ per KI. Mit verknüpftem Haushaltsbuch werden die Einkäufe berücksichtigt (wahrscheinlicher Vorrat, frische Sachen verblassen schneller). Es wird nur gelesen.
 - **Woche** – Plan mit Kalenderwoche und Datum, Navigation vor/zurück, „Letzte Woche übernehmen“, mehrere Gerichte pro Mahlzeit, „Wer kocht?“, „Woche abschließen“ trägt die gekochten Gerichte in die Kochhistorie ein.
 - **Einkauf** – aus dem Plan erzeugt und beim erneuten Erzeugen **zusammengeführt** (Handeinträge und Haken bleiben), nach Supermarkt-Abteilungen, Grundvorrat („Vorrat prüfen“) und wahrscheinlich Vorhandenes in eigenen Blöcken, Teilen als Text.
-- **Rezepte** – Suche, Rubriken, Sortierung, Textimport und Fotoimport per KI (abschreiben, nicht erfinden; ergänzte Schritte werden gekennzeichnet), Klassiker-Basis einblenden und übernehmen, Kochbuch als PDF.
+- **Rezepte** – Suche, Rubriken, Sortierung, Textimport und Fotoimport per KI (abschreiben, nicht erfinden; ergänzte Schritte werden gekennzeichnet), Rezept-Basis einblenden und übernehmen, Kochbuch als PDF.
 - **Rezept** – Portionen umrechnen, Zeit, Herkunft und Quelle, „Zum Wochenplan“, „Auf die Einkaufsliste“, eigenes Foto, Bewertung, Notizen, Kochhistorie. **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern aus den Zeitangaben.
 - **Gemeinsam** – ein Plan-Code für die Familie (10 Zeichen), Synchronisation alle 10 Sekunden, jede Änderung wird einzeln geschrieben, damit sich zwei Geräte nicht überschreiben.
 - Als App installierbar (PWA), Schriftzoom, Android-Zurück-Taste.
@@ -60,4 +60,4 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
 
 `globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
 
-Datenmodell, Synchronisation und Migration sind in `docs/ARCHITEKTUR.md` beschrieben, die Klassiker-Basis in `docs/KLASSIKER.md`, der Testbericht mit den Befunden in `TESTBERICHT.md`.
+Datenmodell, Synchronisation und Migration sind in `docs/ARCHITEKTUR.md` beschrieben, die Rezept-Basis in `docs/KLASSIKER.md`, der Testbericht mit den Befunden in `TESTBERICHT.md`.

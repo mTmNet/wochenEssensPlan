@@ -7,7 +7,7 @@ import { compressImageToBase64 } from "../ai.js";
 const SORTS=[{id:"cooked",label:"Zuletzt gekocht"},{id:"best",label:"Beste"},{id:"new",label:"Neu"},{id:"az",label:"A–Z"}];
 
 // REZEPTE - Import (Text/Foto per KI, Foto in zwei Modi), erkanntes Rezept pruefen, Suche, Rubrik-Filter, Sortierung,
-// Klassiker-Basis einblenden, Kochbuch-PDF
+// Rezept-Basis einblenden, Kochbuch-PDF
 export default function Recipes({state,api}){
   const {recipes,classics,importState}=state;
   const {importErr,extracting,extracted,savedMsg}=importState;
@@ -61,7 +61,8 @@ export default function Recipes({state,api}){
   const q=search.trim().toLowerCase();
   const matches=(name,ings)=>!q||name.toLowerCase().includes(q)||(ings||[]).some(i=>i.toLowerCase().includes(q));
   const keys=sortRecipeKeys(recipes,sort).filter(k=>(filterCat==="all"||recCat(recipes[k])===filterCat)&&matches(dn(k),recipes[k].ingredients));
-  const classicList=showClassics?classics.filter(c=>!recipes[recKey(c.name)]&&(filterCat==="all"||c.category===filterCat)&&matches(c.name,c.ingredients)):[];
+  const classicsOn=showClassics||total===0;   // leeres Kochbuch: Rezept-Basis immer zeigen
+  const classicList=classicsOn?classics.filter(c=>!recipes[recKey(c.name)]&&(filterCat==="all"||c.category===filterCat)&&matches(c.name,c.ingredients)):[];
   const existsName=extracted&&!extracted.ai&&!!recipes[recKey(String(extracted.name||"").trim())];
 
   return(
@@ -193,7 +194,7 @@ export default function Recipes({state,api}){
             {/* Leeres Kochbuch: Startrezepte auf Wunsch uebernehmen (werden nie automatisch gespeichert) */}
             {total===0&&!extracted&&(
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"12px",textAlign:"center"}}>
-                <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"12px"}}>Noch keine Rezepte in diesem Plan. Importiere oben ein Rezept, blende unten die Klassiker-Basis ein oder übernimm die Startrezepte als Grundstock.</div>
+                <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"12px"}}>Noch keine Rezepte in diesem Plan. Importiere oben ein Rezept, übernimm unten ein Gericht aus der Rezept-Basis oder die Startrezepte als Grundstock.</div>
                 <button onClick={adoptStarters} style={{...btn("primary"),letterSpacing:"2px",padding:"12px 20px"}}>STARTREZEPTE ÜBERNEHMEN</button>
               </div>
             )}
@@ -216,7 +217,7 @@ export default function Recipes({state,api}){
               {SORTS.map(s=>(
                 <button key={s.id} onClick={()=>setSort(s.id)} aria-pressed={sort===s.id} style={{...chip(sort===s.id),padding:"7px 10px",minHeight:"32px"}}>{s.label}</button>
               ))}
-              <button onClick={()=>setShowClassics(v=>!v)} aria-pressed={showClassics} style={{...chip(showClassics),padding:"7px 10px",minHeight:"32px",marginLeft:"auto"}}>{showClassics?"✓ ":""}Klassiker-Basis einblenden</button>
+              <button onClick={()=>setShowClassics(v=>!v)} aria-pressed={showClassics} style={{...chip(showClassics),padding:"7px 10px",minHeight:"32px",marginLeft:"auto"}}>{showClassics?"✓ ":""}Rezept-Basis einblenden</button>
             </div>
 
             {/* Rezeptliste */}
@@ -236,11 +237,11 @@ export default function Recipes({state,api}){
               );
             })}
 
-            {/* Klassiker-Basis (abgesetzt, mit Uebernehmen) */}
-            {showClassics&&(
+            {/* Rezept-Basis (abgesetzt, mit Uebernehmen); bei leerem Kochbuch immer sichtbar */}
+            {classicsOn&&(
               <div style={{marginTop:"14px"}}>
-                <div style={{fontSize:"11px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px dashed "+C.border}}>Klassiker-Basis · {classicList.length} noch nicht im Kochbuch</div>
-                {classicList.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 4px"}}>Kein Klassiker passt zur Suche – oder alle passenden sind schon im Kochbuch.</div>}
+                <div style={{fontSize:"11px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px dashed "+C.border}}>Rezept-Basis · {classicList.length} noch nicht im Kochbuch</div>
+                {classicList.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 4px"}}>Kein Gericht der Rezept-Basis passt zur Suche – oder alle passenden sind schon im Kochbuch.</div>}
                 {classicList.map(c=>(
                   <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,padding:"9px 14px",minHeight:"56px",marginBottom:"5px"}}>
                     <div style={{flex:1,minWidth:0}}>

@@ -9,7 +9,7 @@ import Modal from "../components/Modal.jsx";
 import DishImage from "../components/DishImage.jsx";
 import Toast from "../components/Toast.jsx";
 
-const SRC_LABEL = { ki:"KI-Vorschlag", import:"Importiert", klassiker:"Klassiker", eigen:"" };
+const SRC_LABEL = { ki:"KI-Vorschlag", import:"Importiert", klassiker:"Rezept-Basis", eigen:"" };
 const fmtDate = (iso) => { const m=String(iso||"").split("-"); return m.length===3 ? parseInt(m[2],10)+"."+parseInt(m[1],10)+"."+m[0] : iso; };
 const inp = {width:"100%",border:"1px solid "+C.border,padding:"10px 12px",minHeight:"40px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",boxSizing:"border-box",background:C.white};
 const stepBtn = {width:"40px",height:"40px",border:"1px solid "+C.border,background:C.bg,color:C.text,fontSize:"20px",lineHeight:1,cursor:"pointer",fontFamily:SF,flexShrink:0};

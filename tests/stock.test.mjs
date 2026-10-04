@@ -1,7 +1,7 @@
 // Punktzahl fuer "Heute" (Bauplan Abschnitt 7) und Bestand aus dem Haushaltsbuch
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreRecipe, hbStock, ingStatus, pickFoodCat } from "../src/logic/stock.js";
+import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const NOW = "2026-10-04";
@@ -61,4 +61,37 @@ test("pickFoodCat waehlt Lebensmittel, sonst die Rubrik mit den meisten Position
   } };
   assert.equal(pickFoodCat(book), "Einkauf");
   assert.equal(pickFoodCat(null), "Lebensmittel");
+});
+
+test("hbStock: gone-Markierung streicht eine Position, bis nach dem Datum neu gekauft wurde", () => {
+  const d = (n) => { const x = new Date(Date.now() - n * 86400000); return x.toISOString().slice(0, 10); };
+  const book = { entries: {
+    a: { date: d(3), category: "Lebensmittel", items: [{ name: "Milch", amount: 1, sub: "Milchprodukte" }, { name: "Tomaten", amount: 1, sub: "Gemüse" }] },
+  } };
+  const all = hbStock(book, "Lebensmittel");
+  assert.equal(all.length, 2);
+  const gone = { [goneKey(all.find((s) => s.key.includes("milch")).key)]: d(1) };   // gestern gestrichen, Einkauf war davor
+  const st = hbStock(book, "Lebensmittel", gone);
+  assert.deepEqual(st.map((s) => s.key), all.filter((s) => !s.key.includes("milch")).map((s) => s.key), "Milch ist weg");
+  const again = hbStock(book, "Lebensmittel", { [Object.keys(gone)[0]]: d(5) });   // Streichung aelter als der Einkauf
+  assert.equal(again.length, 2, "neuer Einkauf nach der Streichung bringt die Position zurueck");
+  assert.equal(goneKey("tomaten dose.1 #x/y"), "tomaten_dose1_xy", "Schluessel ohne Firebase-Sonderzeichen");
+});
+
+test("hbStock: left = Tage bis zum Verblassen (zwei Halbwertszeiten, hoechstens 90)", () => {
+  const d = (n) => { const x = new Date(Date.now() - n * 86400000); return x.toISOString().slice(0, 10); };
+  const book = { entries: {
+    a: { date: d(2), category: "Lebensmittel", items: [{ name: "Lachs", amount: 1, sub: "Fisch" }, { name: "Kokosmilch", amount: 1, sub: "Konserven" }] },
+  } };
+  const st = hbStock(book, "Lebensmittel");
+  const fisch = st.find((s) => s.key.includes("lachs")), nudeln = st.find((s) => s.key.includes("kokos"));
+  assert.equal(fadeDays(2), 4, "Fisch: Halbwertszeit 2 Tage -> nach 4 Tagen unter 25 %");
+  assert.equal(fisch.left, 2, "Lachs vor 2 Tagen gekauft: noch 2 Tage");
+  assert.equal(fadeDays(45), 90, "uebrige Vorraete: 90 Tage (Fenster)");
+  assert.equal(nudeln.left, 88);
+  assert.ok(Math.abs(Math.pow(0.5, fadeDays(2) / 2) - STOCK_MIN) < 1e-9, "fadeDays trifft genau STOCK_MIN");
+  const tbl = fadeTable();
+  assert.equal(tbl[0].days, 4); assert.deepEqual(tbl[0].labels, ["Fisch"]);
+  assert.ok(tbl[tbl.length - 1].labels.includes("übrige Vorräte"));
+  assert.ok(tbl.every((r, i) => i === 0 || r.days > tbl[i - 1].days), "aufsteigend, keine doppelten Tage");
 });

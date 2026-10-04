@@ -4,7 +4,7 @@ import { CUISINE_LIST, CATS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat } from "./logic/stock.js";
+import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
 import { todayISO, isoWeekKey, shiftWeek, todayDayKey, slotOrderNow, emptyWeek, normalizeWeek, migrateWeek, slotList } from "./logic/weeks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, planItems, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, addedSlotKeys } from "./logic/shopping.js";
@@ -191,7 +191,7 @@ export default function App() {
       jobs.push(Promise.all([fbGet("plans/"+code+"/participants"),fbGet("plans/"+code+"/hb"),fbGet("plans/"+code+"/settings")]).then(([p,h,st])=>{
         if(!canApply()) return;
         if(p!==undefined) setParticipants(asList(p).filter(Boolean));
-        if(h!==undefined) setHbLink(prevL=>{ const n=(h&&h.code)?h:null; return (prevL&&n&&prevL.code===n.code&&prevL.cat===n.cat)?prevL:n; });
+        if(h!==undefined) setHbLink(prevL=>{ const n=(h&&h.code)?h:null; return (prevL&&n&&prevL.code===n.code&&prevL.cat===n.cat&&JSON.stringify(prevL.gone||{})===JSON.stringify(n.gone||{}))?prevL:n; });
         if(st!==undefined) setSettings({...DEFAULT_SETTINGS,...asObj(st)});
         if(p!==undefined&&h!==undefined&&st!==undefined){ seen.peopleUpdatedAt=meta.peopleUpdatedAt; dirty.delete("people"); }
       }));
@@ -546,7 +546,7 @@ export default function App() {
     setRecipes(prev=>({...prev,...add}));
     writePlan(patch,"recipes");
   };
-  // Eintrag der Klassiker-Basis ins Kochbuch der Familie kopieren (source "klassiker")
+  // Eintrag der Rezept-Basis ins Kochbuch der Familie kopieren (source "klassiker")
   const adoptClassic=async(classic)=>{
     if(!classic||!classic.name) return null;
     const k=recKey(classic.name);
@@ -681,6 +681,19 @@ export default function App() {
     const link={...hbLink,cat};
     setHbLink(link);
     writePlan({hb:link},"people");
+  };
+  // "Nicht mehr da": Position aus der Vorratsliste streichen, gilt bis zum naechsten Einkauf nach heute (plans/<code>/hb/gone)
+  const markGone=(key)=>{
+    if(!hbLink)return;
+    const gk=goneKey(key); if(!gk)return;
+    const day=todayISO();
+    setHbLink(prev=>prev?{...prev,gone:{...(prev.gone||{}),[gk]:day}}:prev);
+    writePlan({["hb/gone/"+gk]:day},"people");
+  };
+  const clearGone=()=>{
+    if(!hbLink)return;
+    setHbLink(prev=>prev?{...prev,gone:undefined}:prev);
+    writePlan({"hb/gone":null},"people");
   };
   const disconnectHb=()=>{
     if(!window.confirm("Verknüpfung zum Haushaltsbuch trennen? (Das Haushaltsbuch selbst bleibt unverändert.)"))return;
@@ -899,7 +912,7 @@ export default function App() {
     if((view==="heute"||view==="shopping")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
   },[view,hbLink&&hbLink.code]);
   useEffect(()=>{ try{ localStorage.setItem(HEUTE_CAT_KEY,heuteCat); }catch(e){} },[heuteCat]);
-  const stock=useMemo(()=>hbStock(hbBook,hbLink&&hbLink.cat),[hbBook,hbLink&&hbLink.cat]);
+  const stock=useMemo(()=>hbStock(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone),[hbBook,hbLink]);
   // Rangliste (Bauplan Abschnitt 7): "Bewaehrt" = gekocht und >= 3 Sterne, "Schnell" = <= 30 Min. oder Rubrik,
   // Fruehstueck erscheint nach 11 Uhr nur ueber den eigenen Chip
   const heuteFilter=(r,c)=>{
@@ -916,17 +929,19 @@ export default function App() {
     return Object.keys(recipes)
       .filter(n=>heuteFilter(recipes[n],recCat(recipes[n])))
       .map(n=>({name:n,...scoreRecipe(recipes[n],stock)}))
-      .sort((a,b)=>b.score-a.score);
+      // mit Haushaltsbuch zuerst nach Wahrscheinlichkeit (Abdeckung), dann nach Punktzahl; ohne nur nach Punktzahl
+      .sort((a,b)=>(stock.length?(b.cov-a.cov):0)||(b.score-a.score));
   },[view,recipes,stock,heuteCat]);
-  // Aus der Klassiker-Basis: die drei Eintraege, die zum Vorrat am besten passen und noch nicht im Kochbuch sind (taeglich rotierend)
+  // Aus der Rezept-Basis: Eintraege, die noch nicht im Kochbuch sind, nach Wahrscheinlichkeit (taeglich rotierend bei Gleichstand).
+  // Leeres Kochbuch: die ganze Basis, damit man sofort etwas zum Kochen hat; sonst die drei besten.
   const classicPicks=useMemo(()=>{
     if(view!=="heute") return [];
     const dayIdx=Math.floor(Date.now()/86400000);
-    return CLASSICS
+    const all=CLASSICS
       .filter(c=>!recipes[recKey(c.name)]&&(heuteCat==="proven"?false:heuteFilter(c,c.category)))
       .map((c,i)=>({classic:c,i,...scoreRecipe(c,stock)}))
-      .sort((a,b)=>(b.cov-a.cov)||(((a.i+dayIdx)%7)-((b.i+dayIdx)%7))||(a.i-b.i))
-      .slice(0,3);
+      .sort((a,b)=>(b.cov-a.cov)||(((a.i+dayIdx)%7)-((b.i+dayIdx)%7))||(a.i-b.i));
+    return Object.keys(recipes).length?all.slice(0,3):all;
   },[view,recipes,stock,heuteCat]);
   // HEUTE IM PLAN: Slots des heutigen Tages aus der aktuellen Woche, aktueller Slot zuerst
   const todayPlan=useMemo(()=>{
@@ -984,7 +999,7 @@ export default function App() {
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,setHbCat,disconnectHb,reloadHb:loadHb,setSetting,zoom,leavePlan,
+    connectHb,setHbCat,disconnectHb,reloadHb:loadHb,markGone,clearGone,setSetting,zoom,leavePlan,
     // Rahmen
     setView,copyCode,showToast,registerBackHandler,setHeuteCat,
     setActiveCell,setCellInput,setOpenCat,setCookPicker,cellRef,cookRef,

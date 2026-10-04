@@ -1,4 +1,4 @@
-// Klassiker-Basis: zusammengeführte Liste aller Gerichte aus src/classics/*.js.
+// Rezept-Basis (intern "classics"): zusammengeführte Liste aller Gerichte aus src/classics/*.js.
 // Nur Daten, keine Logik. Aufbau der Einträge: docs/ARCHITEKTUR.md Abschnitt 3 ("Recipe") und docs/KLASSIKER.md.
 // Den Schlüssel eines Eintrags bildet die App mit recKey(name) aus src/logic/recipes.js.
 import deutsch from "./classics/deutsch.js";

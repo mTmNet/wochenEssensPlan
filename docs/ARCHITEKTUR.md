@@ -58,7 +58,7 @@ Die `logic/*`-Module sind reine Funktionen ohne React, ohne `window`, ohne Fireb
 ```
 plans/<CODE>
   participants: ["Anna", "Mero"]
-  hb: { code, cat } | null                    Verknüpfung zum Haushaltsbuch (gilt für den Plan)
+  hb: { code, cat, gone? } | null             Verknüpfung zum Haushaltsbuch (gilt für den Plan); gone = {schlüssel: "YYYY-MM-DD"} von Hand als „nicht mehr da“ gestrichen, gilt bis zum nächsten Einkauf nach diesem Datum
   settings: { aiImages: false }               KI-Symbolbilder anzeigen (Standard aus)
   meta: {
     createdAt, updatedAt,                     ms seit Epoche
@@ -163,8 +163,8 @@ Neue Codes: 10 Zeichen aus `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` mit `crypto.getRan
 
 Reihenfolge der Quellen:
 1. **Heute im Plan**: alle Slots des heutigen Tages aus der aktuellen Woche, sortiert nach Tageszeit (`mealSlotNow()`: vor 11 Uhr Frühstück, 11–14 Uhr Mittag, danach Abend). Tipp öffnet das Rezept.
-2. **Vorschläge aus dem Kochbuch**: Chips `Alle · Bewährt · Hauptgericht · Schnell · Kinderessen · Frühstück`. „Bewährt“ = mindestens einmal gekocht und Bewertung ≥ 3. „Schnell“ = `minutes ≤ 30` oder Rubrik „Schnelle Küche“. Ohne Chip „Frühstück“ erscheint die Rubrik Frühstück nach 11 Uhr nicht. Punktzahl: `cov*100 + rating*4 + min(cookedCount,5)*3 − (vor < 7 Tagen gekocht ? 25 : 0)`. Ohne Haushaltsbuch gilt `cov = 0`.
-3. **Aus der Klassiker-Basis**: die drei Einträge aus `CLASSICS`, die zum Vorrat am besten passen und noch nicht im Kochbuch sind, mit „Ins Kochbuch übernehmen“.
+2. **Vorschläge aus dem Kochbuch**: Chips `Alle · Bewährt · Hauptgericht · Schnell · Kinderessen · Frühstück`. „Bewährt“ = mindestens einmal gekocht und Bewertung ≥ 3. „Schnell“ = `minutes ≤ 30` oder Rubrik „Schnelle Küche“. Ohne Chip „Frühstück“ erscheint die Rubrik Frühstück nach 11 Uhr nicht. Sortierung mit Haushaltsbuch: zuerst nach Wahrscheinlichkeit (`cov`, absteigend), bei Gleichstand nach Punktzahl `cov*100 + rating*4 + min(cookedCount,5)*3 − (vor < 7 Tagen gekocht ? 25 : 0)`. Ohne Haushaltsbuch gilt `cov = 0` und es zählt nur die Punktzahl.
+3. **Aus der Rezept-Basis**: die drei Einträge aus `CLASSICS`, die zum Vorrat am besten passen und noch nicht im Kochbuch sind, mit „Ins Kochbuch übernehmen“. Ist das Kochbuch leer, erscheint die ganze Basis (erst 8, dann „Alle anzeigen“), damit neue Familien sofort etwas zum Kochen haben; der Reiter „Rezepte“ blendet sie dann ebenfalls immer ein.
 4. **Bekanntes Gericht finden (KI)**: siehe Abschnitt 8. Der Knopf heißt nicht mehr „erfinden“.
 
 ## 8. KI
@@ -185,7 +185,7 @@ Reihenfolge der Quellen:
 
 ## 10. Rezepte, Detail, Kochmodus
 
-- Rezeptliste: Sortierung `Zuletzt gekocht · Beste · Neu · A–Z`, Suche über Name und Zutaten, Rubrik-Chips, Schalter „Klassiker-Basis einblenden“ (Einträge aus `CLASSICS` erscheinen abgesetzt mit „Übernehmen“). Reiter „Kochbuch“ entfällt; der PDF-Knopf wandert in die Rezeptliste.
+- Rezeptliste: Sortierung `Zuletzt gekocht · Beste · Neu · A–Z`, Suche über Name und Zutaten, Rubrik-Chips, Schalter „Rezept-Basis einblenden“ (Einträge aus `CLASSICS` erscheinen abgesetzt mit „Übernehmen“). Reiter „Kochbuch“ entfällt; der PDF-Knopf wandert in die Rezeptliste.
 - Detail: Kopfbild (`DishImage`), Rubrik/Küche/Herkunft/Quelle, Portionen `− 4 +` (skaliert Zutaten über `scaleIng`), Zeit, Knöpfe „Kochmodus“, „Zum Wochenplan“ (Tag + Slot wählen, Standard heute und nächster Slot), „Auf die Einkaufsliste“, „Bearbeiten“, „Als PDF“, Bewertung, Notizen, Zutaten, Zubereitung, Kochhistorie („3× gekocht, zuletzt vor 12 Tagen“), Löschen.
 - Bearbeiten: zusätzlich Portionen, Minuten, Herkunft, Quelle.
 - Kochmodus: einklappbare Zutatenleiste oben, Wake Lock (`navigator.wakeLock`), erkannte Zeitangaben („20 Min.“) als Timer-Knopf mit Countdown und Signal; „Fertig“ trägt `cooked` ein und öffnet den Bewertungsdialog mit „Foto vom Gericht“.
