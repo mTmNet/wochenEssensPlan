@@ -1,12 +1,21 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
-// FIREBASE - hardcoded, no setup needed
-const FB = "https://wochenessenplan-default-rtdb.europe-west1.firebasedatabase.app";
+// FIREBASE - eigenes Projekt "wochenessenplan-3d0e1" (seit 2026-10, alte DB wochenessenplan-default-rtdb bleibt als Backup)
+// Regeln: Wurzel gesperrt, plans/$code nur mit Code, globalRecipes + recipeImages offen
+const FB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
 
 // SESSION PERSISTENCE - merkt sich Code + Name, damit man nicht rausfliegt
 const SESSION_KEY = "wochenplan_session";
 // SCHRIFTZOOM - pro Geraet gespeichert (nicht synchronisiert)
 const ZOOM_KEY = "wochenplan_zoom";
+// "HEUTE"-FILTER - pro Geraet gespeichert
+const HEUTE_CAT_KEY = "wochenplan_heute_cat";
+
+// HAUSHALTSBUCH - eigenes Firebase-Projekt, wird NUR gelesen (Einkaeufe -> wahrscheinlicher Bestand)
+const HB_FB = "https://haushaltsbuch-3cefb-default-rtdb.europe-west1.firebasedatabase.app";
+const HB_CODE_RE = /^[A-Z0-9]{6,16}$/;
+// undefined = nicht erreichbar, null = kein Buch mit diesem Code
+const hbGet = async (code) => { try { const r=await fetch(HB_FB+"/books/"+code+".json"); return r.ok?await r.json():undefined; } catch(e){ return undefined; } };
 
 // DESIGN - mid-dark theme
 const C = {
@@ -33,7 +42,9 @@ const MEALS  = ["Fr","Mi","Ab","Zw"];
 const ML     = { Fr:"Frühstück", Mi:"Mittagessen", Ab:"Abendessen", Zw:"Snacks" };
 
 // REZEPT-KATEGORIEN (Rubriken) - was fuer ein Gericht (unabhaengig vom Plan-Slot)
-const CATS = ["Frühstück","Hauptgericht","Beilagen & Salate","Soßen & Dips","Snacks"];
+const CATS = ["Frühstück","Hauptgericht","Kinderessen","Schnelle Küche","Beilagen & Salate","Soßen & Dips","Snacks"];
+// Kategorien, die im Dropdown zusaetzlich nach Kueche untergruppiert werden
+const CATS_WITH_CUISINE = ["Hauptgericht","Kinderessen","Schnelle Küche"];
 // KUECHEN - nur fuer Hauptgericht relevant (Untergruppen im Dropdown)
 const CUISINE_LIST = ["Schwäbisch","Italienisch","Asiatisch","Indisch","Naher Osten","Mediterran","Klassisch","International","Vegetarisch","Grillen","Schnell"];
 // Kategorie eines Rezepts ermitteln (migriert alte meal-Werte: Fr->Fruehstueck, Mi/Ab->Hauptgericht)
@@ -143,6 +154,82 @@ const aggregateIngs = (raw) => {
     else{map.set(k,{name:p.name,amount:p.amount,unit:p.unit,pre:p.pre});order.push(k);}
   });
   return order.map(k=>{const e=map.get(k);return fmtIng(e.name,e.amount,e.unit,e.pre);});
+};
+
+// WAHRSCHEINLICHER BESTAND - keine Mengen, keine Zaehler: jede gekaufte Position "verblasst"
+// mit einer Halbwertszeit je Unterkategorie. Rezeptzutaten werden ueber normierte Schluessel abgeglichen.
+const fold = (t) => String(t||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss");
+const KEY_STOP = new Set(["bio","frisch","frische","frischer","frisches","ja","gut","guenstig","packung","pack","stk","st","ca","etwa","und","oder","mit","von","fuer","zum","zur","nach","in","im","aus","geschmack","belieben","etwas","prise","prisen","bund","dose","dosen","glas","becher","beutel","netz","schale","klein","kleine","kleiner","gross","grosse","grosser","mittelgross","mittelgrosse","fein","feine","grob","gehackt","gehackte","gewuerfelt","geschnitten","gerieben","geriebener","gemahlen","gemahlener","getrocknet","getrocknete","gerebelt","tk","xxl","classic","natur","stueck","scheibe","scheiben","zehe","zehen","handvoll","msp","rot","rote","roter","gruen","gruene","gelb","gelbe","weiss","weisse","schwarz","schwarzer","hell","dunkel","mild","scharf","jung","light","vollkorn","natives","nativ","extra","edelsuess","gew","lose","fri","g","kg","ml","l","el","tl","x"]);
+const KEY_SYN = {hack:"hackfleisch",gehacktes:"hackfleisch",schlagsahne:"sahne",kochsahne:"sahne",zucchino:"zucchini",huehnchen:"haehnchen",moehre:"karotte",moehren:"karotte",ei:"eier",paprikaschote:"paprika",paprikaschoten:"paprika",nudel:"pasta",nudeln:"pasta",spaghetti:"pasta",penne:"pasta",fusilli:"pasta",farfalle:"pasta",tagliatelle:"pasta",passata:"tomaten"};
+const normKey = (t) => {
+  let s = fold(t).replace(/\([^)]*\)/g," ").replace(/\d+(?:[.,]\d+)?\s*%/g," ");
+  s = s.replace(new RegExp("\\b\\d+(?:[.,]\\d+)?\\s*"+UNIT_RE+"\\b","gi")," ");
+  s = s.replace(/[^a-z\s]/g," ");
+  return s.split(/\s+/).filter(w=>w.length>=2&&!KEY_STOP.has(w)).map(w=>KEY_SYN[w]||w).join(" ");
+};
+// Zwei Woerter passen: gleich, Plural/Bon-Kuerzel ("tomate"/"tomaten", "jogh"/"joghurt"),
+// Kompositum-Kopf ("kirschtomaten"/"tomaten") oder lange gemeinsame Vorsilbe ("haehnchenbrust"/"haehnchenbrustfilet")
+const TOK_NOMATCH = new Set(["lauch|knoblauch","lauch|schnittlauch"]);
+const tokMatch = (a,b) => {
+  if(a===b) return true;
+  const [s,l] = a.length<=b.length?[a,b]:[b,a];
+  if(s.length<3||TOK_NOMATCH.has(s+"|"+l)) return false;
+  if(l.startsWith(s)&&((s.length>=4&&l.length-s.length<=3)||s.length>=6)) return true;
+  return s.length>=4&&l.endsWith(s);
+};
+// Basics gelten immer als vorhanden (alle Woerter der Zutat muessen Basics sein)
+const BASIC_END = ["salz","pfeffer","oel","zucker","mehl","wasser","essig","bruehe"];
+const BASIC_WORDS = new Set(["paprikapulver","muskat","muskatnuss","oregano","thymian","zimt","kreuzkuemmel","currypulver","chili","chiliflocken","lorbeer","lorbeerblatt","lorbeerblaetter","backpulver","natron","speisestaerke","senf"]);
+const BASIC_LABEL = "Salz, Pfeffer, Öl, Zucker, Mehl, Essig, Brühe, Senf, Gewürze";
+const isBasic = (key) => { const t=key.split(" "); return t.length>0&&t.every(w=>BASIC_END.some(b=>w.endsWith(b))||w.includes("gewuerz")||BASIC_WORDS.has(w)); };
+// Halbwertszeit in Tagen je Unterkategorie aus dem Haushaltsbuch
+const HALF_LIFE = [["obst",4],["gemuese",4],["fleisch",3],["wurst",4],["fisch",2],["backwaren",3],["brot",3],["milch",7],["kaese",10],["getraenk",21],["suess",30],["tiefkuehl",60]];
+const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LIFE) if(s.includes(k)) return d; return 45; };
+const HB_SKIP_SUB = ["reinigung","hygiene","tierbedarf","kraftstoff","pfand","drogerie","kosmetik","haushalt","sonstig","non-food","nonfood","elektro","garten","deko","kleidung","schreibwaren","pflanzen","blumen"];
+const HB_DAYS = 90;
+// Liefert [{key,toks,p,name,sub}] absteigend nach Wahrscheinlichkeit; Mehrfachkaeufe: p = 1 - Prod(1-p_i)
+const hbStock = (book,cat) => {
+  const map = {};
+  if(!book||!book.entries||!cat) return [];
+  const now = Date.now();
+  Object.values(book.entries).forEach(e=>{
+    if(!e||e.category!==cat||!Array.isArray(e.items)) return;
+    const age = (now-new Date(e.date+"T12:00:00").getTime())/86400000;
+    if(!(age>-2)||age>HB_DAYS) return;
+    e.items.forEach(it=>{
+      if(!it||!(it.amount>0)) return;
+      const sub = fold(it.sub);
+      if(HB_SKIP_SUB.some(k=>sub.includes(k))) return;
+      const key = normKey(it.name);
+      if(!key||isBasic(key)) return;
+      const p = Math.pow(0.5,Math.max(0,age)/halfLife(sub));
+      const prev = map[key];
+      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:it.sub||""};
+    });
+  });
+  return Object.values(map).sort((a,b)=>b.p-a.p);
+};
+// Status einer Rezeptzutat: {name, basic, p, src}
+const ingStatus = (ing,stock) => {
+  const name = parseIng(ing).name;
+  const key = normKey(name);
+  if(!key) return null;
+  if(isBasic(key)) return {name,basic:true,p:1,src:""};
+  const toks = key.split(" ");
+  let best = 0, src = "";
+  stock.forEach(s=>{ if(s.p>best&&toks.some(a=>s.toks.some(b=>tokMatch(a,b)))){ best=s.p; src=s.name; } });
+  return {name,basic:false,p:best,src};
+};
+const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const daysSince = (iso) => iso ? Math.floor((Date.now()-new Date(iso+"T12:00:00").getTime())/86400000) : null;
+// Punktzahl: Abdeckung (0-100) + Bewertung*3 - 15 wenn in den letzten 7 Tagen gekocht
+const scoreRecipe = (rec,stock) => {
+  const st = (rec.ingredients||[]).map(i=>ingStatus(i,stock)).filter(Boolean);
+  const core = st.filter(x=>!x.basic);
+  const cov = core.length ? core.reduce((a,x)=>a+x.p,0)/core.length : 0;
+  const ds = daysSince(rec.lastCooked);
+  const recent = ds!==null&&ds<7;
+  return {st,core,cov,recent,ds,score:cov*100+(rec.rating||0)*3-(recent?15:0)};
 };
 
 // SINGLE RECIPE PDF (HTML zum Drucken / als PDF speichern)
@@ -313,6 +400,17 @@ const callClaude = async (messages, system) => {
   }
 };
 
+// Verstaendliche Fehlermeldung fuer KI-Aufrufe (Extrahieren + Generieren)
+const kiErrText = (msg) => {
+  if(msg.includes("404")) return "Die KI-API ist nicht erreichbar (404). Das Gemini-Modell wurde nicht gefunden. Bitte den Vercel-Log pruefen.";
+  if(msg.includes("429")) return "Zu viele Anfragen (429). Bitte 1 Minute warten und erneut versuchen. Details: "+msg;
+  if(msg.includes("413")) return "Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.";
+  if(msg.includes("GEMINI_API_KEY not configured")) return "Server-Konfiguration fehlt: GEMINI_API_KEY ist nicht gesetzt. Bitte in Vercel unter Settings → Environment Variables eintragen und danach neu deployen.";
+  if(msg.includes("API_KEY_INVALID") || msg.includes("401")) return "Der Gemini API Key ist ungueltig. Bitte in Vercel einen gueltigen GEMINI_API_KEY von aistudio.google.com/apikey eintragen und danach neu deployen.";
+  if(msg.includes("500")) return "Serverfehler bei der KI-Anfrage (500). Bitte Vercel-Logs und Umgebungsvariablen pruefen.";
+  return null;
+};
+
 // HELPERS
 const emptyPlan = () => {
   const p={};
@@ -373,6 +471,19 @@ export default function App() {
   const [addedSlots,setAddedSlots]   = useState({});  // gesperrte "+"-Buttons (day|meal|dish)
   const [editShopIdx,setEditShopIdx] = useState(null); // Index der gerade editierten Einkaufszeile
   const [editShopText,setEditShopText] = useState("");
+  // "WAS KOCHEN WIR HEUTE?" - Verknuepfung zum Haushaltsbuch liegt im Plan (plans/<code>/hb), gilt fuer die Familie
+  const [hbLink,setHbLink]           = useState(null);  // {code, cat}
+  const [hbBook,setHbBook]           = useState(null);  // geladenes Buch (nur lesend)
+  const [hbInput,setHbInput]         = useState("");
+  const [hbLoading,setHbLoading]     = useState(false);
+  const [hbErr,setHbErr]             = useState("");
+  const [heuteCat,setHeuteCat]       = useState(()=>{ try{ return localStorage.getItem(HEUTE_CAT_KEY)||"all"; }catch(e){ return "all"; } });
+  const [heuteMore,setHeuteMore]     = useState(false);
+  const [aiFast,setAiFast]           = useState(false);
+  const [aiKids,setAiKids]           = useState(false);
+  const [aiCuisine,setAiCuisine]     = useState("Egal");
+  const [aiBusy,setAiBusy]           = useState(false);
+  const [aiErr,setAiErr]             = useState("");
 
   const isLocalDev =
     window.location.hostname === "localhost" ||
@@ -418,7 +529,8 @@ export default function App() {
   const pushSync = useCallback(async(code,p,s,r,parts)=>{
     if(!code)return;
     await Promise.all([
-      fbPut("plans/"+code,{plan:p,shopping:s,participants:parts||[],updatedAt:Date.now()}),
+      // PATCH statt PUT: andere Felder im Plan (z.B. hb = Haushaltsbuch-Verknuepfung) bleiben erhalten
+      fbPatch("plans/"+code,{plan:p,shopping:s,participants:parts||[],updatedAt:Date.now()}),
       fbPatch("globalRecipes",r),
     ]);
     setLastSync(Date.now());setSyncOk(true);
@@ -441,6 +553,7 @@ export default function App() {
         });
         if(pd.participants)setParticipants(pd.participants);
       }
+      setHbLink(prev=>{ const n=pd.hb||null; return (prev&&n&&prev.code===n.code&&prev.cat===n.cat)?prev:n; });
       setLastSync(pd.updatedAt||Date.now());setSyncOk(true);
     }else setSyncOk(false);
     if(gr)setRecipes(Object.assign({},DR,gr));
@@ -475,8 +588,10 @@ export default function App() {
       const ep=ex.participants||[];
       initParts=ep.includes(nm)?ep:[...ep,nm];
       setParticipants(initParts);
+      setHbLink(ex.hb||null);
     }else{
       setParticipants(initParts);
+      setHbLink(null);
       await fbPut("plans/"+c,{plan:emptyPlan(),shopping:[],participants:initParts,updatedAt:Date.now()});
     }
     if(gr)setRecipes(Object.assign({},DR,gr));
@@ -491,6 +606,7 @@ export default function App() {
     clearTimeout(pushTimer.current);
     try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
     setActiveCode("");setUserName("");setJoinInput("");setView("plan");
+    setHbLink(null);setHbBook(null);setHbErr("");
     setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);
     setScreen("join");
   };
@@ -629,7 +745,7 @@ export default function App() {
     if(!canExtract) return;
     setExtracting(true);setImportErr("");setExtracted(null);
     try{
-      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"category\":\"Hauptgericht\",\"cuisine\":\"Italienisch\"}. Für category wähle genau eine aus: Frühstück, Hauptgericht, Beilagen & Salate, Soßen & Dips, Snacks. Für cuisine (vor allem bei Hauptgericht relevant) wähle aus: Schwäbisch, Italienisch, Asiatisch, Indisch, Naher Osten, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
+      const system="Du bist ein Kochassistent. Extrahiere aus dem gegebenen Inhalt: 1. Rezeptname, 2. Zutatenliste, 3. Schritt-für-Schritt-Kochanleitung. Falls keine Kochanleitung vorhanden ist, erstelle eine sinnvolle Anleitung basierend auf den Zutaten. Schreibe zusätzlich eine kurze, ansprechende Beschreibung (2–4 Sätze): Worum geht es bei dem Gericht, Herkunft oder Geschichte aus der Eingabe, was macht es besonders. WICHTIG: Formuliere die Beschreibung immer komplett mit eigenen Worten neu — übernimm niemals Sätze wörtlich aus der Vorlage, damit keine direkten Kopien entstehen, erfinde aber nichts Neues dazu. Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"Zutat 1\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"category\":\"Hauptgericht\",\"cuisine\":\"Italienisch\"}. Für category wähle genau eine aus: Frühstück, Hauptgericht, Kinderessen, Schnelle Küche, Beilagen & Salate, Soßen & Dips, Snacks. Kinderessen = einfache, milde Gerichte, die Kinder gern mögen; Schnelle Küche = in maximal ca. 20 Minuten fertig. Für cuisine (vor allem bei Hauptgericht, Kinderessen und Schnelle Küche relevant) wähle aus: Schwäbisch, Italienisch, Asiatisch, Indisch, Naher Osten, Mediterran, Klassisch, International, Vegetarisch, Grillen, Schnell.";
       let messages;
       if(importMode==="photo"&&recipeB64&&recipeImgType){
         messages=[{role:"user",content:[
@@ -657,21 +773,7 @@ export default function App() {
     }catch(e){
       console.error("Extract error:",e);
       const msg = (e && e.message) ? e.message : "Unbekannter Fehler";
-      if(msg.includes("404")){
-        setImportErr("Die KI-API ist nicht erreichbar (404). Das Gemini-Modell wurde nicht gefunden. Bitte den Vercel-Log pruefen.");
-      }else if(msg.includes("429")){
-        setImportErr("Zu viele Anfragen (429). Bitte 1 Minute warten und erneut versuchen. Details: "+msg);
-      }else if(msg.includes("413")){
-        setImportErr("Das Bild ist zu gross fuer die Anfrage (413). Bitte ein kleineres Bild nutzen.");
-      }else if(msg.includes("GEMINI_API_KEY not configured")){
-        setImportErr("Server-Konfiguration fehlt: GEMINI_API_KEY ist nicht gesetzt. Bitte in Vercel unter Settings → Environment Variables eintragen und danach neu deployen.");
-      }else if(msg.includes("API_KEY_INVALID") || msg.includes("401")){
-        setImportErr("Der Gemini API Key ist ungueltig. Bitte in Vercel einen gueltigen GEMINI_API_KEY von aistudio.google.com/apikey eintragen und danach neu deployen.");
-      }else if(msg.includes("500")){
-        setImportErr("Serverfehler bei der KI-Anfrage (500). Bitte Vercel-Logs und Umgebungsvariablen pruefen.");
-      }else{
-        setImportErr("Fehler: "+msg+". Bitte Text oder Foto pruefen und erneut versuchen.");
-      }
+      setImportErr(kiErrText(msg)||("Fehler: "+msg+". Bitte Text oder Foto pruefen und erneut versuchen."));
     }
     setExtracting(false);
   };
@@ -682,8 +784,112 @@ export default function App() {
     const key=extracted.name;
     setRecipes(prev=>{const n={...prev,[key]:rec};schedulePush(plan,shopping,n,participants);return n;});
     const patch={};patch[key]=rec;await fbPatch("globalRecipes",patch);
+    if(extracted.ai){ setExtracted(null); setDetailRecipe(key); return; }   // KI-Vorschlag: direkt zum Rezept (Kochmodus)
     setSavedMsg(true);
     setTimeout(()=>{setSavedMsg(false);setExtracted(null);setRecipeText("");setRecipeImg(null);setRecipeB64(null);},2000);
+  };
+
+  // HAUSHALTSBUCH verbinden / laden / trennen (nur GET auf das Buch, Verknuepfung im Plan)
+  const loadHb=async(link)=>{
+    const l=link||hbLink;
+    if(!l)return;
+    setHbLoading(true);setHbErr("");
+    const bk=await hbGet(l.code);
+    setHbLoading(false);
+    if(bk===undefined){setHbErr("Haushaltsbuch gerade nicht erreichbar.");return;}
+    if(!bk){setHbErr("Das verknuepfte Haushaltsbuch wurde nicht gefunden.");setHbBook(null);return;}
+    setHbBook(bk);
+  };
+  const connectHb=async()=>{
+    const c=hbInput.toUpperCase().replace(/[^A-Z0-9]/g,"");
+    if(!HB_CODE_RE.test(c)){setHbErr("Der Code hat 6 bis 16 Zeichen (Buchstaben und Ziffern).");return;}
+    setHbLoading(true);setHbErr("");
+    const bk=await hbGet(c);
+    setHbLoading(false);
+    if(bk===undefined){setHbErr("Haushaltsbuch nicht erreichbar. Code pruefen oder spaeter erneut versuchen.");return;}
+    if(!bk){setHbErr("Kein Haushaltsbuch mit diesem Code gefunden.");return;}
+    const cats=hbCats(bk);
+    const link={code:c,cat:cats.includes("Lebensmittel")?"Lebensmittel":(cats[0]||"Lebensmittel")};
+    setHbLink(link);setHbBook(bk);setHbInput("");
+    await fbPatch("plans/"+activeCode,{hb:link});
+  };
+  const setHbCat=async(cat)=>{
+    const link={...hbLink,cat};
+    setHbLink(link);
+    await fbPatch("plans/"+activeCode,{hb:link});
+  };
+  const disconnectHb=async()=>{
+    if(!window.confirm("Verknuepfung zum Haushaltsbuch trennen? (Das Haushaltsbuch selbst bleibt unveraendert.)"))return;
+    setHbLink(null);setHbBook(null);setHbErr("");
+    await fbPatch("plans/"+activeCode,{hb:null});
+  };
+  // Rubriken des Buchs (gespeicherte Liste, sonst aus den Eintraegen)
+  const hbCats=(bk)=>{
+    if(bk&&Array.isArray(bk.categories)&&bk.categories.length) return bk.categories;
+    const s=new Set(Object.values((bk&&bk.entries)||{}).map(e=>e&&e.category).filter(Boolean));
+    return s.size?[...s]:["Lebensmittel"];
+  };
+
+  // REZEPT MIT KI ERFINDEN - auf Basis des wahrscheinlichen Bestands aus dem Haushaltsbuch
+  const generateRecipe=async()=>{
+    if(aiBusy)return;
+    setAiBusy(true);setAiErr("");
+    try{
+      const items=stock.filter(s=>s.p>=0.25).slice(0,50);
+      const fmt=(arr)=>arr.map(s=>s.name+" ("+Math.round(s.p*100)+" %)").join(", ");
+      const hi=items.filter(s=>s.p>=0.6), mid=items.filter(s=>s.p>=0.4&&s.p<0.6), lo=items.filter(s=>s.p<0.4);
+      const category=aiKids?"Kinderessen":aiFast?"Schnelle Küche":"Hauptgericht";
+      const wishes=[
+        aiFast?"SCHNELL: in hoechstens 25 Minuten komplett fertig.":"",
+        aiKids?"KINDERESSEN: mild (nicht scharf), einfach, ohne Alkohol, ein Gericht, das Kinder gern essen.":"",
+        aiCuisine!=="Egal"?"KUECHE: "+aiCuisine+".":"",
+      ].filter(Boolean);
+      const system="Du bist ein Kochassistent fuer eine Familie. Erfinde EIN alltagstaugliches Rezept fuer heute (ca. 4 Portionen). "+
+        "Zutaten immer mit Menge zuerst, z. B. \"2 Paprika\", \"200 g Reis\". Schreibe eine kurze Beschreibung (2–3 Saetze) und eine klare Schritt-fuer-Schritt-Anleitung. "+
+        "Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Rezeptname\",\"ingredients\":[\"200 g Reis\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"cuisine\":\"Italienisch\",\"genutzt\":[\"Paprika\"],\"fehlt\":[\"Sahne\"]}. "+
+        "Fuer cuisine waehle aus: "+CUISINE_LIST.join(", ")+".";
+      let user;
+      if(items.length){
+        user="Lebensmittel laut Einkaeufen im Haushaltsbuch. Die Prozentzahl ist die Wahrscheinlichkeit, dass noch etwas davon da ist (aeltere und frische Einkaeufe verblassen schneller). "+
+          "Die Namen stammen von Kassenbons und koennen abgekuerzt sein – schreibe im Rezept normale Zutatennamen.\n\n"+
+          (hi.length?"SEHR WAHRSCHEINLICH DA: "+fmt(hi)+"\n":"")+
+          (mid.length?"VERMUTLICH DA: "+fmt(mid)+"\n":"")+
+          (lo.length?"VIELLEICHT NOCH DA: "+fmt(lo)+"\n":"")+
+          "IMMER VORHANDEN: "+BASIC_LABEL+"\n\n"+
+          "Regeln:\n1. Baue das Rezept vor allem aus SEHR WAHRSCHEINLICH DA.\n2. VIELLEICHT-Zutaten nur ergaenzend.\n"+
+          "3. Bevorzuge frische Zutaten mit hoher Wahrscheinlichkeit, die bald verderben (Obst, Gemuese, Fleisch, Fisch, Milchprodukte), damit sie verbraucht werden.\n"+
+          "4. Hoechstens 3 Zutaten, die NICHT in der Liste stehen – diese ins Feld \"fehlt\" (Basics nicht auffuehren).\n"+
+          "5. In \"genutzt\" die verwendeten Lebensmittel aus der Liste.\n";
+      }else{
+        user="Es liegen keine Einkaufsdaten vor. Erfinde ein Rezept mit ueblichen Zutaten; \"genutzt\" und \"fehlt\" bleiben leer.\n";
+      }
+      if(wishes.length) user+="\nWuensche: "+wishes.join(" ")+"\n";
+      const names=Object.keys(recipes).slice(0,80).map(dn);
+      if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";
+      const raw=await callClaude([{role:"user",content:user}],system);
+      const jsonMatch=raw.match(/\{[\s\S]*\}/);
+      if(!jsonMatch) throw new Error("Kein JSON in Antwort: "+raw.slice(0,200));
+      const parsed=JSON.parse(jsonMatch[0]);
+      if(!parsed.name) throw new Error("Kein Rezeptname erhalten");
+      if(!Array.isArray(parsed.ingredients)||!parsed.ingredients.length) throw new Error("Keine Zutaten erhalten");
+      if(!Array.isArray(parsed.steps)||!parsed.steps.length) throw new Error("Keine Kochanleitung erhalten");
+      let name=String(parsed.name).trim();
+      if(recipes[name]) name+=" (neu)";                       // vorhandenes Rezept nicht ueberschreiben
+      setExtracted({
+        name,ingredients:parsed.ingredients,steps:parsed.steps,description:parsed.description||"",
+        cuisine:CUISINE_LIST.includes(parsed.cuisine)?parsed.cuisine:(aiCuisine!=="Egal"?aiCuisine:"International"),
+        category,ai:true,
+        genutzt:Array.isArray(parsed.genutzt)?parsed.genutzt:[],
+        fehlt:Array.isArray(parsed.fehlt)?parsed.fehlt:[],
+      });
+      setImportErr("");setView("recipes");
+      setTimeout(()=>{ const el=document.getElementById("ki-vorschlag"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },60);
+    }catch(e){
+      console.error("Generate error:",e);
+      const msg=(e&&e.message)?e.message:"Unbekannter Fehler";
+      setAiErr(kiErrText(msg)||("Fehler: "+msg+". Bitte erneut versuchen."));
+    }
+    setAiBusy(false);
   };
 
   // RECIPE EDITING
@@ -846,6 +1052,21 @@ export default function App() {
     return()=>window.removeEventListener("popstate",onPop);
   },[screen]);
 
+  // HEUTE: Buch beim Oeffnen des Reiters laden (nicht im 10s-Poll), Bestand + Rangliste berechnen
+  useEffect(()=>{
+    if(view==="heute"&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
+  },[view,hbLink&&hbLink.code]);
+  useEffect(()=>{ try{ localStorage.setItem(HEUTE_CAT_KEY,heuteCat); }catch(e){} },[heuteCat]);
+  const stock=useMemo(()=>hbStock(hbBook,hbLink&&hbLink.cat),[hbBook,hbLink&&hbLink.cat]);
+  const ranked=useMemo(()=>{
+    if(view!=="heute") return [];
+    const skip=["Beilagen & Salate","Soßen & Dips"];
+    return Object.keys(recipes)
+      .filter(n=>{ const c=recCat(recipes[n]); return heuteCat==="all"?!skip.includes(c):c===heuteCat; })
+      .map(n=>({name:n,...scoreRecipe(recipes[n],stock)}))
+      .sort((a,b)=>b.score-a.score);
+  },[view,recipes,stock,heuteCat]);
+
   const getDishes=(day,meal)=>{
     const v=plan[day]&&plan[day].meals&&plan[day].meals[meal];
     if(!v)return [];
@@ -942,7 +1163,7 @@ export default function App() {
           <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} style={{flex:1,padding:"14px",border:"none",background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.7)",fontSize:"13px",letterSpacing:"1px",cursor:cookStep===0?"default":"pointer",fontFamily:SF}}>ZURUECK</button>
           {cookStep<curSteps.length-1
             ?<button onClick={()=>setCookStep(s=>s+1)} style={{flex:2,padding:"14px",border:"none",background:C.accent,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>WEITER</button>
-            :<button onClick={()=>{setCookMode(false);setCookStep(0);setRatingDraft(curRec.rating||0);setNoteDraft(curRec.notes||"");setRateAfterCook(true);}} style={{flex:2,padding:"14px",border:"none",background:C.ok,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>FERTIG</button>
+            :<button onClick={()=>{updateRecipeMeta(detailRecipe,{lastCooked:todayISO()});setCookMode(false);setCookStep(0);setRatingDraft(curRec.rating||0);setNoteDraft(curRec.notes||"");setRateAfterCook(true);}} style={{flex:2,padding:"14px",border:"none",background:C.ok,color:"#fff",fontSize:"13px",letterSpacing:"1px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>FERTIG</button>
           }
         </div>
       </div>
@@ -1098,16 +1319,17 @@ export default function App() {
           </div>
         )}
         {/* HEADER */}
-        <div style={{background:C.dark,padding:"12px 16px",display:"flex",alignItems:"center",gap:"10px"}}>
-          <div style={{flex:1}}>
-            <div style={{color:C.accent,fontSize:"9px",fontWeight:"700",letterSpacing:"3px",textTransform:"uppercase",marginBottom:"1px"}}>Wochenplan</div>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"11px"}}>{userName}</div>
+        {/* flexWrap: auf schmalen Handys rutschen A-/A+/VERLASSEN rechtsbuendig in eine zweite Zeile */}
+        <div style={{background:C.dark,padding:"12px 16px",display:"flex",flexWrap:"wrap",alignItems:"center",gap:"8px 10px"}}>
+          <div style={{flex:"1 1 auto",minWidth:0}}>
+            <div style={{color:C.err,fontSize:"36px",fontWeight:"600",fontFamily:"'Dancing Script',cursive",lineHeight:1.05,marginBottom:"1px",whiteSpace:"nowrap"}}>Wochenplan</div>
+            <div style={{color:"rgba(255,255,255,0.5)",fontSize:"11px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
           </div>
           <button onClick={()=>{navigator.clipboard.writeText(activeCode);setCodeCopied(true);setTimeout(()=>setCodeCopied(false),2000);}} style={{background:"rgba(193,125,60,0.15)",border:"1px solid rgba(193,125,60,0.25)",padding:"5px 10px",textAlign:"center",cursor:"pointer",fontFamily:SF}}>
             <div style={{color:"rgba(255,255,255,0.35)",fontSize:"8px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"1px"}}>{codeCopied?"KOPIERT":"CODE KOPIEREN"}</div>
             <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px"}}>{activeCode}</div>
           </button>
-          <button onClick={()=>zoomStep(-0.1)} title="Schrift kleiner" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom<=0.8?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"12px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A−</button>
+          <button onClick={()=>zoomStep(-0.1)} title="Schrift kleiner" style={{marginLeft:"auto",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom<=0.8?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"12px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A−</button>
           <button onClick={()=>zoomStep(0.1)} title="Schrift größer" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:fontZoom>=1.4?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.65)",padding:"7px 9px",fontSize:"14px",fontWeight:"700",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>A+</button>
           <button onClick={leavePlan} title="Plan verlassen" style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.55)",padding:"7px 10px",fontSize:"10px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,alignSelf:"stretch"}}>VERLASSEN</button>
         </div>
@@ -1121,12 +1343,129 @@ export default function App() {
 
         {/* TABS */}
         <div style={{display:"flex",background:C.white,borderBottom:"1px solid "+C.border,padding:"0 12px",overflowX:"auto"}}>
-          {[{id:"plan",label:"Wochenplan"},{id:"shopping",label:"Einkauf"+(unchecked>0?" ("+unchecked+")":"")},{id:"recipes",label:"Rezepte"},{id:"cookbook",label:"Kochbuch"}].map(t=>(
+          {[{id:"heute",label:"Heute"},{id:"plan",label:"Wochenplan"},{id:"shopping",label:"Einkauf"+(unchecked>0?" ("+unchecked+")":"")},{id:"recipes",label:"Rezepte"},{id:"cookbook",label:"Kochbuch"}].map(t=>(
             <button key={t.id} onClick={()=>setView(t.id)} style={{padding:"12px 13px",border:"none",borderBottom:view===t.id?"2px solid "+C.accent:"2px solid transparent",color:view===t.id?C.accent:C.muted,fontWeight:view===t.id?"700":"400",fontSize:"12px",letterSpacing:"0.5px",whiteSpace:"nowrap",background:"none",cursor:"pointer",fontFamily:SF}}>
               {t.label}
             </button>
           ))}
         </div>
+
+        {/* HEUTE VIEW - Was kochen wir heute? */}
+        {view==="heute"&&(()=>{
+          const hasStock=stock.length>0;
+          const label={fontSize:"10px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"8px"};
+          const chip=(on)=>({padding:"6px 12px",border:"1px solid "+(on?C.accent:C.border),background:on?C.abg:C.white,color:on?C.accent:C.muted,fontSize:"11px",fontWeight:on?"700":"400",cursor:"pointer",fontFamily:SF});
+          const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
+          const meta=(r)=>{
+            const parts=[];
+            if(hasStock) parts.push(Math.round(r.cov*100)+" % wahrscheinlich da");
+            if(r.ds!==null) parts.push(r.ds===0?"heute gekocht":r.ds===1?"gestern gekocht":"vor "+r.ds+" Tagen gekocht");
+            return parts.join(" · ");
+          };
+          const top=ranked[0];
+          const rest=ranked.slice(1,heuteMore?10:4);
+          return(
+          <div style={{padding:"12px",paddingBottom:"80px"}}>
+            <div style={{fontFamily:SER,fontSize:"24px",color:C.text,margin:"4px 2px 12px"}}>Was kochen wir heute?</div>
+
+            {/* Kategorie-Filter */}
+            <div style={{display:"flex",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
+              {[{id:"all",label:"Alle Gerichte"},{id:"Hauptgericht",label:"Hauptgericht"},{id:"Kinderessen",label:"Kinderessen"},{id:"Schnelle Küche",label:"Schnelle Küche"},{id:"Frühstück",label:"Frühstück"}].map(f=>(
+                <button key={f.id} onClick={()=>{setHeuteCat(f.id);setHeuteMore(false);}} style={chip(heuteCat===f.id)}>{f.label}</button>
+              ))}
+            </div>
+
+            {/* Haushaltsbuch */}
+            {!hbLink?(
+              <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"14px"}}>
+                <div style={label}>Haushaltsbuch verbinden</div>
+                <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Mit dem Code eures Haushaltsbuchs werden die Lebensmittel-Einkäufe berücksichtigt – frische Sachen verblassen nach ein paar Tagen, Vorräte nach Wochen. Es wird nur gelesen, nie etwas geändert.</div>
+                <div style={{display:"flex",gap:"6px"}}>
+                  <input value={hbInput} onChange={e=>setHbInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter")connectHb();}} placeholder="BUCH-CODE" style={{flex:1,minWidth:0,border:"1px solid "+C.border,padding:"10px 12px",fontSize:"14px",letterSpacing:"2px",outline:"none",color:C.text,fontFamily:SF,background:"#16161C"}} />
+                  <button onClick={connectHb} disabled={hbLoading||!hbInput.trim()} style={{padding:"10px 14px",background:C.accent,border:"none",color:C.dark,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF,opacity:hbLoading||!hbInput.trim()?0.5:1}}>{hbLoading?"…":"VERBINDEN"}</button>
+                </div>
+                {hbErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{hbErr}</div>}
+              </div>
+            ):(
+              <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:"6px 10px",fontSize:"11px",color:C.muted,marginBottom:"12px",padding:"0 2px"}}>
+                <span style={{width:"6px",height:"6px",borderRadius:"50%",background:hbErr?C.err:hasStock?C.ok:C.subtle,flexShrink:0}} />
+                <span>{hbLoading?"Haushaltsbuch wird geladen…":hbErr?hbErr:hbBook?("Haushaltsbuch: "+stock.filter(s=>s.p>=0.25).length+" Lebensmittel wahrscheinlich da"):"Haushaltsbuch verbunden"}</span>
+                {hbBook&&(
+                  <select value={hbLink.cat} onChange={e=>setHbCat(e.target.value)} title="Rubrik der Lebensmittel-Einkäufe" style={{border:"1px solid "+C.border,background:C.white,color:C.muted,fontSize:"11px",padding:"2px 4px",fontFamily:SF,outline:"none"}}>
+                    {hbCats(hbBook).map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                <button onClick={()=>loadHb()} disabled={hbLoading} style={{background:"none",border:"none",color:C.accent,fontSize:"11px",cursor:"pointer",padding:0,fontFamily:SF}}>aktualisieren</button>
+                <button onClick={disconnectHb} style={{background:"none",border:"none",color:C.subtle,fontSize:"11px",cursor:"pointer",padding:0,fontFamily:SF}}>trennen</button>
+              </div>
+            )}
+
+            {/* Bester Vorschlag */}
+            {!top?(
+              <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px",fontSize:"13px",color:C.muted}}>Keine Rezepte in dieser Kategorie – lass dir unten eins von der KI erfinden.</div>
+            ):(
+              <div onClick={()=>setDetailRecipe(top.name)} style={{background:C.white,border:"1px solid "+C.accent,marginBottom:"10px",cursor:"pointer"}}>
+                <img key={top.name} src={recipeImgs[top.name]||foodImg(top.name)} alt="" style={{width:"100%",height:"150px",objectFit:"cover",display:"block",background:C.dark}} />
+                <div style={{padding:"14px"}}>
+                  <div style={{...label,marginBottom:"4px"}}>Vorschlag für heute</div>
+                  <div style={{fontFamily:SER,fontSize:"22px",color:C.text,lineHeight:1.2,marginBottom:"4px"}}>{dn(top.name)}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"12px",color:C.muted,marginBottom:"10px",flexWrap:"wrap"}}>
+                    {(recipes[top.name].rating||0)>0&&<span style={{color:"#E8B547"}}>{"★".repeat(recipes[top.name].rating)}</span>}
+                    <span>{meta(top)||recCat(recipes[top.name])}</span>
+                  </div>
+                  {hasStock&&(
+                    <div style={{display:"flex",flexWrap:"wrap",gap:"5px"}}>
+                      {top.core.map((z,i)=>(
+                        <span key={i} title={z.src?("aus Einkauf: "+z.src):"nicht in den Einkäufen"} style={{fontSize:"11px",padding:"3px 8px",border:"1px solid "+pColor(z.p),color:pColor(z.p)}}>{z.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Weitere Vorschlaege */}
+            {rest.length>0&&(
+              <div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"8px"}}>
+                {rest.map((r,i)=>(
+                  <div key={r.name} onClick={()=>setDetailRecipe(r.name)} style={{display:"flex",alignItems:"center",gap:"10px",padding:"11px 14px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none",cursor:"pointer"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:SER,fontSize:"15px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dn(r.name)}</div>
+                      <div style={{fontSize:"11px",color:C.muted}}>{meta(r)||recCat(recipes[r.name])}</div>
+                    </div>
+                    {hasStock&&<div style={{fontSize:"13px",fontWeight:"700",color:pColor(r.cov),flexShrink:0}}>{Math.round(r.cov*100)} %</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {ranked.length>4&&(
+              <button onClick={()=>setHeuteMore(m=>!m)} style={{width:"100%",padding:"10px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF,marginBottom:"18px"}}>{heuteMore?"WENIGER":"MEHR VORSCHLÄGE"}</button>
+            )}
+            {!hbLink&&top&&<div style={{fontSize:"11px",color:C.subtle,margin:"-8px 2px 18px"}}>Ohne Haushaltsbuch sortiert nach Bewertung und Abwechslung.</div>}
+
+            {/* KI */}
+            <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px"}}>
+              <div style={label}>Nichts dabei? Neues Rezept</div>
+              <div style={{display:"flex",gap:"6px",marginBottom:"10px"}}>
+                <button onClick={()=>setAiFast(v=>!v)} style={{...chip(aiFast),flex:1,padding:"10px"}}>{aiFast?"✓ ":""}Schnell</button>
+                <button onClick={()=>setAiKids(v=>!v)} style={{...chip(aiKids),flex:1,padding:"10px"}}>{aiKids?"✓ ":""}Kinderessen</button>
+              </div>
+              <div style={{fontSize:"10px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",marginBottom:"6px"}}>Küche (optional)</div>
+              <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"12px"}}>
+                {["Egal",...CUISINE_LIST.filter(c=>c!=="Schnell")].map(c=>(
+                  <button key={c} onClick={()=>setAiCuisine(c)} style={{...chip(aiCuisine===c),padding:"5px 10px"}}>{c}</button>
+                ))}
+              </div>
+              {isLocalDev&&<div style={{marginBottom:"10px",fontSize:"11px",color:C.muted}}>Hinweis: Lokal mit npm run dev ist /api/gemini nicht verfügbar – vercel dev oder die deployte App nutzen.</div>}
+              <button onClick={generateRecipe} disabled={aiBusy} style={{width:"100%",padding:"13px",background:aiBusy?C.subtle:C.accent,border:"none",color:C.dark,fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:aiBusy?"default":"pointer",fontFamily:SF}}>
+                {aiBusy?"KI ÜBERLEGT…":"REZEPT MIT KI ERFINDEN"}
+              </button>
+              <div style={{fontSize:"11px",color:C.subtle,marginTop:"6px",lineHeight:"1.4"}}>{hasStock?"Nutzt vor allem die Lebensmittel, die wahrscheinlich noch da sind.":"Ohne Einkaufsdaten erfindet die KI frei nach deiner Auswahl."}</div>
+              {aiErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{aiErr}</div>}
+            </div>
+          </div>
+          );
+        })()}
 
         {/* PLAN VIEW */}
         {view==="plan"&&(
@@ -1236,7 +1575,7 @@ export default function App() {
                                 return(
                                   <div key={cat}>
                                     <div style={{padding:"7px 14px 5px",fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"1.5px",textTransform:"uppercase",background:C.bg,borderTop:"1px solid "+C.border,borderBottom:"1px solid "+C.border}}>{cat}</div>
-                                    {cat==="Hauptgericht"
+                                    {CATS_WITH_CUISINE.includes(cat)
                                       ? groupByCuisine(names).map(g=>(
                                           <div key={g.cuisine}>
                                             <div style={{padding:"5px 14px 3px 22px",fontSize:"9px",fontWeight:"700",color:C.subtle,letterSpacing:"1.5px",textTransform:"uppercase"}}>{g.cuisine}</div>
@@ -1385,8 +1724,14 @@ export default function App() {
 
             {/* Extracted result */}
             {extracted&&(
-              <div style={{background:C.white,border:"1px solid "+C.accent,padding:"14px",marginBottom:"12px"}}>
-                <div style={{fontSize:"10px",color:C.accent,fontWeight:"700",letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"6px"}}>ERKANNTES REZEPT</div>
+              <div id="ki-vorschlag" style={{background:C.white,border:"1px solid "+C.accent,padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontSize:"10px",color:C.accent,fontWeight:"700",letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"6px"}}>{extracted.ai?"VORSCHLAG DER KI":"ERKANNTES REZEPT"}</div>
+                {extracted.ai&&(extracted.genutzt.length>0||extracted.fehlt.length>0)&&(
+                  <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5",marginBottom:"8px"}}>
+                    {extracted.genutzt.length>0&&<div><span style={{color:C.ok}}>nutzt {extracted.genutzt.length} Zutat{extracted.genutzt.length===1?"":"en"} aus dem Haushaltsbuch</span>: {extracted.genutzt.join(", ")}</div>}
+                    {extracted.fehlt.length>0&&<div><span style={{color:C.accent}}>fehlt evtl.</span>: {extracted.fehlt.join(", ")}</div>}
+                  </div>
+                )}
                 <input value={extracted.name} onChange={e=>setExtracted(r=>({...r,name:e.target.value}))} style={{fontSize:"20px",fontFamily:SER,color:C.text,border:"none",background:"transparent",outline:"none",width:"100%",padding:"4px 0 10px",borderBottom:"1px solid "+C.border,marginBottom:"10px"}} />
                 <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
                   <div style={{flex:1}}>
@@ -1424,7 +1769,8 @@ export default function App() {
                   </div>
                 ))}
                 <button onClick={()=>setExtracted(r=>({...r,steps:(r.steps||[]).concat([""])}))} style={{marginTop:"6px",background:"none",border:"1px solid "+C.border,padding:"4px 10px",cursor:"pointer",color:C.muted,fontSize:"11px",fontFamily:SF}}>+ Schritt</button>
-                <button onClick={saveRecipe} style={{width:"100%",marginTop:"14px",padding:"12px",background:savedMsg?C.ok:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",transition:"background 0.3s",fontFamily:SF}}>{savedMsg?"GESPEICHERT":"REZEPT SPEICHERN"}</button>
+                <button onClick={saveRecipe} style={{width:"100%",marginTop:"14px",padding:"12px",background:savedMsg?C.ok:C.dark,border:"none",color:"#fff",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",transition:"background 0.3s",fontFamily:SF}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
+                {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{width:"100%",marginTop:"6px",padding:"10px",background:"none",border:"1px solid "+C.border,color:C.muted,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF}}>VERWERFEN</button>}
               </div>
             )}
 
