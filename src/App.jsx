@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
-import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
+import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL, DAYS, MEALS } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
+import { mealPlanById } from "./mealplans.js";
 import { todayISO, isoWeekKey, shiftWeek, todayDayKey, slotOrderNow, emptyWeek, normalizeWeek, migrateWeek, slotList } from "./logic/weeks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys, isKids, isQuick } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, planItems, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, addedSlotKeys } from "./logic/shopping.js";
@@ -56,6 +57,7 @@ export default function App() {
 
   // WOCHEN: plans/<CODE>/weeks/<YYYY-Www>; weekKey = angezeigte Woche
   const [weeks,setWeeks]             = useState({});
+  const [mealPlanPicker,setMealPlanPicker] = useState(null);   // Dialog "Essensplan übernehmen": Plan-Id oder null
   const [weekKey,setWeekKey]         = useState(()=>isoWeekKey(todayISO()));
   const [recipes,setRecipes]         = useState({});      // plans/<CODE>/recipes/<recKey>
   const [shopping,setShopping]       = useState({});      // plans/<CODE>/shopping/<id>
@@ -382,8 +384,8 @@ export default function App() {
     if(ps===undefined||ts===undefined){ failWrite(ERR_NET); return false; }
     const src=normalizeWeek(ps), target=normalizeWeek(ts);
     const patch={};
-    Object.keys(target).forEach(day=>{
-      Object.keys(target[day].meals).forEach(meal=>{
+    DAYS.forEach(day=>{
+      MEALS.forEach(meal=>{
         if(!target[day].meals[meal].length&&src[day].meals[meal].length){ target[day].meals[meal]=[...src[day].meals[meal]]; patch["weeks/"+weekKey+"/"+day+"/meals/"+meal]=target[day].meals[meal]; }
       });
       if(!target[day].cook&&src[day].cook){ target[day].cook=src[day].cook; patch["weeks/"+weekKey+"/"+day+"/cook"]=src[day].cook; }
@@ -392,6 +394,37 @@ export default function App() {
     if(!Object.keys(patch).length) return true;
     return writePlan(patch,"weeks");
   };
+  // ESSENSPLAN uebernehmen: fehlende Rezepte der Vorlage ins Kochbuch (source "essensplan"), die Slots der gewaehlten
+  // Wochen mit den Gerichten belegen (ersetzt belegte Felder, "Wer kocht?" bleibt), planId an der Woche merken. EIN PATCH.
+  const applyMealPlan=async(planId,weekKeys)=>{
+    const plan=mealPlanById(planId), code=codeRef.current;
+    if(!plan||!code||!weekKeys||!weekKeys.length) return false;
+    const patch={}, add={};
+    plan.recipes.forEach(r=>{
+      const k=recKey(r.name); if(!k||recipes[k]||add[k]) return;
+      add[k]=normalizeRecipe(k,{...r,source:"essensplan",plan:plan.id}); patch["recipes/"+k]=add[k];
+    });
+    const server=await Promise.all(weekKeys.map(wk=>fbGet("plans/"+code+"/weeks/"+wk)));
+    if(server.some(w=>w===undefined)){ failWrite(ERR_NET); return false; }
+    const next={};
+    weekKeys.forEach((wk,i)=>{
+      const w=normalizeWeek(server[i]);
+      DAYS.forEach(d=>MEALS.forEach(m=>{
+        const keys=((plan.days[d]&&plan.days[d][m])||[]).map(n=>recKey(n)).filter(Boolean);
+        w[d].meals[m]=keys; patch["weeks/"+wk+"/"+d+"/meals/"+m]=keys;
+      }));
+      w.planId=plan.id; patch["weeks/"+wk+"/planId"]=plan.id;
+      next[wk]=w;
+    });
+    if(Object.keys(add).length) setRecipes(prev=>({...prev,...add}));
+    setWeeks(prev=>({...prev,...next}));
+    setMealPlanPicker(null);
+    const ok=await writePlan(patch,Object.keys(add).length?["recipes","weeks"]:"weeks");
+    if(ok!==false) showToast("„"+plan.name+"“ für "+weekKeys.length+(weekKeys.length===1?" Woche":" Wochen")+" eingetragen"+(Object.keys(add).length?", "+Object.keys(add).length+" Rezepte ins Kochbuch.":"."));
+    return ok;
+  };
+  // Dialog aus einer anderen Ansicht oeffnen (Rezepte -> Woche)
+  const openMealPlan=(id)=>{ setView("plan"); setMealPlanPicker(id||null); };
   // Woche abschliessen: Auswahl [{key, iso}] in die Kochhistorie der Rezepte, alles in EINEM Multi-Path-PATCH.
   // Die Rezepte werden vorher frisch gelesen, damit keine geloeschten wiederbelebt und keine fremden Daten ueberschrieben werden.
   const closeWeek=async(selection)=>{
@@ -982,7 +1015,7 @@ export default function App() {
   // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
   const state={
     code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,settings,household,
-    weekKey,week,curWeekKey,todayPlan,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,addedSlots,classics:CLASSICS,classicPicks,ranked,heuteCat,
+    weekKey,week,curWeekKey,todayPlan,today:todayISO(),recipes,mealPlanPicker,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,addedSlots,classics:CLASSICS,classicPicks,ranked,heuteCat,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
     importState:{importErr,extracting,extracted,savedMsg},
     // Rahmen und Dialoge
@@ -992,7 +1025,7 @@ export default function App() {
   };
   const api={
     // Plan
-    setWeekKey:selectWeek,addDish,removeDish,setCook,copyLastWeek,closeWeek,
+    setWeekKey:selectWeek,addDish,removeDish,setCook,copyLastWeek,closeWeek,applyMealPlan,openMealPlan,setMealPlanPicker,
     // Einkauf
     buildShoppingFromPlan,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,forceBuy,shareShopping,
     // Rezepte

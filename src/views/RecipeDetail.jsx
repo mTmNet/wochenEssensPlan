@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, column, btn, iconBtn, microMuted as lbl, chip } from "../theme.js";
 import { CATS, CUISINE_LIST, TAGS, DAYS, DAYFUL, MEALS, ML } from "../data.js";
 import { recName, recCat, cookedLabel, recTags } from "../logic/recipes.js";
+import { mealPlanById } from "../mealplans.js";
 import { scaleIng } from "../logic/ingredients.js";
 import { weekDates, shiftWeek, shortDate, todayDayKey, mealSlotNow, weekLabel } from "../logic/weeks.js";
 import Stars from "../components/Stars.jsx";
@@ -9,7 +10,7 @@ import Modal from "../components/Modal.jsx";
 import DishImage from "../components/DishImage.jsx";
 import Toast from "../components/Toast.jsx";
 
-const SRC_LABEL = { ki:"KI-Vorschlag", import:"Importiert", klassiker:"Rezept-Basis", eigen:"" };
+const SRC_LABEL = { ki:"KI-Vorschlag", import:"Importiert", klassiker:"Rezept-Basis", essensplan:"Essensplan", eigen:"" };
 const toggleTag=(set,id)=>set(d=>{ const t=new Set(d.tags||[]); t.has(id)?t.delete(id):t.add(id); return {...d,tags:[...t]}; });
 const tagLabel=(rec)=>TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · ");
 
@@ -34,7 +35,8 @@ export default function RecipeDetail({state,api}){
   const factor=portions/base;
   const ings=curRec.ingredients||[], steps=curRec.steps||[];
   const metaLine=[recCat(curRec),curRec.cuisine,curRec.origin,base+" Portionen",curRec.minutes>0?curRec.minutes+" Min.":"",tagLabel(curRec)].filter(Boolean).join(" · ");
-  const srcLine=[SRC_LABEL[curRec.source]||"",curRec.sourceNote?"Quelle: "+curRec.sourceNote:""].filter(Boolean).join(" · ");
+  const planRef=curRec.plan?mealPlanById(curRec.plan):null;
+  const srcLine=[planRef?"Essensplan: "+planRef.name:(SRC_LABEL[curRec.source]||""),curRec.sourceNote?"Quelle: "+curRec.sourceNote:""].filter(Boolean).join(" · ");
   const cooked=Array.isArray(curRec.cooked)?curRec.cooked:[];
   // "Zum Wochenplan": Woche (diese/naechste), Tag, Slot - Standard heute und aktueller Slot
   const [picker,setPicker]=useState(null);   // {wk, day, slot}

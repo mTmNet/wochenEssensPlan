@@ -27,7 +27,7 @@ export const makeRecipePDF = (name, rec, customImg, aiImages) => {
   const steps = (rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+'</span><p>'+esc(s)+'</p></div>').join("");
   const desc = rec.description ? '<p class="desc">'+esc(rec.description)+'</p>' : '';
   const meta = [recCat(rec),rec.cuisine,rec.origin,(rec.servings>0?rec.servings:4)+" Portionen",rec.minutes>0?rec.minutes+" Min.":""].filter(Boolean).join(" · ");
-  const src = [rec.source==="ki"?"KI-Vorschlag":rec.source==="import"?"Importiert":rec.source==="klassiker"?"Rezept-Basis":"", rec.sourceNote?"Quelle: "+rec.sourceNote:""].filter(Boolean).join(" · ");
+  const src = [rec.source==="ki"?"KI-Vorschlag":rec.source==="import"?"Importiert":rec.source==="klassiker"?"Rezept-Basis":rec.source==="essensplan"?"Essensplan":"", rec.sourceNote?"Quelle: "+rec.sourceNote:""].filter(Boolean).join(" · ");
   const css = `
     @page{margin:2cm}
     body{font-family:Georgia,serif;color:#1A1917;max-width:760px;margin:0 auto;padding:0}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, chip, btn, iconBtn, microMuted as lbl, input as inp } from "../theme.js";
 import { CATS, CUISINE_LIST, TAGS } from "../data.js";
+import { MEALPLANS, mealPlanById } from "../mealplans.js";
 import { recName, recCat, recKey, sortRecipeKeys, cookedLabel, cookedCount, recTags, isKids, isQuick } from "../logic/recipes.js";
 import { compressImageToBase64 } from "../ai.js";
 
@@ -11,7 +12,7 @@ const SORTS=[{id:"cooked",label:"Zuletzt gekocht"},{id:"best",label:"Beste"},{id
 export default function Recipes({state,api}){
   const {recipes,classics,importState}=state;
   const {importErr,extracting,extracted,savedMsg}=importState;
-  const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF}=api;
+  const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF,openMealPlan}=api;
   // lokaler UI-Zustand: Importeingaben, Suche, Filter, Sortierung
   const [importMode,setImportMode]=useState("text");       // "text" | "photo"
   const [photoMode,setPhotoMode]=useState("page");         // "page" (Rezeptseite / Screenshot) | "dish" (Fertiges Gericht)
@@ -61,7 +62,7 @@ export default function Recipes({state,api}){
   const q=search.trim().toLowerCase();
   const matches=(name,ings)=>!q||name.toLowerCase().includes(q)||(ings||[]).some(i=>i.toLowerCase().includes(q));
   // Filter: Kategorie oder Merkmal ("tag:kinder", "tag:schnell")
-  const catOk=(rec,cat)=>filterCat==="all"||(filterCat==="tag:kinder"?isKids(rec):filterCat==="tag:schnell"?isQuick(rec):cat===filterCat);
+  const catOk=(rec,cat)=>filterCat==="all"||(filterCat==="tag:kinder"?isKids(rec):filterCat==="tag:schnell"?isQuick(rec):filterCat==="plan"?!!rec.plan:cat===filterCat);
   const keys=sortRecipeKeys(recipes,sort).filter(k=>catOk(recipes[k],recCat(recipes[k]))&&matches(dn(k),recipes[k].ingredients));
   const classicsOn=showClassics||total===0;   // leeres Kochbuch: Rezept-Basis immer zeigen
   const classicList=classicsOn?classics.filter(c=>!recipes[recKey(c.name)]&&catOk(c,c.category)&&matches(c.name,c.ingredients)):[];
@@ -215,7 +216,7 @@ export default function Recipes({state,api}){
 
             {/* Rubrik-Filter */}
             <div style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap"}}>
-              {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c})),...TAGS.map(t=>({id:"tag:"+t.id,label:t.label}))].map(f=>(
+              {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c})),...TAGS.map(t=>({id:"tag:"+t.id,label:t.label})),{id:"plan",label:"Essenspläne"}].map(f=>(
                 <button key={f.id} onClick={()=>setFilterCat(f.id)} aria-pressed={filterCat===f.id} style={chip(filterCat===f.id)}>{f.label}</button>
               ))}
             </div>
@@ -228,12 +229,28 @@ export default function Recipes({state,api}){
               <button onClick={()=>setShowClassics(v=>!v)} aria-pressed={showClassics} style={{...chip(showClassics),padding:"7px 10px",minHeight:"32px",marginLeft:"auto"}}>{showClassics?"✓ ":""}Rezept-Basis einblenden</button>
             </div>
 
+            {/* ESSENSPLÄNE: Vorlagen mit Routinen; Rezepte darunter sind die des Plans (nach Übernahme) */}
+            {filterCat==="plan"&&MEALPLANS.map(p=>{
+              const inBook=p.recipes.filter(r=>recipes[recKey(r.name)]).length;
+              return(
+                <div key={p.id} style={{background:C.white,border:"1px solid "+C.accent,padding:"14px",marginBottom:"10px"}}>
+                  <div style={{fontSize:"11px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"4px"}}>Essensplan</div>
+                  <div style={{fontSize:"18px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{p.name}</div>
+                  <div style={{fontSize:"12px",color:C.muted,marginBottom:"8px"}}>{[p.subtitle,p.recipes.length+" Rezepte",inBook?inBook+" davon im Kochbuch":""].filter(Boolean).join(" · ")}</div>
+                  <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>{p.description}</div>
+                  <button onClick={()=>openMealPlan(p.id)} style={{...btn("primary"),width:"100%",letterSpacing:"2px"}}>IN DEN WOCHENPLAN ÜBERNEHMEN</button>
+                </div>
+              );
+            })}
+            {filterCat==="plan"&&keys.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"4px 4px 12px"}}>Noch kein Essensplan übernommen. Nach dem Übernehmen stehen die Rezepte des Plans hier.</div>}
+
             {/* Rezeptliste */}
-            {keys.length===0&&total>0&&<div style={{fontSize:"13px",color:C.muted,padding:"12px 4px"}}>Kein Rezept passt zur Suche.</div>}
+            {keys.length===0&&total>0&&filterCat!=="plan"&&<div style={{fontSize:"13px",color:C.muted,padding:"12px 4px"}}>Kein Rezept passt zur Suche.</div>}
             {keys.map(name=>{
               const rec=recipes[name];
               const ings=(rec&&rec.ingredients)||[];
-              const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · "),cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
+              const planRef=rec.plan?mealPlanById(rec.plan):null;
+              const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · "),planRef?"Plan: "+planRef.name:"",cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
               return(
                 <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",minHeight:"56px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF}}>
                   <div style={{flex:1,minWidth:0}}>

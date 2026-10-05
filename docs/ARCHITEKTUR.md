@@ -185,6 +185,7 @@ Reihenfolge der Quellen:
 
 ## 10. Rezepte, Detail, Kochmodus
 
+- **Essenspläne** (`src/mealplans.js`, Vorlagen in `src/mealplans/*.js`): fertige Wochen mit eigenen Rezepten, Routinen und Beschreibung. Form: `{id, name, subtitle, description, routines[], days{Mo..So: {Fr,Mi,Zw,Ab: [Rezeptname]}}, recipes[]}`. „Übernehmen“ (Reiter Woche, leere Woche oder Rubrik „Essenspläne“ in Rezepte) kopiert fehlende Rezepte ins Kochbuch (`source: "essensplan"`, `plan: id`), belegt alle Slots der gewählten Wochen (ersetzt belegte Felder, „Wer kocht?“ bleibt) und merkt `weeks/<KW>/planId`; die Woche zeigt dann ein Banner mit den Routinen. Alles in einem Multi-Path-PATCH. Die Rubrik „Essenspläne“ in Rezepte listet die Vorlagen und die übernommenen Rezepte (`plan` gesetzt).
 - Rezeptliste: Sortierung `Zuletzt gekocht · Beste · Neu · A–Z`, Suche über Name und Zutaten, Rubrik-Chips, Schalter „Rezept-Basis einblenden“ (Einträge aus `CLASSICS` erscheinen abgesetzt mit „Übernehmen“). Reiter „Kochbuch“ entfällt; der PDF-Knopf wandert in die Rezeptliste.
 - Detail: Kopfbild (`DishImage`), Rubrik/Küche/Herkunft/Quelle, Portionen `− 4 +` (skaliert Zutaten über `scaleIng`), Zeit, Knöpfe „Kochmodus“, „Zum Wochenplan“ (Tag + Slot wählen, Standard heute und nächster Slot), „Auf die Einkaufsliste“, „Bearbeiten“, „Als PDF“, Bewertung, Notizen, Zutaten, Zubereitung, Kochhistorie („3× gekocht, zuletzt vor 12 Tagen“), Löschen.
 - Bearbeiten: zusätzlich Portionen, Minuten, Herkunft, Quelle.

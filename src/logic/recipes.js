@@ -49,6 +49,7 @@ export const normalizeRecipe = (key, raw, now) => {
     source: r.source || "eigen",
     origin: r.origin || "",
     sourceNote: r.sourceNote || "",
+    plan: typeof r.plan==="string" ? r.plan : "",      // Essensplan-Id, wenn aus einer Vorlage uebernommen
     stepsGenerated: !!r.stepsGenerated,
     rating: rating>0 ? Math.min(5,Math.round(rating)) : 0,
     notes: r.notes || "",

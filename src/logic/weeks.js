@@ -72,6 +72,7 @@ export const slotOrderNow = (d) => {
 export const emptyWeek = () => {
   const p={};
   DAYS.forEach(d=>{p[d]={meals:{},cook:""};MEALS.forEach(m=>{p[d].meals[m]=[];});});
+  p.planId="";
   return p;
 };
 // Slotwert -> Array (Einzel-Strings und "" aus dem Altbestand, Firebase-Objekte mit Indexschluesseln)
@@ -93,6 +94,7 @@ export const migrateWeek = (plan) => {
     MEALS.forEach(m=>{ w[d].meals[m]=slotList(meals[m]); });
     w[d].cook=typeof src.cook==="string"?src.cook:"";
   });
+  w.planId = typeof plan.planId==="string" ? plan.planId : "";   // Essensplan, aus dem die Woche stammt (leer = keiner)
   return w;
 };
 export const normalizeWeek = migrateWeek;

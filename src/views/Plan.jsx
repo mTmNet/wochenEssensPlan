@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, btn, iconBtn } from "../theme.js";
 import { DAYS, DAYFUL, MEALS, ML, CATS, CATS_WITH_CUISINE } from "../data.js";
+import { MEALPLANS, mealPlanById } from "../mealplans.js";
 import { recName, recipesByCat, groupByCuisine } from "../logic/recipes.js";
 import { slotList, weekDates, weekLabel, shiftWeek, shortDate } from "../logic/weeks.js";
 import Modal from "../components/Modal.jsx";
@@ -11,8 +12,18 @@ const navBtn = {width:"40px",height:"40px",border:"1px solid "+C.border,backgrou
 // WOCHENPLAN - Wochennavigation, Tage mit Datum und Slots, Koch-Auswahl, Kategorie-Dropdown,
 // "Letzte Woche uebernehmen" bei leerer Woche, "Woche abschliessen" (Kochhistorie), Einkaufsliste aus dem Plan
 export default function Plan({state,api}){
-  const {week,weekKey,curWeekKey,today,cookPicker,participants,activeCell,recipes,addedSlots,cellInput,openCat,household}=state;
-  const {setWeekKey,copyLastWeek,closeWeek,setCookPicker,cookRef,cellRef,setCook,addRecipeToShopping,openRecipe,removeDish,setCellInput,addDish,setActiveCell,setOpenCat,buildShoppingFromPlan,registerBackHandler}=api;
+  const {week,weekKey,curWeekKey,today,cookPicker,participants,activeCell,recipes,addedSlots,cellInput,openCat,household,mealPlanPicker}=state;
+  const {setWeekKey,copyLastWeek,closeWeek,setCookPicker,cookRef,cellRef,setCook,addRecipeToShopping,openRecipe,removeDish,setCellInput,addDish,setActiveCell,setOpenCat,buildShoppingFromPlan,registerBackHandler,applyMealPlan,setMealPlanPicker}=api;
+  const [planWeeks,setPlanWeeks]=useState("both");     // Dialog Essensplan: "this" | "next" | "both"
+  const [planBusy,setPlanBusy]=useState(false);
+  const [routinesOpen,setRoutinesOpen]=useState(false);
+  const weekPlan=week&&week.planId?mealPlanById(week.planId):null;
+  const pickerPlan=mealPlanPicker?mealPlanById(mealPlanPicker):null;
+  const doApplyPlan=async()=>{
+    if(!pickerPlan||planBusy) return;
+    const keys=planWeeks==="this"?[weekKey]:planWeeks==="next"?[shiftWeek(weekKey,1)]:[weekKey,shiftWeek(weekKey,1)];
+    setPlanBusy(true); await applyMealPlan(pickerPlan.id,keys); setPlanBusy(false);
+  };
   const getDishes=(day,meal)=>slotList(week[day]&&week[day].meals&&week[day].meals[meal]);
   const getCook=(day)=>week[day]&&week[day].cook||"";
   const dn=(k)=>recName(recipes[k],k);   // Anzeigename: Rezeptname oder freier Text
@@ -67,8 +78,52 @@ export default function Plan({state,api}){
             {isEmpty&&(
               <div style={{background:C.white,border:"1px dashed "+C.border,padding:"14px",marginBottom:"10px",textAlign:"center"}}>
                 <div style={{fontSize:"13px",color:C.muted,marginBottom:"10px",lineHeight:"1.5"}}>Diese Woche ist noch leer.</div>
-                <button onClick={copyLastWeek} style={{...btn("primary"),letterSpacing:"2px"}}>LETZTE WOCHE ÜBERNEHMEN</button>
+                <div style={{display:"flex",gap:"6px",justifyContent:"center",flexWrap:"wrap"}}>
+                  <button onClick={copyLastWeek} style={{...btn("primary"),letterSpacing:"2px"}}>LETZTE WOCHE ÜBERNEHMEN</button>
+                  <button onClick={()=>setMealPlanPicker(MEALPLANS[0].id)} style={{...btn("ghost"),color:C.accent,letterSpacing:"2px"}}>ESSENSPLAN</button>
+                </div>
               </div>
+            )}
+
+            {/* ESSENSPLAN-BANNER: Woche stammt aus einer Vorlage, Routinen aufklappbar */}
+            {weekPlan&&(
+              <div style={{background:C.white,border:"1px solid "+C.accent,padding:"10px 14px",marginBottom:"10px"}}>
+                <button onClick={()=>setRoutinesOpen(v=>!v)} aria-expanded={routinesOpen} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",background:"none",border:"none",padding:"4px 0",cursor:"pointer",fontFamily:SF,textAlign:"left",minHeight:"36px"}}>
+                  <span style={{fontSize:"11px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",flexShrink:0}}>Essensplan</span>
+                  <span style={{flex:1,fontSize:"14px",color:C.text,minWidth:0}}>{weekPlan.name}</span>
+                  <span style={{fontSize:"12px",color:C.accent,flexShrink:0}}>Routinen {routinesOpen?"▴":"▾"}</span>
+                </button>
+                {routinesOpen&&(
+                  <ol style={{margin:"6px 0 2px",paddingLeft:"18px",fontSize:"13px",color:C.muted,lineHeight:"1.55"}}>
+                    {weekPlan.routines.map((r,i)=><li key={i} style={{marginBottom:"4px"}}>{r}</li>)}
+                  </ol>
+                )}
+              </div>
+            )}
+
+            {/* DIALOG: ESSENSPLAN ÜBERNEHMEN */}
+            {pickerPlan&&(
+              <Modal title="Essensplan übernehmen" micro={pickerPlan.subtitle||""} onClose={()=>setMealPlanPicker(null)}>
+                {MEALPLANS.length>1&&(
+                  <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
+                    {MEALPLANS.map(p=><button key={p.id} onClick={()=>setMealPlanPicker(p.id)} aria-pressed={p.id===pickerPlan.id} style={{padding:"8px 10px",border:"1px solid "+(p.id===pickerPlan.id?C.accent:C.border),background:p.id===pickerPlan.id?C.abg:C.white,color:p.id===pickerPlan.id?C.accent:C.muted,fontSize:"11px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>{p.name}</button>)}
+                  </div>
+                )}
+                <div style={{fontSize:"18px",color:C.text,fontFamily:"Georgia,serif",marginBottom:"4px"}}>{pickerPlan.name}</div>
+                <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>{pickerPlan.description}</div>
+                <div style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",color:C.muted,textTransform:"uppercase",marginBottom:"4px"}}>Tägliche Routinen</div>
+                <ol style={{margin:"0 0 12px",paddingLeft:"18px",fontSize:"13px",color:C.text,lineHeight:"1.55"}}>
+                  {pickerPlan.routines.map((r,i)=><li key={i} style={{marginBottom:"4px"}}>{r}</li>)}
+                </ol>
+                <div style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",color:C.muted,textTransform:"uppercase",marginBottom:"6px"}}>Eintragen für</div>
+                <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
+                  {[{id:"this",label:weekLabel(weekKey)},{id:"next",label:weekLabel(shiftWeek(weekKey,1))},{id:"both",label:"Beide Wochen"}].map(o=>(
+                    <button key={o.id} onClick={()=>setPlanWeeks(o.id)} aria-pressed={planWeeks===o.id} style={{padding:"9px 12px",minHeight:"36px",border:"1px solid "+(planWeeks===o.id?C.accent:C.border),background:planWeeks===o.id?C.abg:C.white,color:planWeeks===o.id?C.accent:C.muted,fontSize:"12px",fontWeight:planWeeks===o.id?"700":"400",cursor:"pointer",fontFamily:SF}}>{o.label}</button>
+                  ))}
+                </div>
+                <div style={{fontSize:"12px",color:C.subtle,lineHeight:"1.5",marginBottom:"12px"}}>{pickerPlan.recipes.length} Rezepte des Plans kommen ins Kochbuch (schon vorhandene bleiben unverändert). Belegte Felder der gewählten Wochen werden ersetzt, „Wer kocht?“ bleibt.</div>
+                <button onClick={doApplyPlan} disabled={planBusy} style={{...btn("primary"),width:"100%",letterSpacing:"2px",opacity:planBusy?0.6:1}}>{planBusy?"…":"ÜBERNEHMEN"}</button>
+              </Modal>
             )}
 
             {DAYS.map((day,di)=>{

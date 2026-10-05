@@ -100,7 +100,9 @@ test("slotOrderNow: aktueller Slot zuerst, Snacks immer zuletzt", () => {
 
 test("emptyWeek und slotList", () => {
   const w = emptyWeek();
-  assert.deepEqual(Object.keys(w), DAYS);
+  assert.deepEqual(Object.keys(w).filter(k=>k!=="planId"), DAYS);
+  assert.equal(w.planId, "", "kein Essensplan");
+  assert.equal(migrateWeek({ planId:"eisen-postpartal" }).planId, "eisen-postpartal", "planId bleibt beim Normalisieren erhalten");
   DAYS.forEach(d => { assert.equal(w[d].cook, ""); MEALS.forEach(m => assert.deepEqual(w[d].meals[m], [])); });
   assert.deepEqual(slotList(""), []);
   assert.deepEqual(slotList("Pasta"), ["Pasta"]);

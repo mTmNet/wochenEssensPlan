@@ -139,8 +139,35 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(Object.keys(db.wochen.plans?.[code]?.recipes||{}).length===14, 'Startrezepte liegen unter plans/<CODE>/recipes');
   check(!db.wochen.globalRecipes, 'globalRecipes wird nicht beschrieben');
   await shot('02c-recipes-adopted');
+  // Essensplan: Rubrik in Rezepte, Uebernahme fuer zwei Wochen in einem separaten Plan-Zustand pruefen (danach Woche wieder leeren)
+  await page.click('button:has-text("Essenspläne")');
+  await page.waitForTimeout(300);
+  check(await page.isVisible('text=Postpartaler Eisen-Wochenplan')&&await page.isVisible('text=22 Rezepte'), 'Rezepte: Rubrik "Essenspläne" zeigt die Vorlage mit 22 Rezepten');
+  await shot('02e-essensplaene');
+  await page.click('text=IN DEN WOCHENPLAN ÜBERNEHMEN');
+  await page.waitForTimeout(400);
+  check(await page.isVisible('text=Essensplan übernehmen')&&await page.isVisible('text=Tägliche Routinen')&&await page.isVisible('text=Beide Wochen'), 'Woche: Dialog "Essensplan übernehmen" mit Routinen und Wochenwahl');
+  await shot('02f-essensplan-dialog');
+  await page.click('button:text-is("ÜBERNEHMEN")');
+  await page.waitForTimeout(800);
+  const wkNext = shiftWeek(wk,1);
+  const w1 = db.wochen.plans[code].weeks?.[wk], w2 = db.wochen.plans[code].weeks?.[wkNext];
+  const planRecs = Object.values(db.wochen.plans[code].recipes||{}).filter(r=>r.plan==='eisen-postpartal');
+  check(w1&&w2&&w1.planId==='eisen-postpartal'&&w2.planId==='eisen-postpartal', 'Essensplan: beide Wochen tragen planId', {w1:w1&&w1.planId, w2:w2&&w2.planId});
+  check(w1&&DAYS.every(d=>['Fr','Mi','Zw','Ab'].every(m=>(w1[d]?.meals?.[m]||[]).length===1)), 'Essensplan: alle 28 Felder der Woche belegt', w1&&w1.Mo);
+  check(w1&&w1.Mo.meals.Zw[0]==='Eisen-Power-Hour'&&w1.Mi.meals.Mi[0]==='Lachsfilet mit Zitronen-Brokkoli & Basmati-Reis', 'Essensplan: Mo Nachmittag Eisen-Power-Hour, Mi Mittag Lachs', w1&&w1.Mo);
+  check(planRecs.length===22&&planRecs.every(r=>r.source==='essensplan'), 'Essensplan: 22 Rezepte mit plan/source im Kochbuch', planRecs.length);
+  check(Object.keys(db.wochen.plans[code].recipes).length===36, 'Essensplan: Startrezepte bleiben (14 + 22)');
+  check(await page.isVisible('text=Postpartaler Eisen-Wochenplan')&&await page.isVisible('text=Routinen'), 'Woche: Banner mit Essensplan und Routinen');
+  await shot('02g-woche-essensplan');
+  // Zustand fuer den weiteren Durchlauf zuruecksetzen: Essensplan-Rezepte und Wochen entfernen (direkt im Mock), neu laden
+  Object.keys(db.wochen.plans[code].recipes).forEach(k=>{ if(db.wochen.plans[code].recipes[k].plan) delete db.wochen.plans[code].recipes[k]; });
+  delete db.wochen.plans[code].weeks;
+  db.wochen.plans[code].meta.weeksUpdatedAt=Date.now(); db.wochen.plans[code].meta.recipesUpdatedAt=Date.now();
+  await page.reload(); await page.waitForSelector(IN_APP,{timeout:10000}); await page.waitForTimeout(600);
   await page.click('button:text-is("Woche")');
   await page.waitForTimeout(300);
+  check(await page.isVisible('text=Diese Woche ist noch leer.')&&await page.isVisible('button:has-text("ESSENSPLAN")'), 'Woche: leere Woche bietet "Essensplan" an');
 
   // Add dish to Montag Abendessen via dropdown
   const addBtns = page.locator('button:has-text("+ Hinzufügen...")');
