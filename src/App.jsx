@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL, DAYS, MEALS } from "./data.js";
-import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode } from "./fb.js";
+import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
@@ -331,8 +331,8 @@ export default function App() {
   },[]);
 
   // PLAN VERLASSEN - Sitzung loeschen, zurueck zum Join-Screen
-  const leavePlan=()=>{
-    if(!window.confirm("Plan verlassen? Mit deinem Code kannst du jederzeit zurückkehren."))return;
+  // Sitzung beenden: Timer stoppen, lokale Sitzung und Zustand leeren, zurueck zum Start
+  const resetSession=()=>{
     clearInterval(syncTimer.current);
     try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
     setActiveCode("");codeRef.current="";setUserName("");setJoinInput("");setJoinErr("");setJoinOffer("");setView("plan");
@@ -340,6 +340,23 @@ export default function App() {
     setHbLink(null);setHbBook(null);setHbErr("");
     setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);setExtracted(null);
     setScreen("join");
+  };
+  const leavePlan=()=>{
+    if(!window.confirm("Plan verlassen? Mit deinem Code kannst du jederzeit zurückkehren."))return;
+    resetSession();
+  };
+  // ENDGUELTIG LOESCHEN: plans/<CODE> und recipeImages/<CODE> bei Firebase entfernen (fuer alle Mitglieder), Bestaetigung durch Eingabe des Codes
+  const deletePlan=async()=>{
+    const code=codeRef.current; if(!code) return false;
+    const typed=window.prompt("Der ganze Plan "+code+" wird endgültig bei Firebase gelöscht – für alle Mitglieder, mit Rezepten, Fotos und Einkaufsliste. Vorher das Kochbuch als PDF sichern!\n\nZum Bestätigen den Plan-Code eingeben:");
+    if(typed===null) return false;
+    if(normCode(typed)!==code){ window.alert("Der Code stimmt nicht. Es wurde nichts gelöscht."); return false; }
+    const ok=await fbDelete("plans/"+code);
+    if(!ok){ window.alert("Löschen fehlgeschlagen – keine Verbindung zur Datenbank. Bitte später erneut versuchen."); return false; }
+    await fbDelete("recipeImages/"+code);   // Fotos; schlaegt das fehl, bleiben nur Bilddaten ohne Bezug zurueck
+    resetSession();
+    window.alert("Alle Daten des Plans wurden gelöscht.");
+    return true;
   };
 
   // WOCHE - angezeigte Woche aus weeks lesen; jede Woche wird beim Oeffnen frisch vom Server geholt (kein veralteter Cache)
@@ -1033,7 +1050,7 @@ export default function App() {
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,setHbCat,disconnectHb,reloadHb:loadHb,markGone,clearGone,setSetting,zoom,leavePlan,
+    connectHb,setHbCat,disconnectHb,reloadHb:loadHb,markGone,clearGone,setSetting,zoom,leavePlan,deletePlan,
     // Rahmen
     setView,copyCode,showToast,registerBackHandler,setHeuteCat,
     setActiveCell,setCellInput,setOpenCat,setCookPicker,cellRef,cookRef,

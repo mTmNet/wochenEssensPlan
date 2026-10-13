@@ -23,6 +23,10 @@ export const fbPut = async (p,d) => {
   const body=JSON.stringify(d);
   try { const r=await fetchT(FB+"/"+p+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }
 };
+// Knoten komplett entfernen (DELETE), z. B. plans/<CODE> beim endgueltigen Loeschen
+export const fbDelete = async (p) => {
+  try { const r=await fetchT(FB+"/"+p+".json",{method:"DELETE"},FETCH_TIMEOUT_MS); return r.ok; } catch(e){ return false; }
+};
 export const fbPatch = async (p,d) => {
   const body=JSON.stringify(d);
   try { const r=await fetchT(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }

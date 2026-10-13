@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, column } from "../theme.js";
 import { APP_VERSION } from "../data.js";
+import PrivacyModal from "./Privacy.jsx";
 import Toast from "../components/Toast.jsx";
 
 // RAHMEN der Hauptansicht: Kopf (Titel, Name, Code, Menue), Sync-Leiste, Tabs; Inhalt auf dem Desktop zentriert (max. 920 px)
 export default function Shell({state,api,children}){
   const {toast,userName,code,codeCopied,fontZoom,syncOk,syncErr,lastSync,view,unchecked,settings}=state;
-  const {copyCode,zoom,leavePlan,setView,setSetting,registerBackHandler}=api;
+  const {copyCode,zoom,leavePlan,deletePlan,downloadPDF,setView,setSetting,registerBackHandler}=api;
   const [menuOpen,setMenuOpen]=useState(false);
+  const [infoOpen,setInfoOpen]=useState(false);   // Datenschutz & deine Daten
   const menuRef=useRef(null);
   // Zurueck-Taste und Tipp daneben schliessen das Menue
   useEffect(()=>{ if(!menuOpen) return; return registerBackHandler(()=>{ setMenuOpen(false); return true; }); },[menuOpen]);
@@ -48,6 +50,7 @@ export default function Shell({state,api,children}){
                     <span style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",color:settings.aiImages?C.ok:C.muted}}>{settings.aiImages?"AN":"AUS"}</span>
                   </button>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);setView("heute");setTimeout(()=>{const el=document.getElementById("haushaltsbuch");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},80);}} style={rowBtn}>Haushaltsbuch</button>
+                  <button role="menuitem" onClick={()=>{setMenuOpen(false);setInfoOpen(true);}} style={rowBtn}>Datenschutz & Daten</button>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);leavePlan();}} style={{...rowBtn,color:C.err}}>Plan verlassen</button>
                   <div style={{padding:"8px 14px",fontSize:"11px",color:C.subtle}}>Version {APP_VERSION}</div>
                 </div>
@@ -56,6 +59,7 @@ export default function Shell({state,api,children}){
           </div>
         </div>
 
+        {infoOpen&&<PrivacyModal onClose={()=>setInfoOpen(false)} onExport={downloadPDF} onDelete={deletePlan} hasRecipes={Object.keys(state.recipes||{}).length>0} />}
         {/* SYNC - schmal, bei Fehlern rot mit Text */}
         <div style={{background:syncOk?"#1A2620":"#261A1A",borderBottom:"1px solid "+(syncOk?"#2E5040":"#502020")}}>
           <div style={{...column,padding:"4px 16px",display:"flex",alignItems:"center",gap:"6px"}}>

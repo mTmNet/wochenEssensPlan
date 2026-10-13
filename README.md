@@ -12,6 +12,7 @@ Gemeinsamer Essensplaner für die Familie: Wochenplan mit Datum, Einkaufsliste, 
 - **Rezept** – Merkmale „Für Kinder“ und „Schnell“ (unabhängig von der Kategorie, steuern die Filter), Portionen umrechnen, Zeit, Herkunft und Quelle, „Zum Wochenplan“, „Auf die Einkaufsliste“, eigenes Foto, Bewertung, Notizen, Kochhistorie. **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern aus den Zeitangaben.
 - **Gemeinsam** – ein Plan-Code für die Familie (10 Zeichen), Synchronisation alle 10 Sekunden, jede Änderung wird einzeln geschrieben, damit sich zwei Geräte nicht überschreiben.
 - Als App installierbar (PWA), Schriftzoom, Android-Zurück-Taste.
+- **Datenschutz & Daten** im Menü (und auf dem Startbildschirm): was wo gespeichert wird, was die KI bekommt, Kochbuch-PDF, **„Plan endgültig löschen“** (entfernt `plans/<CODE>` und `recipeImages/<CODE>`, Bestätigung durch Eingabe des Codes).
 
 ## Entwicklung
 

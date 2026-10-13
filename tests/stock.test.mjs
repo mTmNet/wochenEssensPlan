@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
-const NOW = "2026-10-04";
+const NOW = "2026-10-04";                                   // fester Bezugstag fuer die Kochhistorie-Rechnung
+const TODAY = new Date().toISOString().slice(0, 10);       // echter Tag fuer hbStock (rechnet mit Date.now())
 
 test("scoreRecipe ohne Haushaltsbuch: Abdeckung 0, Bewertung*4, gekocht*3 (max 5), -25 wenn frisch gekocht", () => {
   const plain = scoreRecipe(normalizeRecipe("A", { ingredients:["Pasta 200g","Hackfleisch 300g"] }, 0), [], NOW);
@@ -27,13 +28,13 @@ test("scoreRecipe ohne Haushaltsbuch: Abdeckung 0, Bewertung*4, gekocht*3 (max 5
 });
 
 test("scoreRecipe mit Bestand: Abdeckung zaehlt nur Nicht-Basics", () => {
-  const book = { entries: { e1: { date: NOW, category:"Lebensmittel", items:[
+  const book = { entries: { e1: { date: TODAY, category:"Lebensmittel", items:[
     { name:"Spaghetti Barilla", amount:1.79, sub:"Trockenwaren" },
     { name:"Rinderhack 500g", amount:4.99, sub:"Fleisch" },
   ]}}};
   const stock = hbStock(book, "Lebensmittel");
   assert.ok(stock.length>=2);
-  const r = scoreRecipe(normalizeRecipe("G", { ingredients:["Pasta 200g","Salz","Olivenoel 2 EL"] }, 0), stock, NOW);
+  const r = scoreRecipe(normalizeRecipe("G", { ingredients:["Pasta 200g","Salz","Olivenoel 2 EL"] }, 0), stock, TODAY);
   assert.equal(r.core.length, 1);                                   // Salz und Oel sind Basics
   assert.ok(r.cov>0.9, "Pasta ist frisch gekauft: "+r.cov);
   assert.ok(r.score>90);

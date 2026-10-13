@@ -50,6 +50,7 @@ const mockFb = (store)=>async(route)=>{
     if(parts[parts.length-2]==='weeks'){ const k=parts[parts.length-1]; fbStats.weekGets[k]=(fbStats.weekGets[k]||0)+1; }
     return route.fulfill({status:200, contentType:'application/json', body: JSON.stringify(getAt(store,parts))});
   }
+  if(m==='DELETE'){ fbStats.del=(fbStats.del||0)+1; setAt(store,parts,null); return route.fulfill({status:200, contentType:'application/json', body:'null'}); }
   const body = req.postData()||'null'; fbStats.bytesUp += body.length;
   const data = JSON.parse(body);
   if(m==='PUT'){ fbStats.put++; setAt(store,parts,data); }
@@ -82,7 +83,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const consoleErrs = [];
   page.on('console', m=>{ if(m.type()==='error'||m.type()==='warning') consoleErrs.push(m.type()+': '+m.text().slice(0,300)); });
   page.on('pageerror', e=>{ consoleErrs.push('pageerror: '+e.message); log('PAGEERROR', e.message); });
-  page.on('dialog', async d=>{ log('DIALOG:', d.type(), d.message()); await d.accept(); });
+  let promptAnswer = '';
+  page.on('dialog', async d=>{ log('DIALOG:', d.type(), d.message().slice(0,80)); if(d.type()==='prompt') await d.accept(promptAnswer); else await d.accept(); });
 
   await ctx.route(/wochenessenplan-3d0e1-default-rtdb/, mockFb(db.wochen));
   await ctx.route(/haushaltsbuch-3cefb-default-rtdb/, mockFb(db.hb));
@@ -592,6 +594,27 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("Einkauf")'); await page.click('button:text-is("Woche")');
   await shot('26-plan-two-users');
 
+  // DATENSCHUTZ & DATEN: Modal aus dem Menue, Loeschen nur mit richtigem Code (DELETE plans/<CODE> und recipeImages/<CODE>)
+  await page.bringToFront();
+  await page.click('button[aria-label="Menü"]');
+  await page.click('text=Datenschutz & Daten');
+  await page.waitForTimeout(300);
+  check(await page.isVisible('text=Datenschutz & deine Daten')&&await page.isVisible('text=europe-west1')&&await page.isVisible('button:has-text("PLAN ENDGÜLTIG LÖSCHEN")'), 'Datenschutz: Modal mit Hinweisen, PDF-Export und Loeschen');
+  await shot('32-datenschutz');
+  promptAnswer = 'FALSCH';
+  await page.click('button:has-text("PLAN ENDGÜLTIG LÖSCHEN")');
+  await page.waitForTimeout(400);
+  check(!!db.wochen.plans[code]&&!(fbStats.del||0), 'Datenschutz: falscher Code loescht nichts');
+  promptAnswer = code;
+  db.wochen.recipeImages = { [code]: { x:'data:' } };
+  await page.click('button:has-text("PLAN ENDGÜLTIG LÖSCHEN")');
+  await page.waitForTimeout(800);
+  check(!db.wochen.plans[code]&&!db.wochen.recipeImages?.[code]&&fbStats.del===2, 'Datenschutz: richtiger Code loescht plans/<CODE> und recipeImages/<CODE>', {plan:!!db.wochen.plans[code], del:fbStats.del});
+  check(await page.isVisible('text=PLAN STARTEN')&&await page.isVisible('text=DATENSCHUTZ'), 'Datenschutz: danach Startbildschirm mit Datenschutz-Link');
+  await page.click('text=DATENSCHUTZ');
+  await page.waitForTimeout(200);
+  check(await page.isVisible('text=Datenschutz & deine Daten')&&!(await page.isVisible('button:has-text("PLAN ENDGÜLTIG LÖSCHEN")')), 'Datenschutz: auf dem Start ohne Loeschknopf');
+  const putsBeforeStats = fbStats.put;
   log('--- fb stats', JSON.stringify(fbStats));
   check(fbStats.put===0&&fbStats.patchGlobal===0&&!db.wochen.globalRecipes, 'Keine PUTs, keine Schreibzugriffe auf globalRecipes', fbStats);
   log('--- plan keys in mock:', Object.keys(db.wochen.plans?.[code]||{}));

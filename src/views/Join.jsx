@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { C, SF, SER } from "../theme.js";
 
 // STARTBILDSCHIRM - Name eingeben, neuen Plan starten oder mit Code beitreten (nur bestehende Plaene)
+import PrivacyModal from "./Privacy.jsx";
+
 export default function Join({state,api}){
+  const [infoOpen,setInfoOpen]=useState(false);
   const {nameInput,joinInput,myCode,nameHint,joinErr,joinOffer,joinBusy}=state.joinState;
   const {setNameInput,setJoinInput,startPlan,joinPlan,createWithCode}=api;
   const canJoin=joinInput.length>=6&&!!nameInput.trim()&&!joinBusy;
@@ -46,7 +50,9 @@ export default function Join({state,api}){
               </div>
             )}
           </div>
+          <button onClick={()=>setInfoOpen(true)} style={{display:"block",margin:"14px auto 0",background:"none",border:"none",color:"rgba(255,255,255,0.45)",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,padding:"8px",minHeight:"40px"}}>DATENSCHUTZ</button>
         </div>
+        {infoOpen&&<PrivacyModal onClose={()=>setInfoOpen(false)} />}
       </div>
   );
 }
