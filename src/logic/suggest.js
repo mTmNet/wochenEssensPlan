@@ -24,7 +24,7 @@ export const suggestScore = (rec, stock, opts={}) => {
   const jitter = (seed ? 25 : 8) * hash01(key+"|"+today+"|"+seed);
   const score = cov*100 + Math.min(30, urgent.length*12) + (rec.rating||0)*3 - recency + jitter;
   const reasons = [];
-  if(used.length) reasons.push("nutzt "+used.slice(0,3).map(x=>x.src||x.name).join(", "));
+  if(used.length) reasons.push("verwendet "+used.slice(0,3).map(x=>x.src||x.name).join(", "));
   if(urgent.length) reasons.push(urgent[0].src+" hält noch "+(urgent[0].left<=0?"heute":urgent[0].left===1?"1 Tag":urgent[0].left+" Tage"));
   if(ds!==null&&ds>=30) reasons.push("lange nicht gekocht");
   if(ds===null&&times===0&&!rec.basis) reasons.push("noch nie gekocht");

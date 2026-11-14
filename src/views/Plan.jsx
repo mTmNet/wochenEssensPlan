@@ -9,7 +9,7 @@ import PickDay from "../components/PickDay.jsx";
 // Erscheint als Reiter nur, wenn etwas vorgemerkt ist (oder ueber "Vormerken" an einem Rezept).
 export default function Plan({state,api}){
   const {picks,recipes,today,unchecked}=state;
-  const {openRecipe,removePick,movePick,cookedToday,addPick,buildShoppingFromPicks,registerBackHandler,showToast,setView}=api;
+  const {openRecipe,removePick,movePick,addPick,buildShoppingFromPicks,registerBackHandler,showToast}=api;
   const [adding,setAdding]=useState(false);
   const [q,setQ]=useState("");
   const [chosen,setChosen]=useState(null);   // {key,name} -> PickDay
@@ -35,7 +35,7 @@ export default function Plan({state,api}){
     <div style={{display:"flex",alignItems:"flex-end",gap:"8px",margin:"4px 2px 12px"}}>
       <div style={{flex:1}}>
         <div style={{fontFamily:SER,fontSize:"26px",color:C.text,lineHeight:1.15}}>Vorgemerkt</div>
-        <div style={{fontSize:"12px",color:C.muted,marginTop:"3px"}}>Was in den nächsten Tagen gekocht werden soll.</div>
+        <div style={{fontSize:"12px",color:C.muted,marginTop:"3px"}}>Was in den nächsten Tagen gekocht werden soll. Gekochtes verschwindet, sobald es im Rezept als „heute gekocht“ steht.</div>
       </div>
       <button onClick={()=>{setQ("");setAdding(true);}} style={{...btn("primary"),letterSpacing:"1.5px",flexShrink:0}}>+ VORMERKEN</button>
     </div>
@@ -59,7 +59,6 @@ export default function Plan({state,api}){
                   <div style={{fontSize:"12px",color:C.muted}}>{rec?[rec.minutes>0?rec.minutes+" Min.":"",rec.cuisine].filter(Boolean).join(" · "):"Rezept nicht mehr im Kochbuch"}</div>
                 </button>
                 {g.day!==today&&<button onClick={()=>movePick(p.id,today)} title="Auf heute legen" style={{...btn("ghost"),padding:"8px 9px",color:C.accent,flexShrink:0}}>HEUTE</button>}
-                {rec&&g.day===today&&<button onClick={()=>cookedToday(p.key)} style={{...btn("ok"),padding:"8px 10px",flexShrink:0}}>GEKOCHT ✓</button>}
                 <button onClick={()=>removePick(p.id)} aria-label="Entfernen" style={iconBtn}>×</button>
               </div>
             );

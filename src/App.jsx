@@ -353,20 +353,25 @@ export default function App() {
     setPicksRaw(prev=>prev[id]?{...prev,[id]:{...prev[id],day:day||""}}:prev);
     return writePlan({["picks/"+id+"/day"]:day||""},"picks");
   };
-  // "Gekocht" aus Heute/Vorgemerkt: Kochdatum heute, Vormerkung fuer heute weg, Rezept mit Bewertungsdialog oeffnen
-  const cookedToday=(key)=>{
-    const rec=recipesRef.current[key]; if(!rec) return;
+  // Vormerkungen fuer heute zu einem Rezept entfernen (nach dem Kochen)
+  const clearTodayPicks=(key)=>{
     const t=todayISO();
     const todays=picks.filter(p=>p.key===key&&p.day===t);
-    if(todays.length){
-      const patch={}; todays.forEach(p=>{ patch["picks/"+p.id]=null; });
-      setPicksRaw(prev=>{ const n={...prev}; todays.forEach(p=>{ delete n[p.id]; }); return n; });
-      writePlan(patch,"picks");
-    }
-    markCooked(key,t);
+    if(!todays.length) return;
+    const patch={}; todays.forEach(p=>{ patch["picks/"+p.id]=null; });
+    setPicksRaw(prev=>{ const n={...prev}; todays.forEach(p=>{ delete n[p.id]; }); return n; });
+    writePlan(patch,"picks");
+  };
+  // "Wurde heute gekocht" im Rezept: Kochdatum heute, Vormerkung fuer heute weg, Bewertungsdialog
+  const cookedToday=(key)=>{
+    const rec=recipesRef.current[key]; if(!rec) return;
+    clearTodayPicks(key);
+    markCooked(key,todayISO());
     setDetailRecipe(key);setCookStep(0);setCookMode(false);setEditMode(false);setEditData(null);
     setRatingDraft(rec.rating||0);setNoteDraft(rec.notes||"");setRateAfterCook(true);
   };
+  // Kochmodus direkt aus Heute starten
+  const startCooking=(key)=>{ if(!recipesRef.current[key]) return; setDetailRecipe(key);setEditMode(false);setEditData(null);setCookStep(0);setCookMode(true); };
 
   // SHOPPING - Objekt <id> -> Posten; jede Aenderung schreibt nur ihren Pfad
   const household=Math.max(2,participants.length);                   // Haushaltsgroesse fuer die Mengen (Bauplan Abschnitt 9)
@@ -866,7 +871,7 @@ export default function App() {
   // Rezept oeffnen: Detailansicht frisch (Schritt 0, kein Kochmodus, kein Editor)
   const openRecipe=(key)=>{setDetailRecipe(key);setCookStep(0);setCookMode(false);setEditMode(false);setEditData(null);};
   // Kochmodus "Fertig": Kochdatum eintragen, Bewertungsdialog oeffnen
-  const finishCook=()=>{markCooked(detailRecipe,todayISO());setCookMode(false);setCookStep(0);setRatingDraft((curRec&&curRec.rating)||0);setNoteDraft((curRec&&curRec.notes)||"");setRateAfterCook(true);};
+  const finishCook=()=>{clearTodayPicks(detailRecipe);markCooked(detailRecipe,todayISO());setCookMode(false);setCookStep(0);setRatingDraft((curRec&&curRec.rating)||0);setNoteDraft((curRec&&curRec.notes)||"");setRateAfterCook(true);};
   // Bewertungsdialog speichern (Bewertung + Notiz in einem Feld-PATCH)
   const saveRating=()=>{ patchRecipe(detailRecipe,{rating:ratingDraft,notes:noteDraft}); setRateAfterCook(false); };
 
@@ -883,7 +888,7 @@ export default function App() {
   };
   const api={
     // Vorgemerkt
-    addPick,removePick,movePick,cookedToday,
+    addPick,removePick,movePick,cookedToday,startCooking,
     // Einkauf
     buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,forceBuy,shareShopping,
     // Rezepte

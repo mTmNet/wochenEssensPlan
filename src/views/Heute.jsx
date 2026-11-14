@@ -3,9 +3,8 @@ import { C, SF, SER, micro as label, chip, btn } from "../theme.js";
 import { CUISINE_LIST, TAGS } from "../data.js";
 import { recName, recCat, recKey, normalizeRecipe } from "../logic/recipes.js";
 import { rankSuggestions } from "../logic/suggest.js";
-import { picksForDay, dayLabel } from "../logic/picks.js";
+import { picksForDay } from "../logic/picks.js";
 import DishImage from "../components/DishImage.jsx";
-import PickDay from "../components/PickDay.jsx";
 
 // HEUTE - "Was kochen wir heute?": vorgemerkt fuer heute, bester Vorschlag mit Begruendung, Alternativen, Vorrat-Zeile, KI
 const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
@@ -13,13 +12,13 @@ const fmtToday=()=>new Date().toLocaleDateString("de-DE",{weekday:"long",day:"nu
 
 export default function Heute({state,api}){
   const {stock,hbLink,hbBook,recipes,images,classics,picks,today,aiBusy,aiErr,household}=state;
-  const {openRecipe,setView,suggestRecipe,adoptClassic,addPick,removePick,cookedToday,registerBackHandler,showToast}=api;
+  const {openRecipe,startCooking,setView,suggestRecipe,adoptClassic,removePick}=api;
   const [filters,setFilters]=useState({quick:false,kids:false});
-  const [seed,setSeed]=useState(0);
+  const [round,setRound]=useState(0);            // "Andere": blaettert durch die Rangliste (Hauptkachel und Alternativen wechseln)
+  const [selected,setSelected]=useState("");     // angetippte Alternative wird zur Hauptkachel
   const [more,setMore]=useState(false);
   const [aiOpen,setAiOpen]=useState(false);
   const [aiCuisine,setAiCuisine]=useState("Egal");
-  const [picking,setPicking]=useState(null);     // {key, name, basis}
   const [busy,setBusy]=useState("");
   const hasStock=stock.length>0;
   const emptyBook=Object.keys(recipes).length===0;
@@ -30,25 +29,27 @@ export default function Heute({state,api}){
     const base=classics.filter(c=>!recipes[recKey(c.name)]).map(c=>{ const k=recKey(c.name); return {key:k,rec:{...normalizeRecipe(k,c,0),basis:true},basis:true,classic:c}; });
     return [...own,...base];
   },[recipes,classics]);
-  const ranked=useMemo(()=>rankSuggestions(pool,stock,{filters,seed,today}),[pool,stock,filters,seed,today]);
-  const top=ranked[0];
-  const rest=ranked.slice(1,more?10:4);
+  const ranked=useMemo(()=>rankSuggestions(pool,stock,{filters,today}),[pool,stock,filters,today]);
+  // Fenster: "Andere" springt um vier weiter (rundum); eine angetippte Alternative steht oben, die uebrigen folgen in Rangfolge
+  const start=ranked.length?(round*4)%ranked.length:0;
+  const order=[...ranked.slice(start),...ranked.slice(0,start)];
+  const sel=selected?order.find(s=>s.key===selected):null;
+  const top=sel||order[0];
+  const rest=order.filter(s=>top&&s.key!==top.key).slice(0,more?9:3);
   const todayPicks=picksForDay(picks,today);
   const likely=stock.filter(s=>s.p>=0.25).length;
 
   // Eintrag der Rezept-Basis erst ins Kochbuch holen, dann handeln (ein Tipp genuegt)
   const ensureKey=async(s)=>{ if(!s.basis) return s.key; setBusy(s.key); const k=await adoptClassic(s.classic); setBusy(""); return k; };
   const open=async(s)=>{ const k=await ensureKey(s); if(k) openRecipe(k); };
-  const cook=async(s)=>{ const k=await ensureKey(s); if(k) cookedToday(k); };
-  const pick=(s)=>setPicking({key:s.key,name:s.basis?s.classic.name:recName(s.rec,s.key),basis:s.basis,s});
-  const confirmPick=async(day)=>{ const p=picking; setPicking(null); const k=await ensureKey(p.s); if(k){ await addPick(k,day); showToast("„"+p.name+"“ für "+dayLabel(day,today).toLowerCase()+" vorgemerkt."); } };
-  const toggle=(f)=>{ setFilters(v=>({...v,[f]:!v[f]})); setMore(false); };
+  const cook=async(s)=>{ const k=await ensureKey(s); if(k) startCooking(k); };
+  const toggle=(f)=>{ setFilters(v=>({...v,[f]:!v[f]})); setMore(false); setSelected(""); };
+  const another=()=>{ setRound(r=>r+1); setSelected(""); setMore(false); };
   const meta=(s)=>[hasStock?Math.round(s.cov*100)+" % da":"",s.rec.minutes>0?s.rec.minutes+" Min.":"",s.rec.cuisine&&s.rec.cuisine!=="International"?s.rec.cuisine:recCat(s.rec)].filter(Boolean).join(" · ");
   const nameOf=(s)=>s.basis?s.classic.name:recName(s.rec,s.key);
 
   return(
   <div style={{padding:"12px",paddingBottom:"80px"}}>
-    {picking&&<PickDay name={picking.name} today={today} onConfirm={confirmPick} onClose={()=>setPicking(null)} registerBackHandler={registerBackHandler} />}
     <div style={{margin:"4px 2px 12px"}}>
       <div style={{fontFamily:SER,fontSize:"26px",color:C.text,lineHeight:1.15}}>Was kochen wir heute?</div>
       <div style={{fontSize:"12px",color:C.muted,marginTop:"3px"}}>{fmtToday()}</div>
@@ -64,9 +65,8 @@ export default function Heute({state,api}){
             <div key={p.id} style={{display:"flex",alignItems:"center",gap:"8px",padding:"6px 0",borderTop:i?"1px solid "+C.border:"none",minHeight:"48px"}}>
               <button onClick={()=>rec&&openRecipe(p.key)} style={{flex:1,minWidth:0,background:"none",border:"none",textAlign:"left",cursor:rec?"pointer":"default",padding:"6px 0",fontFamily:SF}}>
                 <div style={{fontFamily:SER,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recName(rec,p.key)}</div>
-                {rec&&rec.minutes>0&&<div style={{fontSize:"12px",color:C.muted}}>{rec.minutes} Min.</div>}
+                <div style={{fontSize:"12px",color:C.muted}}>{[rec&&rec.minutes>0?rec.minutes+" Min.":"","Rezept öffnen – im Kochmodus oder im Rezept als „heute gekocht“ eintragen"].filter(Boolean).join(" · ")}</div>
               </button>
-              {rec&&<button onClick={()=>cookedToday(p.key)} style={{...btn("ok"),padding:"9px 12px",flexShrink:0}}>GEKOCHT ✓</button>}
               <button onClick={()=>removePick(p.id)} aria-label="Vormerkung entfernen" style={{minWidth:"40px",minHeight:"40px",background:"none",border:"none",color:C.subtle,fontSize:"20px",cursor:"pointer",fontFamily:SF}}>×</button>
             </div>
           );
@@ -77,7 +77,7 @@ export default function Heute({state,api}){
     {/* FILTER + ANDERE VORSCHLAEGE */}
     <div style={{display:"flex",gap:"6px",marginBottom:"12px",alignItems:"center"}}>
       {TAGS.map(t=>{ const f=t.id==="schnell"?"quick":"kids"; return <button key={t.id} onClick={()=>toggle(f)} aria-pressed={filters[f]} style={chip(filters[f])}>{filters[f]?"✓ ":""}{t.label}</button>; })}
-      <button onClick={()=>{setSeed(s=>s+1);setMore(false);}} title="Andere Vorschläge" style={{...chip(false),marginLeft:"auto",color:C.accent}}>↻ Andere</button>
+      <button onClick={another} title="Andere Vorschläge" style={{...chip(false),marginLeft:"auto",color:C.accent}}>↻ Andere</button>
     </div>
 
     {/* BESTER VORSCHLAG */}
@@ -106,9 +106,8 @@ export default function Heute({state,api}){
             </div>
           )}
           <div style={{display:"flex",gap:"6px"}}>
-            <button onClick={()=>cook(top)} disabled={busy===top.key} style={{...btn("ok"),flex:"1 1 40%",letterSpacing:"1.5px"}}>GEKOCHT ✓</button>
-            <button onClick={()=>pick(top)} disabled={busy===top.key} style={{...btn("ghost"),flex:"1 1 30%",color:C.accent}}>VORMERKEN</button>
-            <button onClick={()=>open(top)} disabled={busy===top.key} style={{...btn("ghost"),flex:"1 1 25%"}}>REZEPT</button>
+            <button onClick={()=>open(top)} disabled={busy===top.key} style={{...btn("primary"),flex:"1 1 50%",letterSpacing:"1.5px"}}>ZUM REZEPT</button>
+            {(top.rec.steps||[]).length>0&&<button onClick={()=>cook(top)} disabled={busy===top.key} style={{...btn("dark"),flex:"1 1 50%",letterSpacing:"1.5px"}}>KOCHMODUS</button>}
           </div>
         </div>
       </div>
@@ -118,20 +117,21 @@ export default function Heute({state,api}){
     {rest.length>0&&(
       <div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"8px"}}>
         {rest.map((s,i)=>(
-          <div key={s.key} style={{display:"flex",alignItems:"center",gap:"8px",padding:"8px 8px 8px 14px",minHeight:"56px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none"}}>
-            <div onClick={()=>open(s)} role="button" style={{flex:1,minWidth:0,cursor:"pointer"}}>
+          <button key={s.key} onClick={()=>{setSelected(s.key);window.scrollTo({top:0,behavior:"smooth"});}} title="Als Hauptvorschlag anzeigen" style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"8px 14px",minHeight:"56px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none",background:"none",border:"none",borderTop:"none",borderLeft:"none",borderRight:"none",cursor:"pointer",textAlign:"left",fontFamily:SF}}>
+            <div style={{flex:1,minWidth:0}}>
               <div style={{fontFamily:SER,fontSize:"16px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameOf(s)}{s.basis&&<span style={{fontSize:"10px",color:C.subtle,letterSpacing:"1px",marginLeft:"8px"}}>BASIS</span>}</div>
               <div style={{fontSize:"12px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[meta(s),...s.reasons.slice(0,1)].filter(Boolean).join(" · ")}</div>
             </div>
             {hasStock&&<div style={{fontSize:"14px",fontWeight:"700",color:pColor(s.cov),flexShrink:0,minWidth:"42px",textAlign:"right"}}>{Math.round(s.cov*100)} %</div>}
-            <button onClick={()=>pick(s)} aria-label={"Vormerken: "+nameOf(s)} title="Vormerken" style={{minWidth:"40px",minHeight:"40px",background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"18px",cursor:"pointer",fontFamily:SF,flexShrink:0}}>+</button>
-          </div>
+            <span style={{color:C.subtle,fontSize:"16px"}} aria-hidden="true">›</span>
+          </button>
         ))}
       </div>
     )}
     {ranked.length>4&&(
       <button onClick={()=>setMore(m=>!m)} style={{...btn("ghost"),width:"100%",letterSpacing:"2px",marginBottom:"12px"}}>{more?"WENIGER":"MEHR VORSCHLÄGE"}</button>
     )}
+    {top&&<div style={{fontSize:"12px",color:C.subtle,margin:"-6px 2px 12px"}}>Alternative antippen zeigt sie als Hauptvorschlag mit ihren Zutaten.</div>}
 
     {/* VORRAT-ZEILE */}
     <button onClick={()=>setView("vorrat")} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",background:C.white,border:"1px solid "+C.border,padding:"12px 14px",minHeight:"52px",marginBottom:"12px",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>

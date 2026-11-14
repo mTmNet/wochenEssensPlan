@@ -25,7 +25,7 @@ const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255
 export default function RecipeDetail({state,api}){
   const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast}=state;
   const {setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,rateRecipe,noteRecipe,closeRecipe,uploadImage,resetImage,setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit,
-         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,registerBackHandler,showToast}=api;
+         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,cookedToday,registerBackHandler,showToast}=api;
   const imgFileRef=useRef(null), dishPhotoRef=useRef(null);
   const name=recName(curRec,detailRecipe);
   // Portionen-Stepper: skaliert nur die Anzeige, das Rezept bleibt bei seinen servings
@@ -106,7 +106,10 @@ export default function RecipeDetail({state,api}){
               {/* BEWERTUNG & NOTIZEN */}
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={cardTitle}>Bewertung & Notizen</div>
-                <Stars value={curRec.rating||0} onRate={r=>rateRecipe(detailRecipe,r)} />
+                <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                  <Stars value={curRec.rating||0} onRate={r=>rateRecipe(detailRecipe,r)} />
+                  <button onClick={()=>cookedToday(detailRecipe)} disabled={cooked.includes(today)} style={{...btn("ghost"),marginLeft:"auto",padding:"8px 12px",color:cooked.includes(today)?C.ok:C.accent,borderColor:cooked.includes(today)?C.ok:C.border}}>{cooked.includes(today)?"✓ HEUTE GEKOCHT":"WURDE HEUTE GEKOCHT"}</button>
+                </div>
                 <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))noteRecipe(detailRecipe,noteDraft);}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" aria-label="Notizen" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
               </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>

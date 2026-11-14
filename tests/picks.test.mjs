@@ -33,7 +33,7 @@ test("suggestScore: Vorrat und Dringlichkeit zaehlen, frisch Gekochtes wird gebr
   const a = suggestScore(bolo, stock, { today:T, key:"Bolognese" });
   assert.ok(a.cov > 0.6, "beides da: "+a.cov);
   assert.ok(a.urgent.length >= 1, "Hackfleisch verdirbt bald");
-  assert.ok(a.reasons.some(r=>r.startsWith("nutzt")) && a.reasons.some(r=>r.includes("hält noch")), a.reasons.join(" | "));
+  assert.ok(a.reasons.some(r=>r.startsWith("verwendet")) && a.reasons.some(r=>r.includes("hält noch")), a.reasons.join(" | "));
   const often = normalizeRecipe("Oft", { ingredients:["Hackfleisch 300g","Pasta 200g"], cooked:["2026-01-01","2026-02-01","2026-03-01","2026-04-01"] }, 0);
   const once  = normalizeRecipe("Einmal", { ingredients:["Hackfleisch 300g","Pasta 200g"], cooked:["2026-03-01"] }, 0);
   const so = suggestScore(often, stock, { today:T, key:"Oft" }), si = suggestScore(once, stock, { today:T, key:"Einmal" });

@@ -106,7 +106,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const tabs = await page.locator('div[style*="border-bottom"] button[aria-current], div[style*="overflow-x: auto"] button').allTextContents();
   check(tabs.join('|').includes('Heute')&&tabs.join('|').includes('Vorrat')&&!tabs.join('|').includes('Woche')&&!tabs.join('|').includes('Plan'), 'Reiter: Heute · Vorrat · Rezepte · Einkauf, kein Woche, Plan versteckt', tabs);
   // HEUTE mit leerem Kochbuch: Vorschlaege aus der Rezept-Basis
-  check(await page.isVisible('text=Was kochen wir heute?') && await page.isVisible('text=Aus der Rezept-Basis') && (await page.locator('button:has-text("GEKOCHT")').count())>=1, 'Heute: leeres Kochbuch -> bester Vorschlag aus der Rezept-Basis mit Gekocht/Vormerken/Rezept');
+  check(await page.isVisible('text=Was kochen wir heute?') && await page.isVisible('text=Aus der Rezept-Basis') && await page.isVisible('button:has-text("ZUM REZEPT")') && !(await page.isVisible('button:has-text("VORMERKEN")')), 'Heute: leeres Kochbuch -> bester Vorschlag aus der Rezept-Basis mit Zum Rezept/Kochmodus, kein Vormerken');
   check(await page.isVisible('text=Vorrat verbinden'), 'Heute: Vorrat-Zeile laedt zum Verbinden ein');
   await shot('01-heute-leer');
   // REZEPTE: Meine/Alle, Startrezepte
@@ -119,47 +119,57 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("Alle (mit Rezept-Basis)")'); await page.waitForTimeout(200);
   check(await page.isVisible('text=Rezept-Basis ·'), 'Rezepte: Umschalter "Alle" blendet die Rezept-Basis ein');
   await shot('02-rezepte-alle');
-  // HEUTE: Vorschlag aus dem Kochbuch, Vormerken fuer heute
+  // HEUTE: Vorschlag aus dem Kochbuch; "Andere" wechselt die Hauptkachel; Alternative antippen wird Hauptkachel
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(400);
-  const topName = (await page.locator('div[style*="font-size: 24px"]').first().textContent()).trim();
+  const heroName = async()=>(await page.locator('div[style*="font-size: 24px"]').first().textContent()).trim();
+  const topName = await heroName();
   check(!!topName && !(await page.isVisible('text=Vorrat: ')), 'Heute: bester Vorschlag "'+topName+'"');
-  await page.click('button:has-text("VORMERKEN")'); await page.waitForTimeout(300);
-  check(await page.isVisible('text=Vormerken') && await page.isVisible('button:has-text("Morgen")') && await page.isVisible('button:has-text("Demnächst")'), 'Vormerken: Dialog mit Heute/Morgen/.../Demnaechst');
-  await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(600);
-  const pk = Object.values(plan().picks||{});
-  check(pk.length===1 && pk[0].day===T && !!plan().recipes[pk[0].key], 'Vormerken: picks/<id> mit heutigem Tag geschrieben', pk);
-  check(await page.isVisible('text=Für heute vorgemerkt') && await page.isVisible('button:text-is("Plan (1)")'), 'Heute: Block "Fuer heute vorgemerkt", Reiter Plan (1) erscheint');
-  await shot('03-heute-vorgemerkt');
-  // ANDERE VORSCHLAEGE + Filter
-  const before = (await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').allTextContents()).join('|');
   await page.click('button:has-text("Andere")'); await page.waitForTimeout(200);
-  const after = (await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').allTextContents()).join('|');
-  check(before!==after || true, 'Heute: "Andere" mischt neu (kann bei kleinem Kochbuch gleich bleiben)', {before, after});
+  const topAfter = await heroName();
+  check(topAfter!==topName, 'Heute: "Andere" wechselt auch die Hauptkachel', {topName, topAfter});
+  const altName = (await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().textContent()).replace('BASIS','').trim();
+  await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().click(); await page.waitForTimeout(200);
+  check((await heroName())===altName, 'Heute: angetippte Alternative wird Hauptkachel', {altName, hero: await heroName()});
   await page.click('button:has-text("Schnell")'); await page.waitForTimeout(200);
   check(await page.isVisible('button[aria-pressed="true"]:has-text("Schnell")'), 'Heute: Filter Schnell aktiv');
   await page.click('button:has-text("Schnell")');
-  // VORGEMERKT-Reiter: Liste, Einkaufsliste erzeugen
-  await page.click('button:text-is("Plan (1)")'); await page.waitForTimeout(300);
-  check(await page.isVisible('text=Heute') && (await page.locator('button:has-text("GEKOCHT")').count())>=1, 'Vorgemerkt: Gruppe Heute mit Gekocht-Knopf');
+  await shot('03-heute');
+  // PLAN (versteckt): ueber das Menue, Vormerken fuer heute und demnaechst, Einkaufsliste erzeugen
+  await page.click('button[aria-label="Menü"]'); await page.click('text=Plan · Vorgemerkt'); await page.waitForTimeout(300);
+  check(await page.isVisible('text=Noch nichts vorgemerkt'), 'Plan: leer, ueber das Menue erreichbar');
+  await page.click('button:has-text("+ VORMERKEN")'); await page.waitForTimeout(300);
+  await page.fill('input[placeholder="Rezept suchen…"]', 'Bolognese');
+  await page.click('button:has-text("Pasta Bolognese")'); await page.waitForTimeout(200);
+  await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
+  const pk = Object.values(plan().picks||{});
+  check(pk.length===1 && pk[0].day===T && pk[0].key==='Pasta Bolognese', 'Vormerken: picks/<id> mit heutigem Tag geschrieben', pk);
+  check(await page.isVisible('button:text-is("Plan (1)")'), 'Reiter Plan (1) erscheint');
   await page.click('button:has-text("+ VORMERKEN")'); await page.waitForTimeout(300);
   await page.fill('input[placeholder="Rezept suchen…"]', 'Risotto');
   await page.click('button:has-text("Risotto")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Demnächst")');
   await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).length===2 && Object.values(plan().picks).some(p=>p.key==='Risotto'&&p.day===''), 'Vorgemerkt: Risotto fuer demnaechst ueber die Suche');
+  await shot('03b-plan');
+  await page.click('button:text-is("Heute")'); await page.waitForTimeout(300);
+  check(await page.isVisible('text=Für heute vorgemerkt') && await page.isVisible('text=Pasta Bolognese'), 'Heute: Block "Fuer heute vorgemerkt"');
+  await page.click('button:text-is("Plan (2)")'); await page.waitForTimeout(300);
   check(await page.isVisible('text=Demnächst'), 'Vorgemerkt: Gruppe Demnaechst sichtbar');
   await page.click('button:has-text("EINKAUFSLISTE AUS DEM VORGEMERKTEN")'); await page.waitForTimeout(600);
   const shop = Object.values(plan().shopping||{});
   check(shop.length>3 && shop.every(i=>i.src==='plan'), 'Einkauf: Liste aus dem Vorgemerkten erzeugt', shop.length);
   check(await page.isVisible('text=Erledigt'), 'Einkauf: Ansicht offen');
   await shot('04-einkauf');
-  // GEKOCHT aus Heute: Kochdatum, Vormerkung weg, Bewertungsdialog
+  // "WURDE HEUTE GEKOCHT" im Rezept: Kochdatum, Vormerkung weg, Bewertungsdialog
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(300);
-  await page.locator('button:has-text("GEKOCHT")').first().click(); await page.waitForTimeout(600);
-  check(await page.isVisible('text=Wie war'), 'Gekocht: Bewertungsdialog im Rezept');
-  await page.click('button:has-text("ÜBERSPRINGEN")'); await page.waitForTimeout(200);
-  const cookedRec = Object.values(plan().recipes).find(r=>Array.isArray(r.cooked)&&r.cooked.includes(T));
-  check(!!cookedRec && Object.values(plan().picks).every(p=>p.day!==T), 'Gekocht: Kochdatum heute gespeichert, Vormerkung fuer heute entfernt', cookedRec&&cookedRec.name);
+  await page.locator('text=Pasta Bolognese').first().click(); await page.waitForTimeout(500);
+  check(await page.isVisible('button:has-text("WURDE HEUTE GEKOCHT")'), 'Rezept: Knopf "Wurde heute gekocht" neben der Bewertung');
+  await page.click('button:has-text("WURDE HEUTE GEKOCHT")'); await page.waitForTimeout(600);
+  check(await page.isVisible('text=Wie war'), 'Gekocht: Bewertungsdialog');
+  await page.click('button:has-text("ÜBERSPRINGEN")'); await page.waitForTimeout(300);
+  const cookedRec = plan().recipes['Pasta Bolognese'];
+  check(Array.isArray(cookedRec.cooked)&&cookedRec.cooked.includes(T) && Object.values(plan().picks).every(p=>p.day!==T), 'Gekocht: Kochdatum heute gespeichert, Vormerkung fuer heute entfernt', cookedRec.cooked);
+  check(await page.isVisible('button:has-text("✓ HEUTE GEKOCHT")'), 'Rezept: Knopf zeigt "Heute gekocht"');
   await page.click('text=ZURÜCK'); await page.waitForTimeout(300);
   check(!(await page.isVisible('text=Für heute vorgemerkt')), 'Heute: Block fuer heute ist weg');
   // VORRAT: Haushaltsbuch verbinden, Liste, x
