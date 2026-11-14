@@ -47,7 +47,7 @@ export default function Vorrat({state,api}){
       <div key={s.key} style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 2px 8px 14px",borderTop:i?"1px solid "+C.border:"none",minHeight:"56px",boxSizing:"border-box"}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
-          <div style={{fontSize:"13px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[s.sub,when,left,src,lrn].filter(Boolean).join(" · ")}</div>
+          <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn].filter(Boolean).join(" · ")}</div>
         </div>
         {!s.permanent&&<span style={{fontSize:"16px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"46px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>}
         <button onClick={()=>setPermanent(s,!s.permanent)} aria-label={s.permanent?s.name+": Dauervorrat aufheben":s.name+" als Dauervorrat"} aria-pressed={!!s.permanent} title={s.permanent?"Dauervorrat aufheben":"Dauervorrat: ist immer da"} style={{...iconBtn,color:s.permanent?C.accent:C.subtle,fontSize:"18px"}}>{s.permanent?"★":"☆"}</button>
@@ -113,7 +113,7 @@ export default function Vorrat({state,api}){
         <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hbErr?C.err:hbBook?C.ok:C.subtle,flexShrink:0}} />
         <div style={{flex:"1 1 160px",minWidth:0}}>
           <div style={{fontSize:"15px",color:C.text}}>Haushaltsbuch <b style={{letterSpacing:"2px"}}>{hbLink.code}</b></div>
-          <div style={{fontSize:"13px",color:hbErr?C.err:C.muted}}>{hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+(learnedCount?" · Verblassen gelernt für "+learnedCount+" Produkte":"")):"verbunden"}</div>
+          <div style={{fontSize:"13px",color:hbErr?C.err:C.muted}}>{hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+(learnedCount?" · Verblassen gelernt für "+learnedCount+(learnedCount===1?" Produkt":" Produkte"):"")):"verbunden"}</div>
         </div>
         <div style={{display:"flex",gap:"6px"}}>
           <button onClick={()=>reloadHb()} disabled={hbLoading} style={{...tile,color:C.accent,opacity:hbLoading?0.5:1}}>↻</button>
