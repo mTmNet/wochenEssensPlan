@@ -1,7 +1,7 @@
 // Punktzahl fuer "Heute" (Bauplan Abschnitt 7) und Bestand aus dem Haushaltsbuch
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN } from "../src/logic/stock.js";
+import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN, learnHalfLives, buildStock, guessGroup } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const NOW = "2026-10-04";                                   // fester Bezugstag fuer die Kochhistorie-Rechnung
@@ -95,4 +95,42 @@ test("hbStock: left = Tage bis zum Verblassen (zwei Halbwertszeiten, hoechstens 
   assert.equal(tbl[0].days, 4); assert.deepEqual(tbl[0].labels, ["Fisch"]);
   assert.ok(tbl[tbl.length - 1].labels.includes("übrige Vorräte"));
   assert.ok(tbl.every((r, i) => i === 0 || r.days > tbl[i - 1].days), "aufsteigend, keine doppelten Tage");
+});
+
+test("learnHalfLives: Kaufabstaende und x-Streichung lernen die Halbwertszeit je Produkt", () => {
+  const d = (n) => { const x = new Date(Date.now() - n * 86400000); return x.toISOString().slice(0, 10); };
+  const book = { entries: {
+    a: { date: d(20), category:"L", items:[{ name:"Vollmilch", amount:1, sub:"Milchprodukte" }] },
+    b: { date: d(15), category:"L", items:[{ name:"Vollmilch", amount:1, sub:"Milchprodukte" }] },
+    c: { date: d(10), category:"L", items:[{ name:"Vollmilch", amount:1, sub:"Milchprodukte" }, { name:"Brokkoli", amount:1, sub:"Gemüse" }] },
+    e: { date: d(5),  category:"L", items:[{ name:"Vollmilch", amount:1, sub:"Milchprodukte" }] },
+  } };
+  const L = learnHalfLives(book, "L", {});
+  assert.ok(L.vollmilch && L.vollmilch.n === 3, "drei Abstaende");
+  assert.ok(L.vollmilch.hl < 7 && L.vollmilch.hl > 3, "Milch alle 5 Tage -> Halbwertszeit unter dem Startwert 7: "+L.vollmilch.hl);
+  assert.equal(L.brokkoli, undefined, "ein Kauf = kein Signal");
+  const Lg = learnHalfLives(book, "L", { brokkoli: d(7) });   // 3 Tage nach dem Kauf gestrichen
+  assert.ok(Lg.brokkoli && Lg.brokkoli.n === 1 && Lg.brokkoli.hl < 4, "x-Streichung nach 3 Tagen verkuerzt: "+JSON.stringify(Lg.brokkoli));
+  const st = buildStock({ book, cat:"L", learned:L });
+  assert.ok(st.find(s=>s.key==="vollmilch").learnedN === 3, "Liste traegt die Anzahl der Lernsignale");
+});
+
+test("buildStock: Haushaltsbuch, eigene Positionen und Dauervorrat in einer Liste", () => {
+  const d = (n) => { const x = new Date(Date.now() - n * 86400000); return x.toISOString().slice(0, 10); };
+  const book = { entries: { a: { date: d(3), category:"L", items:[{ name:"Brokkoli", amount:1, sub:"Gemüse" }, { name:"Vollmilch", amount:1, sub:"Milchprodukte" }] } } };
+  const items = { x:{ name:"Spaghetti", sub:"Trockenwaren", date:d(1), src:"foto" }, y:{ name:"Brokkoli", sub:"Gemüse", date:d(0), src:"hand" }, z:{ name:"Salz", sub:"Sonstiges", date:d(0), src:"hand" } };
+  const perm = { spaghetti:{ name:"Spaghetti", sub:"Trockenwaren" }, pfeffer:{ name:"Pfeffer" }, reis:{ name:"Reis", sub:"Trockenwaren" } };
+  const st = buildStock({ book, cat:"L", items, perm });
+  const by = Object.fromEntries(st.map(s=>[s.key,s]));
+  assert.equal(by.salz, undefined, "Grundvorrat wird nicht gefuehrt");
+  assert.equal(by.pfeffer, undefined, "Dauervorrat ignoriert Grundvorrat");
+  assert.ok(by.pasta && by.pasta.permanent && by.pasta.p===1 && by.pasta.ownIds.length===1, "Spaghetti: eigene Position + Dauervorrat");
+  assert.ok(by.reis && by.reis.permanent && by.reis.srcs.includes("perm") && by.reis.ownIds.length===0, "Reis nur als Dauervorrat, ohne Kauf");
+  assert.ok(by.brokkoli && by.brokkoli.srcs.includes("hb") && by.brokkoli.srcs.includes("hand") && by.brokkoli.last===d(0) && by.brokkoli.ownIds.length===1, "Brokkoli: Haushaltsbuch + Hand, juengstes Datum");
+  assert.ok(by.vollmilch && by.vollmilch.srcs.length===1 && by.vollmilch.ownIds.length===0, "Milch nur aus dem Haushaltsbuch");
+  assert.ok(st[0].permanent && st[st.length-1].p<=st[1].p, "Dauervorrat zuerst, dann absteigend");
+  const gone = buildStock({ book, cat:"L", items, perm, gone:{ brokkoli:d(0) } });
+  assert.equal(gone.find(s=>s.key==="brokkoli"), undefined, "x heute streicht Kauf und Handeintrag von heute");
+  assert.equal(guessGroup("Kokosmilch"), "Konserven");
+  assert.equal(guessGroup("Hähnchenbrust"), "Fleisch");
 });

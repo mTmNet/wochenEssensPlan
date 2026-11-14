@@ -44,6 +44,13 @@ export const buildSuggestPrompt = () =>
   "Antworte NUR mit JSON ohne Markdown-Formatierung: {\"name\":\"Gebräuchlicher Name\",\"bekanntAls\":\"Gebräuchlicher Name oder Alternativname\",\"origin\":\"Region oder Küche\",\"servings\":4,\"minutes\":35,"+
   "\"ingredients\":[\"200 g Reis\"],\"steps\":[\"Schritt 1\"],\"description\":\"Kurze Beschreibung\",\"cuisine\":\"Italienisch\",\"category\":\"Hauptgericht\",\"genutzt\":[\"Paprika\"],\"fehlt\":[\"Sahne\"]}. "+CAT_HELP;
 
+// SPEISEKAMMER-FOTO: erkennbare Lebensmittel auflisten, keine Mengen, keine Vermutungen
+export const buildPantryPrompt = (groups) =>
+  "Du siehst ein Foto einer Speisekammer, eines Kühlschranks, Regals oder Einkaufs. Liste ALLE klar erkennbaren Lebensmittel auf, jedes genau einmal, mit kurzem deutschen Namen (z. B. \"Spaghetti\", \"Kokosmilch\", \"Tomaten\"). "+
+  "Keine Mengen, keine Marken, nichts raten: nur, was wirklich zu sehen ist. Keine Reinigungs- oder Drogerieartikel. "+
+  "Ordne jedes Lebensmittel einer Gruppe zu, genau eine aus: "+groups.join(", ")+". "+
+  "Antworte NUR mit JSON ohne Markdown: {\"items\":[{\"name\":\"Spaghetti\",\"gruppe\":\"Trockenwaren\"}]}";
+
 // Verstaendliche Fehlermeldung fuer KI-Aufrufe (Extrahieren + Vorschlagen); die Servertexte werden nur erkannt, nie angezeigt
 export const kiErrText = (msg) => {
   if(msg.includes("404")) return "Die KI ist gerade nicht erreichbar (404). Bitte das Server-Protokoll prüfen.";

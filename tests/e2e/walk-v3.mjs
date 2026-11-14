@@ -62,7 +62,9 @@ const mockAi = async(route)=>{
   const body = JSON.parse(route.request().postData()||'{}');
   aiCalls.push(body);
   let text;
-  if(body.mode==='suggest'){
+  if(String(body.system||'').includes('Speisekammer')){
+    text = JSON.stringify({items:[{name:'Kokosmilch',gruppe:'Konserven'},{name:'Rote Linsen',gruppe:'Trockenwaren'},{name:'Kartoffeln',gruppe:'Gemüse'},{name:'Spülmittel',gruppe:'Sonstiges'}]});
+  } else if(body.mode==='suggest'){
     text = JSON.stringify({name:'Hähnchen-Paprika-Pfanne mit Reis', ingredients:['400 g Hähnchenbrustfilet','2 Paprika','1 Zwiebel','200 g Basmatireis','200 ml Kokosmilch','1 EL Currypulver','Salz','Pfeffer'], steps:['Reis nach Packung kochen.','Hähnchen würfeln, anbraten.','Paprika und Zwiebel zugeben, 5 Min. braten.','Kokosmilch und Curry zugeben, 8 Min. köcheln.','Mit Reis servieren.'], description:'Eine schnelle Pfanne aus dem, was da ist.', cuisine:'Asiatisch', genutzt:['Hähnchenbrustfilet','Paprika','Zwiebeln','Basmati Reis','Kokosmilch'], fehlt:['Currypulver']});
   } else {
     text = JSON.stringify({name:'Käsespätzle', ingredients:['400 g Spätzle','200 g Bergkäse','100 g Emmentaler','3 Zwiebeln','2 EL Butter','Salz','Pfeffer','Schnittlauch'], steps:['Zwiebeln in Ringe schneiden und in Butter goldbraun rösten.','Spätzle in Salzwasser kochen.','Spätzle und Käse schichtweise in eine Schüssel geben.','Mit Röstzwiebeln und Schnittlauch servieren.'], description:'Der schwäbische Klassiker: Spätzle, geschichtet mit würzigem Bergkäse und knusprigen Röstzwiebeln.', category:'Hauptgericht', cuisine:'Schwäbisch'});
@@ -178,6 +180,29 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("VERBINDEN")'); await page.waitForTimeout(800);
   check(plan().hb?.code==='FAMILIE1' && await page.isVisible('text=Wahrscheinlich da ('), 'Vorrat: Haushaltsbuch verbunden, Liste sichtbar');
   check(await page.isVisible('text=Verblasst nach:'), 'Vorrat: Verblassen-Hinweis');
+  // Eigene Positionen: Hand, Dauervorrat (Pin), Foto, x
+  await page.fill('input[placeholder="Lebensmittel, z. B. Linsen"]', 'Tellerlinsen');
+  await page.click('button[aria-label="Hinzufügen"]'); await page.waitForTimeout(500);
+  const own = Object.values(plan().stock?.items||{});
+  check(own.length===1 && own[0].name==='Tellerlinsen' && own[0].sub==='Trockenwaren' && own[0].src==='hand' && own[0].date===T, 'Vorrat: Handeintrag unter stock/items mit erratener Gruppe', own);
+  check(await page.isVisible('text=Haushaltsbuch + Hand'), 'Vorrat: Tellerlinsen zeigt beide Quellen (Haushaltsbuch + Hand)');
+  await page.click('button[aria-label="Spaghetti Barilla als Dauervorrat"]'); await page.waitForTimeout(500);
+  const perm = plan().stock?.perm||{};
+  check(Object.keys(perm).length===1 && perm[Object.keys(perm)[0]].name==='Spaghetti Barilla' && await page.isVisible('text=Dauervorrat (1)'), 'Vorrat: Pin schreibt stock/perm, Block Dauervorrat erscheint', perm);
+  // Foto: kleines PNG, KI simuliert
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVQIW2P8z8DwnwEIGAEQ4AHu0b8t1AAAAABJRU5ErkJggg==','base64');
+  await page.setInputFiles('input[type="file"]', {name:'speisekammer.png', mimeType:'image/png', buffer:png});
+  await page.waitForSelector('button:has-text("ÜBERNEHMEN")', {timeout:15000});
+  check((await page.locator('input[type="checkbox"]').count())===4 && await page.isVisible('text=Rote Linsen'), 'Foto: 4 erkannte Lebensmittel zur Pruefung');
+  await page.locator('input[aria-label="Spülmittel übernehmen"]').uncheck();
+  await page.click('button:has-text("3 ÜBERNEHMEN")'); await page.waitForTimeout(600);
+  const own2 = Object.values(plan().stock?.items||{});
+  check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
+  check(await page.isVisible('text=Kokosmilch') && await page.isVisible('text=Rote Linsen'), 'Vorrat: Foto-Positionen in der Liste');
+  await page.click('button[aria-label="Rote Linsen entfernen"]'); await page.waitForTimeout(400);
+  check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position loescht nur den Eintrag, kein gone-Marker');
+  await page.click('button[aria-label="Bananen entfernen"]'); await page.waitForTimeout(400);
+  check(plan().hb.gone && Object.keys(plan().hb.gone).length===1, 'x bei Haushaltsbuch-Position setzt gone-Marker');
   await shot('05-vorrat');
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(400);
   check(await page.isVisible('text=/Vorrat: \\d+ Lebensmittel/') && (await page.locator('text=/\\d+ % da/').count())>=1, 'Heute: Vorrat-Zeile mit Anzahl, Vorschlaege mit Prozent');

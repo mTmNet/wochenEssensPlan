@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete } from "./fb.js";
-import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { hbStock, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
+import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS } from "./logic/stock.js";
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
@@ -56,6 +56,8 @@ export default function App() {
 
   // VORGEMERKT: plans/<CODE>/picks/<id> = {key, day, createdAt}
   const [picksRaw,setPicksRaw]       = useState({});
+  // VORRAT (eigene Positionen und Dauervorrat): plans/<CODE>/stock = {items:{id:{name,sub,date,src}}, perm:{goneKey:{name,sub}}}
+  const [stockRaw,setStockRaw]       = useState({});
   const [recipes,setRecipes]         = useState({});      // plans/<CODE>/recipes/<recKey>
   const [shopping,setShopping]       = useState({});      // plans/<CODE>/shopping/<id>
   const [images,setImages]           = useState({});      // eigene Bilder (recKey -> dataUrl), recipeImages/<CODE>
@@ -137,6 +139,7 @@ export default function App() {
   // Zustand aus den geladenen Plandaten setzen (Beitritt, Migration)
   const applyPlanData = (data,imgs)=>{
     setPicksRaw(asObj(data.picks));
+    setStockRaw(asObj(data.stock));
     setShopping(Array.isArray(data.shopping)?migrateShopping(data.shopping):asObj(data.shopping));
     setRecipes(normalizeRecipes(asObj(data.recipes)));
     setParticipants(asList(data.participants).filter(Boolean));
@@ -162,6 +165,9 @@ export default function App() {
     const need=(part)=>meta[part+"UpdatedAt"]!==prev[part+"UpdatedAt"]||dirty.has(part);
     if(need("picks")){
       jobs.push(fbGet("plans/"+code+"/picks").then(pk=>{ if(pk!==undefined&&canApply()){ setPicksRaw(asObj(pk)); seen.picksUpdatedAt=meta.picksUpdatedAt; dirty.delete("picks"); } }));
+    }
+    if(need("stock")){
+      jobs.push(fbGet("plans/"+code+"/stock").then(st=>{ if(st!==undefined&&canApply()){ setStockRaw(asObj(st)); seen.stockUpdatedAt=meta.stockUpdatedAt; dirty.delete("stock"); } }));
     }
     if(need("shopping")&&!ed.shop){
       jobs.push(fbGet("plans/"+code+"/shopping").then(s=>{ if(s!==undefined&&canApply()){ setShopping(Array.isArray(s)?migrateShopping(s):asObj(s)); seen.shoppingUpdatedAt=meta.shoppingUpdatedAt; dirty.delete("shopping"); cleanupServer(undefined,s); } }));
@@ -314,7 +320,7 @@ export default function App() {
     clearInterval(syncTimer.current);
     try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
     setActiveCode("");codeRef.current="";setUserName("");setJoinInput("");setJoinErr("");setJoinOffer("");setView("heute");
-    setPicksRaw({});setShopping({});setRecipes({});setImages({});setParticipants([]);setSettings(DEFAULT_SETTINGS);metaRef.current={};dirtyRef.current=new Set();
+    setPicksRaw({});setStockRaw({});setShopping({});setRecipes({});setImages({});setParticipants([]);setSettings(DEFAULT_SETTINGS);metaRef.current={};dirtyRef.current=new Set();
     setHbLink(null);setHbBook(null);setHbErr("");
     setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);setExtracted(null);
     setScreen("join");
@@ -647,6 +653,46 @@ export default function App() {
     setHbLink(prev=>prev?{...prev,gone:undefined}:prev);
     writePlan({"hb/gone":null},"people");
   };
+  // EIGENER VORRAT: Positionen von Hand oder aus dem Speisekammer-Foto, Dauervorrat (Pin), Entfernen
+  const addStockItems=(list)=>{
+    const now=Date.now(), day=todayISO(), patch={}, add={};
+    (list||[]).forEach((it,i)=>{
+      const name=String((it&&it.name)||"").trim(); if(!name) return;
+      const id=(now+i).toString(36)+Math.random().toString(36).slice(2,6);
+      const item={name,sub:STOCK_GROUPS.includes(it.sub)?it.sub:guessGroup(name),date:day,src:it.src==="foto"?"foto":"hand",createdAt:now};
+      add[id]=item; patch["stock/items/"+id]=item;
+    });
+    if(!Object.keys(add).length) return false;
+    setStockRaw(prev=>({...prev,items:{...(prev.items||{}),...add}}));
+    return writePlan(patch,"stock");
+  };
+  const addStockItem=(name,sub)=>addStockItems([{name,sub,src:"hand"}]);
+  const setPermanent=(item,on)=>{
+    const gk=goneKey(item.key); if(!gk) return;
+    setStockRaw(prev=>{ const perm={...(prev.perm||{})}; if(on) perm[gk]={name:item.name,sub:item.sub||""}; else delete perm[gk]; return {...prev,perm}; });
+    return writePlan({["stock/perm/"+gk]:on?{name:item.name,sub:item.sub||""}:null},"stock");
+  };
+  // x in der Vorratsliste: eigene Positionen loeschen, Dauervorrat aufheben, Haushaltsbuch-Position als "nicht mehr da" streichen
+  const removeStock=(item)=>{
+    const patch={}, parts=[];
+    if(item.ownIds&&item.ownIds.length){ item.ownIds.forEach(id=>{ patch["stock/items/"+id]=null; }); parts.push("stock"); }
+    if(item.permanent){ patch["stock/perm/"+goneKey(item.key)]=null; if(!parts.includes("stock")) parts.push("stock"); }
+    if(item.srcs&&item.srcs.includes("hb")&&hbLink){ patch["hb/gone/"+goneKey(item.key)]=todayISO(); parts.push("people"); }
+    if(!parts.length) return;
+    setStockRaw(prev=>{ const items={...(prev.items||{})}, perm={...(prev.perm||{})}; (item.ownIds||[]).forEach(id=>{ delete items[id]; }); if(item.permanent) delete perm[goneKey(item.key)]; return {...prev,items,perm}; });
+    if(patch["hb/gone/"+goneKey(item.key)]) setHbLink(prev=>prev?{...prev,gone:{...(prev.gone||{}),[goneKey(item.key)]:todayISO()}}:prev);
+    writePlan(patch,parts);
+  };
+  // SPEISEKAMMER-FOTO: erkennbare Lebensmittel per KI auflisten; liefert [{name, sub}] (Gruppe geprueft) oder wirft
+  const scanPantry=async(image)=>{
+    if(!image||!image.base64) throw new Error("Kein Bild");
+    const messages=[{role:"user",content:[{type:"image",source:{type:"base64",media_type:image.mimeType||"image/jpeg",data:image.base64}},{type:"text",text:"Welche Lebensmittel sind auf diesem Foto zu sehen? Antworte ausschließlich mit dem JSON-Objekt."}]}];
+    const parsed=parseJsonBlock(await callAI({mode:"extract",system:buildPantryPrompt(STOCK_GROUPS),messages}));
+    const items=Array.isArray(parsed)?parsed:(parsed&&Array.isArray(parsed.items)?parsed.items:[]);
+    const seen=new Set();
+    return items.map(it=>({name:String((it&&(it.name||it.Name))||"").trim(),sub:(it&&(it.gruppe||it.sub))||""})).filter(it=>it.name&&!seen.has(it.name.toLowerCase())&&seen.add(it.name.toLowerCase()))
+      .map(it=>({name:it.name,sub:STOCK_GROUPS.includes(it.sub)?it.sub:guessGroup(it.name),src:"foto"}));
+  };
   const disconnectHb=()=>{
     if(!window.confirm("Verknüpfung zum Haushaltsbuch trennen? (Das Haushaltsbuch selbst bleibt unverändert.)"))return;
     setHbLink(null);setHbBook(null);setHbErr("");
@@ -845,7 +891,9 @@ export default function App() {
   useEffect(()=>{
     if((view==="heute"||view==="shopping"||view==="vorrat")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
   },[view,hbLink&&hbLink.code]);
-  const stock=useMemo(()=>hbStock(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone),[hbBook,hbLink]);
+  // Gelernte Halbwertszeiten aus den Kaufabstaenden (und x-Streichungen), dann die zusammengefuehrte Vorratsliste
+  const learned=useMemo(()=>learnHalfLives(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone),[hbBook,hbLink]);
+  const stock=useMemo(()=>buildStock({book:hbBook,cat:hbLink&&hbLink.cat,gone:hbLink&&hbLink.gone,items:stockRaw.items,perm:stockRaw.perm,learned}),[hbBook,hbLink,stockRaw,learned]);
 
   // EINKAUFSLISTE in Bloecken (Bauplan Abschnitt 9): Liste, "Wahrscheinlich da" (stockP >= 0,6), "Vorrat pruefen" (Grundvorrat)
   const shopList=useMemo(()=>shoppingList(shopping).map(it=>{ const st=stock.length?ingStatus(it.text,stock):null; return {...it,stockP:st&&!st.basic?st.p:0}; }),[shopping,stock]);
@@ -877,7 +925,7 @@ export default function App() {
 
   // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
   const state={
-    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,settings,household,
+    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,settings,household,
     picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,classics:CLASSICS,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
     importState:{importErr,extracting,extracted,savedMsg},
@@ -896,7 +944,7 @@ export default function App() {
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,setSetting,zoom,leavePlan,deletePlan,
+    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,setPermanent,removeStock,scanPantry,setSetting,zoom,leavePlan,deletePlan,
     // Rahmen
     setView,copyCode,showToast,registerBackHandler,
     setEditShopId,setEditShopText,saveShopEdit,

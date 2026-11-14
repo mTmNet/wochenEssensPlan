@@ -8,7 +8,15 @@ import { cookedCount } from "./recipes.js";
 export { fold };
 
 const HL_DEFAULT = 45;
-const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LIFE) if(s.includes(k)) return d; return HL_DEFAULT; };
+export const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LIFE) if(s.includes(k)) return d; return HL_DEFAULT; };
+// Gruppen fuer eigene Vorratspositionen (Hand/Foto); die Halbwertszeit kommt ueber halfLife() aus dem Gruppennamen
+export const STOCK_GROUPS = ["Obst","Gemüse","Fleisch","Wurst","Fisch","Brot & Backwaren","Milchprodukte","Käse","Getränke","Süßes","Tiefkühl","Konserven","Trockenwaren","Sonstiges"];
+export const guessGroup = (name) => {
+  const n = fold(name);
+  const T = [["Konserven",["dose","passata","kokosmilch","konserve","mais","kichererbsen"]],["Tiefkühl",["tiefkuehl","tk ","gefroren","pizza"]],["Obst",["apfel","banane","birne","beere","orange","zitrone","trauben","mango","kiwi","pfirsich","melone","obst"]],["Gemüse",["tomate","paprika","gurke","salat","zwiebel","karotte","moehre","brokkoli","kartoffel","zucchini","spinat","lauch","kohl","pilz","champignon","aubergine","kuerbis","bohnen","erbsen","fenchel","sellerie","gemuese"]],["Fisch",["lachs","fisch","forelle","thunfisch","garnele","kabeljau"]],["Wurst",["wurst","schinken","salami","speck"]],["Fleisch",["hack","fleisch","haehnchen","huehnchen","pute","rind","schwein","lamm","steak"]],["Käse",["kaese","parmesan","mozzarella","feta","gouda","emmentaler"]],["Milchprodukte",["milch","joghurt","jogh","quark","sahne","butter","eier","ei ","skyr","frischkaese"]],["Brot & Backwaren",["brot","broetchen","toast","baguette","mehl","hefe"]],["Getränke",["saft","wasser","cola","limo","bier","wein","tee","kaffee"]],["Süßes",["schokolade","kekse","gummibaer","bonbon","suess","kuchen","honig","marmelade"]],["Trockenwaren",["pasta","spaghetti","nudel","reis","linsen","haferflocken","muesli","couscous","bulgur","quinoa","zucker","nuesse","mandeln"]]];
+  for(const [g,keys] of T) if(keys.some(k=>n.includes(k))) return g;
+  return "Sonstiges";
+};
 // Unter dieser Wahrscheinlichkeit gilt eine Sache als "nicht mehr da" (Vorratsliste und Einkauf blenden sie aus)
 export const STOCK_MIN = 0.25;
 // Nach so vielen Tagen faellt eine Sache unter STOCK_MIN (zwei Halbwertszeiten), hoechstens das Betrachtungsfenster
@@ -27,7 +35,7 @@ export const goneKey = (key) => String(key||"").replace(/\s+/g,"_").replace(/[.#
 
 // Liefert [{key,toks,p,name,sub,last,hl,left}] absteigend nach Wahrscheinlichkeit; Mehrfachkaeufe: p = 1 - Prod(1-p_i)
 // gone: {goneKey: "YYYY-MM-DD"} - von Hand als "nicht mehr da" markiert; gilt, bis nach diesem Datum neu gekauft wurde
-export const hbStock = (book,cat,gone) => {
+export const hbStock = (book,cat,gone,learned) => {
   const map = {};
   if(!book||!book.entries||!cat) return [];
   const now = Date.now();
@@ -41,13 +49,13 @@ export const hbStock = (book,cat,gone) => {
       if(HB_SKIP_SUB.some(k=>sub.includes(k))) return;
       const key = normKey(it.name);
       if(!key||isBasic(key)) return;
-      const p = Math.pow(0.5,Math.max(0,age)/halfLife(sub));
+      const hl = (learned&&learned[key]&&learned[key].hl)||halfLife(sub);
+      const p = Math.pow(0.5,Math.max(0,age)/hl);
       const prev = map[key];
       // last = juengstes Einkaufsdatum (fuer die Vorratsliste im Reiter Heute)
-      const hl = halfLife(sub);
       const last = prev&&prev.last>e.date?prev.last:e.date;
       const newest = !prev||last!==prev.last;
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl};
+      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,src:"hb",learnedN:learned&&learned[key]?learned[key].n:0};
     });
   });
   const g = gone||{};
@@ -93,4 +101,76 @@ export const hbCats = (bk) => {
   if(bk&&Array.isArray(bk.categories)&&bk.categories.length) return bk.categories;
   const s=new Set(Object.values((bk&&bk.entries)||{}).map(e=>e&&e.category).filter(Boolean));
   return s.size?[...s]:["Lebensmittel"];
+};
+
+// LERNENDES VERBLASSEN: Wird ein Produkt erneut gekauft, war das alte bis dahin aufgebraucht. Der Abstand zwischen zwei Kaeufen
+// (und das Alter beim Streichen mit x) ist ein Hinweis auf die echte Haltbarkeit: Halbwertszeit ~ Abstand/2.
+// Gelernt wird je Produkt (Schluessel) aus bis zu einem Jahr Einkaeufen, die Gruppenzeit ist der Startwert mit Gewicht 2.
+// Liefert {key: {hl, n, gaps}}; n = Anzahl Lernsignale. Ohne Signal kein Eintrag.
+export const learnHalfLives = (book,cat,gone,now) => {
+  const out = {};
+  if(!book||!book.entries||!cat) return out;
+  const ts = now===undefined?Date.now():now;
+  const dates = {}, subs = {};
+  Object.values(book.entries).forEach(e=>{
+    if(!e||e.category!==cat||!Array.isArray(e.items)) return;
+    const age = (ts-new Date(e.date+"T12:00:00").getTime())/86400000;
+    if(!(age>-2)||age>365) return;
+    e.items.forEach(it=>{
+      if(!it||!(it.amount>0)) return;
+      const sub = fold(it.sub);
+      if(HB_SKIP_SUB.some(k=>sub.includes(k))) return;
+      const key = normKey(it.name);
+      if(!key||isBasic(key)) return;
+      (dates[key]=dates[key]||new Set()).add(e.date);
+      if(!subs[key]) subs[key]=it.sub||"";
+    });
+  });
+  const g = gone||{};
+  Object.keys(dates).forEach(key=>{
+    const ds = [...dates[key]].sort();
+    const prior = halfLife(subs[key]);
+    const samples = [];
+    for(let i=1;i<ds.length;i++){ const gap=(new Date(ds[i]+"T12:00:00")-new Date(ds[i-1]+"T12:00:00"))/86400000; if(gap>=1) samples.push(gap/2); }
+    const gd = g[goneKey(key)];
+    if(gd){ const before=ds.filter(d=>d<=gd); if(before.length){ const age=(new Date(gd+"T12:00:00")-new Date(before[before.length-1]+"T12:00:00"))/86400000; if(age>=1) samples.push(age/2); } }
+    if(!samples.length) return;
+    const hl = (2*prior + samples.reduce((a,b)=>a+b,0)) / (2+samples.length);
+    out[key] = {hl:Math.min(90,Math.max(1,Math.round(hl*10)/10)),n:samples.length,prior};
+  });
+  return out;
+};
+
+// EIGENER VORRAT: items {id:{name,sub,date,src}} (Hand oder Foto) verblassen wie Haushaltsbuch-Kaeufe; perm {goneKey:{name,sub}} = Dauervorrat (immer da).
+// buildStock fuehrt Haushaltsbuch, eigene Positionen und Dauervorrat zu EINER Liste zusammen (gleicher Schluessel = eine Zeile).
+export const buildStock = ({book,cat,gone,items,perm,learned,now}={}) => {
+  const ts = now===undefined?Date.now():now;
+  const map = {};
+  hbStock(book,cat,gone,learned).forEach(s=>{ map[s.key]={...s,srcs:["hb"],ownIds:[]}; });
+  const g = gone||{};
+  Object.keys(items||{}).forEach(id=>{
+    const it=items[id]; if(!it||typeof it!=="object"||!it.name) return;
+    const key=normKey(it.name); if(!key||isBasic(key)) return;
+    const date=/^\d{4}-\d{2}-\d{2}$/.test(it.date)?it.date:new Date(ts).toISOString().slice(0,10);
+    const gd=g[goneKey(key)]; if(gd&&date<=gd) return;
+    const age=Math.max(0,(ts-new Date(date+"T12:00:00").getTime())/86400000);
+    if(age>HB_DAYS) return;
+    const hl=(learned&&learned[key]&&learned[key].hl)||halfLife(it.sub||guessGroup(it.name));
+    const p=Math.pow(0.5,age/hl);
+    const prev=map[key];
+    if(prev){
+      map[key]={...prev,p:1-(1-prev.p)*(1-p),last:date>prev.last?date:prev.last,hl:date>prev.last?hl:prev.hl,srcs:[...new Set([...prev.srcs,it.src||"hand"])],ownIds:[...prev.ownIds,id]};
+    }else{
+      map[key]={key,toks:key.split(" "),p,name:it.name,sub:it.sub||guessGroup(it.name),last:date,hl,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:learned&&learned[key]?learned[key].n:0};
+    }
+  });
+  Object.keys(perm||{}).forEach(gk=>{
+    const pm=perm[gk]; if(!pm||typeof pm!=="object"||!pm.name) return;
+    const key=normKey(pm.name); if(!key||isBasic(key)) return;
+    const prev=map[key];
+    map[key]=prev?{...prev,permanent:true,p:1}:{key,toks:key.split(" "),p:1,name:pm.name,sub:pm.sub||guessGroup(pm.name),last:"",hl:Infinity,src:"perm",srcs:["perm"],ownIds:[],permanent:true,learnedN:0};
+  });
+  return Object.values(map)
+    .map(s=>{ if(s.permanent) return {...s,left:Infinity}; const age=Math.max(0,(ts-new Date(s.last+"T12:00:00").getTime())/86400000); return {...s,left:Math.max(0,Math.round(fadeDays(s.hl)-age))}; })
+    .sort((a,b)=>(b.permanent?1:0)-(a.permanent?1:0)||b.p-a.p||a.name.localeCompare(b.name));
 };
