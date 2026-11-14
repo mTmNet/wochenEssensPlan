@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, column, btn, iconBtn, microMuted as lbl, chip } from "../theme.js";
-import { CATS, CUISINE_LIST, TAGS, DAYS, DAYFUL, MEALS, ML } from "../data.js";
+import { CATS, CUISINE_LIST, TAGS } from "../data.js";
 import { recName, recCat, cookedLabel, recTags } from "../logic/recipes.js";
-import { mealPlanById } from "../mealplans.js";
+import { dayLabel } from "../logic/picks.js";
 import { scaleIng } from "../logic/ingredients.js";
-import { weekDates, shiftWeek, shortDate, todayDayKey, mealSlotNow, weekLabel } from "../logic/weeks.js";
+import PickDay from "../components/PickDay.jsx";
 import Stars from "../components/Stars.jsx";
 import Modal from "../components/Modal.jsx";
 import DishImage from "../components/DishImage.jsx";
@@ -23,9 +23,9 @@ const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255
 // REZEPTDETAIL - Kopfbild (DishImage), Rubrik/Kueche/Herkunft/Portionen/Zeit, Aktionen (Kochmodus, Zum Wochenplan, Auf die Einkaufsliste,
 // Bearbeiten, Als PDF), Bewertung, Notizen, Zutaten mit Portionen-Stepper, Zubereitung, Kochhistorie, Loeschen; Bearbeiten; Bewertungsdialog mit Foto
 export default function RecipeDetail({state,api}){
-  const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,settings,household,curWeekKey,today,toast}=state;
+  const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast}=state;
   const {setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,rateRecipe,noteRecipe,closeRecipe,uploadImage,resetImage,setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit,
-         downloadRecipePDF,deleteRecipe,addDish,addRecipeToShopping,registerBackHandler,showToast,setView}=api;
+         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,registerBackHandler,showToast}=api;
   const imgFileRef=useRef(null), dishPhotoRef=useRef(null);
   const name=recName(curRec,detailRecipe);
   // Portionen-Stepper: skaliert nur die Anzeige, das Rezept bleibt bei seinen servings
@@ -35,18 +35,15 @@ export default function RecipeDetail({state,api}){
   const factor=portions/base;
   const ings=curRec.ingredients||[], steps=curRec.steps||[];
   const metaLine=[recCat(curRec),curRec.cuisine,curRec.origin,base+" Portionen",curRec.minutes>0?curRec.minutes+" Min.":"",tagLabel(curRec)].filter(Boolean).join(" · ");
-  const planRef=curRec.plan?mealPlanById(curRec.plan):null;
-  const srcLine=[planRef?"Essensplan: "+planRef.name:(SRC_LABEL[curRec.source]||""),curRec.sourceNote?"Quelle: "+curRec.sourceNote:""].filter(Boolean).join(" · ");
+  const srcLine=[SRC_LABEL[curRec.source]||"",curRec.sourceNote?"Quelle: "+curRec.sourceNote:""].filter(Boolean).join(" · ");
   const cooked=Array.isArray(curRec.cooked)?curRec.cooked:[];
-  // "Zum Wochenplan": Woche (diese/naechste), Tag, Slot - Standard heute und aktueller Slot
-  const [picker,setPicker]=useState(null);   // {wk, day, slot}
+  // "Vormerken": Tag waehlen (Heute, Morgen, ..., Demnaechst)
+  const [picker,setPicker]=useState(false);
   const [shopDone,setShopDone]=useState(false);
-  useEffect(()=>{ if(!picker) return; return registerBackHandler(()=>{ setPicker(null); return true; }); },[!!picker]);
-  const openPicker=()=>setPicker({wk:curWeekKey,day:todayDayKey(),slot:mealSlotNow()});
-  const confirmPicker=async()=>{
-    const p=picker; setPicker(null);
-    await addDish(p.day,p.slot,detailRecipe,p.wk);
-    showToast("„"+name+"“ für "+DAYFUL[DAYS.indexOf(p.day)]+" ("+ML[p.slot]+") eingeplant.");
+  const confirmPicker=async(day)=>{
+    setPicker(false);
+    await addPick(detailRecipe,day);
+    showToast("„"+name+"“ für "+dayLabel(day,today).toLowerCase()+" vorgemerkt.");
   };
   const toShopping=()=>{
     if(addRecipeToShopping(detailRecipe,portions)){ setShopDone(true); showToast("Zutaten für "+portions+" Portionen auf der Einkaufsliste."); setTimeout(()=>setShopDone(false),2500); }
@@ -68,30 +65,9 @@ export default function RecipeDetail({state,api}){
             </div>
           </Modal>
         )}
-        {/* ZUM WOCHENPLAN: Woche, Tag, Slot waehlen */}
-        {picker&&(
-          <Modal title="Zum Wochenplan" micro={name} onClose={()=>setPicker(null)}>
-            <div style={{display:"flex",gap:"6px",marginBottom:"10px"}}>
-              {[curWeekKey,shiftWeek(curWeekKey,1)].map((wk,i)=>(
-                <button key={wk} onClick={()=>setPicker(p=>({...p,wk}))} aria-pressed={picker.wk===wk} style={{...chip(picker.wk===wk),flex:1}}>{i===0?"Diese Woche":"Nächste Woche"} · {weekLabel(wk).split(" · ")[0]}</button>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:"4px",marginBottom:"10px",flexWrap:"wrap"}}>
-              {DAYS.map((d,i)=>{ const iso=weekDates(picker.wk)[i]; const past=iso<today; return(
-                <button key={d} onClick={()=>setPicker(p=>({...p,day:d}))} aria-pressed={picker.day===d} style={{...chip(picker.day===d),flex:"1 1 44px",padding:"8px 4px",textAlign:"center",opacity:past?0.55:1}}>{d}<br/><span style={{fontSize:"11px"}}>{shortDate(iso)}</span></button>
-              );})}
-            </div>
-            <div style={{display:"flex",gap:"6px",marginBottom:"14px",flexWrap:"wrap"}}>
-              {MEALS.map(m=><button key={m} onClick={()=>setPicker(p=>({...p,slot:m}))} aria-pressed={picker.slot===m} style={{...chip(picker.slot===m),flex:"1 1 40%"}}>{ML[m]}</button>)}
-            </div>
-            <div style={{display:"flex",gap:"8px"}}>
-              <button onClick={confirmPicker} style={{...btn("primary"),flex:2,letterSpacing:"2px"}}>EINTRAGEN</button>
-              <button onClick={()=>setPicker(null)} style={{...btn("ghost"),flex:1}}>ABBRECHEN</button>
-            </div>
-          </Modal>
-        )}
+        {picker&&<PickDay name={name} today={today} onConfirm={confirmPicker} onClose={()=>setPicker(false)} registerBackHandler={registerBackHandler} />}
         <div style={column}>
-        <DishImage name={name} rec={curRec} img={images[detailRecipe]} aiImages={settings.aiImages} height={260} dim compact>
+        <DishImage name={name} rec={curRec} img={images[detailRecipe]} height={260} dim compact>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.dark+")"}} />
           <button onClick={closeRecipe} style={{...headBtn,position:"absolute",top:12,left:12}}>ZURÜCK</button>
           {/* Eigenes Bild hochladen / Standard wiederherstellen */}
@@ -113,7 +89,7 @@ export default function RecipeDetail({state,api}){
               {/* AKTIONEN */}
               <div style={{display:"flex",gap:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
                 {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 140px",letterSpacing:"2px"}}>KOCHMODUS</button>}
-                <button onClick={openPicker} style={{...btn("ghost"),flex:"1 1 140px",color:C.accent}}>ZUM WOCHENPLAN</button>
+                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 140px",color:C.accent}}>VORMERKEN</button>
                 <button onClick={toShopping} style={{...btn("ghost"),flex:"1 1 140px",color:shopDone?C.ok:C.accent}}>{shopDone?"✓ AUF DER LISTE":"AUF DIE EINKAUFSLISTE"}</button>
               </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>

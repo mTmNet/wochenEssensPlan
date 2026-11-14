@@ -2,17 +2,20 @@
 
 Gemeinsamer Essensplaner für die Familie: Wochenplan mit Datum, Einkaufsliste, Rezepte mit Kochmodus und Kochhistorie, „Was kochen wir heute?“ mit Anbindung an das Haushaltsbuch. Schwester-App von `Haushaltsbuch` (gleiche Optik, gleiche Technik).
 
-## Funktionen
+## Funktionen (Version 3: „Heute statt Woche“)
 
-- **Heute** – zeigt zuerst, was für heute geplant ist, dann Vorschläge aus dem eigenen Kochbuch (Filter „Bewährt“ = schon gekocht und gut bewertet), danach passende Gerichte aus der mitgelieferten **Rezept-Basis** (133 etablierte Gerichte mit Herkunft, Portionen, Zeit), zuletzt „Bekanntes Gericht finden“ per KI. Mit verknüpftem Haushaltsbuch werden die Einkäufe berücksichtigt (wahrscheinlicher Vorrat, frische Sachen verblassen schneller). Es wird nur gelesen.
-- **Woche** – Plan mit Kalenderwoche und Datum, Navigation vor/zurück, „Letzte Woche übernehmen“, mehrere Gerichte pro Mahlzeit, „Wer kocht?“, „Woche abschließen“ trägt die gekochten Gerichte in die Kochhistorie ein.
-- **Einkauf** – aus dem Plan erzeugt und beim erneuten Erzeugen **zusammengeführt** (Handeinträge und Haken bleiben), nach Supermarkt-Abteilungen, Grundvorrat („Vorrat prüfen“) und wahrscheinlich Vorhandenes in eigenen Blöcken, Teilen als Text.
-- **Essenspläne** – fertige Wochenvorlagen mit Rezepten und täglichen Routinen (z. B. „Postpartaler Eisen-Wochenplan“), in Woche oder Rezepte mit einem Tipp für eine oder zwei Wochen übernehmen.
-- **Rezepte** – Suche, Rubriken, Sortierung, Textimport und Fotoimport per KI (abschreiben, nicht erfinden; ergänzte Schritte werden gekennzeichnet), Rezept-Basis einblenden und übernehmen, Kochbuch als PDF.
-- **Rezept** – Merkmale „Für Kinder“ und „Schnell“ (unabhängig von der Kategorie, steuern die Filter), Portionen umrechnen, Zeit, Herkunft und Quelle, „Zum Wochenplan“, „Auf die Einkaufsliste“, eigenes Foto, Bewertung, Notizen, Kochhistorie. **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern aus den Zeitangaben.
-- **Gemeinsam** – ein Plan-Code für die Familie (10 Zeichen), Synchronisation alle 10 Sekunden, jede Änderung wird einzeln geschrieben, damit sich zwei Geräte nicht überschreiben.
+- **Heute** – die eine Frage: *Was kochen wir heute?* Bester Vorschlag mit Begründung („nutzt Hackfleisch, Paprika · Paprika hält noch 2 Tage“), drei Alternativen, „Mehr“, Filter *Schnell* und *Für Kinder*, „Andere“ mischt neu. Ein Tipp auf **Gekocht** trägt das Kochdatum ein und fragt nach der Bewertung; **Vormerken** legt das Gericht auf einen Tag oder „demnächst“. Vorschläge kommen aus dem eigenen Kochbuch und der mitgelieferten **Rezept-Basis** (133 etablierte Gerichte); ein leeres Kochbuch zeigt nur die Basis, jedes Gericht lässt sich mit einem Tipp übernehmen.
+- **Vorschlags-Logik** – Inspiration statt Wiederholung: Es zählt, was wahrscheinlich da ist, was bald verdirbt und was lange nicht dran war. Kein Bonus für „oft gekocht“; frisch Gekochtes wird gebremst. Ohne Vorrat zählen Bewertung und Abwechslung.
+- **Vorrat** – aus dem verknüpften Haushaltsbuch (nur lesend): jede Position mit Kaufdatum, Resttagen und Wahrscheinlichkeit, **×** für „nicht mehr da“, Hinweis mit den echten Verblass-Zeiten je Gruppe.
+- **Plan** (versteckter Reiter, erscheint nur mit Vormerkungen) – schlichte Tagesliste: Heute, Morgen, weitere Tage, Demnächst. „Gekocht“, auf heute legen, entfernen, Rezept suchen und vormerken, **Einkaufsliste aus dem Vorgemerkten**.
+- **Einkauf** – zusammengeführt statt ersetzt (Handeinträge und Haken bleiben), nach Supermarkt-Abteilungen, Blöcke „Wahrscheinlich da“ und „Vorrat prüfen“, Teilen als Text.
+- **Rezepte** – Umschalter *Meine / Alle (mit Rezept-Basis)*, Suche, Rubriken, Merkmale, Sortierung, Textimport und Fotoimport per KI (abschreiben, nicht erfinden), Kochbuch als PDF.
+- **Rezept** – Portionen umrechnen, Merkmale, Vormerken, Auf die Einkaufsliste, eigenes Foto, Bewertung, Notizen, Kochhistorie, **Kochmodus** mit Zutatenleiste, Display-Wachhalten und Timern.
+- **Gemeinsam** – ein Plan-Code für die Familie, Synchronisation alle 10 Sekunden, jede Änderung wird einzeln geschrieben.
+- **Datenschutz & Daten** im Menü: was wo gespeichert wird, Kochbuch-PDF, „Plan endgültig löschen“.
 - Als App installierbar (PWA), Schriftzoom, Android-Zurück-Taste.
-- **Datenschutz & Daten** im Menü (und auf dem Startbildschirm): was wo gespeichert wird, was die KI bekommt, Kochbuch-PDF, **„Plan endgültig löschen“** (entfernt `plans/<CODE>` und `recipeImages/<CODE>`, Bestätigung durch Eingabe des Codes).
+
+Der Stand vor dem Umbau (Wochenraster, Essensplan-Vorlagen) liegt im Zweig `archiv/v2`.
 
 ## Entwicklung
 
@@ -23,7 +26,7 @@ npm test           # Unit-Tests (node --test)
 npm run build
 ```
 
-Browser-Durchlauf mit simuliertem Firebase, Haushaltsbuch und KI: siehe `tests/e2e/README.md`.
+Browser-Durchlauf mit simuliertem Firebase, Haushaltsbuch und KI: `node tests/e2e/walk-v3.mjs` bei laufendem Dev-Server, siehe `tests/e2e/README.md`.
 
 Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetztem `GEMINI_API_KEY`, nicht mit `npm run dev`. Details in `docs/API.md`.
 
@@ -60,6 +63,6 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
 }
 ```
 
-`globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
+Unter `plans/<CODE>` liegen `participants`, `hb`, `settings`, `meta`, `picks` (Vormerkungen), `shopping` und `recipes`; `weeks` aus Version 2 wird nicht mehr gelesen. `globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
 
 Datenmodell, Synchronisation und Migration sind in `docs/ARCHITEKTUR.md` beschrieben, die Rezept-Basis in `docs/KLASSIKER.md`, der Testbericht mit den Befunden in `TESTBERICHT.md`.

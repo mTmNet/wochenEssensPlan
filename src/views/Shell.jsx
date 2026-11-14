@@ -6,8 +6,9 @@ import Toast from "../components/Toast.jsx";
 
 // RAHMEN der Hauptansicht: Kopf (Titel, Name, Code, Menue), Sync-Leiste, Tabs; Inhalt auf dem Desktop zentriert (max. 920 px)
 export default function Shell({state,api,children}){
-  const {toast,userName,code,codeCopied,fontZoom,syncOk,syncErr,lastSync,view,unchecked,settings}=state;
-  const {copyCode,zoom,leavePlan,deletePlan,downloadPDF,setView,setSetting,registerBackHandler}=api;
+  const {toast,userName,code,codeCopied,fontZoom,syncOk,syncErr,lastSync,view,unchecked,picks}=state;
+  const {copyCode,zoom,leavePlan,deletePlan,downloadPDF,setView,registerBackHandler}=api;
+  const openPicks=(picks||[]).length;
   const [menuOpen,setMenuOpen]=useState(false);
   const [infoOpen,setInfoOpen]=useState(false);   // Datenschutz & deine Daten
   const menuRef=useRef(null);
@@ -45,11 +46,7 @@ export default function Shell({state,api,children}){
                     <span style={{fontSize:"11px",color:C.muted,minWidth:"34px",textAlign:"center"}}>{Math.round(fontZoom*100)} %</span>
                     <button onClick={()=>zoom(0.1)} title="Schrift größer" aria-label="Schrift größer" disabled={fontZoom>=1.4} style={{...zoomBtn,opacity:fontZoom>=1.4?0.4:1}}>A+</button>
                   </div>
-                  <button role="menuitemcheckbox" aria-checked={!!settings.aiImages} onClick={()=>setSetting("aiImages",!settings.aiImages)} style={rowBtn}>
-                    <span style={{flex:1}}>KI-Symbolbilder</span>
-                    <span style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",color:settings.aiImages?C.ok:C.muted}}>{settings.aiImages?"AN":"AUS"}</span>
-                  </button>
-                  <button role="menuitem" onClick={()=>{setMenuOpen(false);setView("heute");setTimeout(()=>{const el=document.getElementById("haushaltsbuch");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},80);}} style={rowBtn}>Haushaltsbuch</button>
+                  <button role="menuitem" onClick={()=>{setMenuOpen(false);setView("plan");}} style={rowBtn}>Plan · Vorgemerkt{openPicks?" ("+openPicks+")":""}</button>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);setInfoOpen(true);}} style={rowBtn}>Datenschutz & Daten</button>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);leavePlan();}} style={{...rowBtn,color:C.err}}>Plan verlassen</button>
                   <div style={{padding:"8px 14px",fontSize:"11px",color:C.subtle}}>Version {APP_VERSION}</div>
@@ -71,9 +68,9 @@ export default function Shell({state,api,children}){
 
         {/* TABS */}
         <div style={{background:C.white,borderBottom:"1px solid "+C.border}}>
-          <div style={{...column,display:"flex",padding:"0 12px",overflowX:"auto"}}>
-            {[{id:"heute",label:"Heute"},{id:"plan",label:"Woche"},{id:"shopping",label:"Einkauf"+(unchecked>0?" ("+unchecked+")":"")},{id:"recipes",label:"Rezepte"}].map(t=>(
-              <button key={t.id} onClick={()=>setView(t.id)} aria-current={view===t.id?"page":undefined} style={{padding:"12px 14px",minHeight:"44px",border:"none",borderBottom:view===t.id?"2px solid "+C.accent:"2px solid transparent",color:view===t.id?C.accent:C.muted,fontWeight:view===t.id?"700":"400",fontSize:"13px",letterSpacing:"0.5px",whiteSpace:"nowrap",background:"none",cursor:"pointer",fontFamily:SF}}>
+          <div style={{...column,display:"flex",padding:"0 6px",overflowX:"auto"}}>
+            {[{id:"heute",label:"Heute"},{id:"vorrat",label:"Vorrat"},{id:"recipes",label:"Rezepte"},{id:"shopping",label:"Einkauf"+(unchecked>0?" ("+unchecked+")":"")},...(openPicks||view==="plan"?[{id:"plan",label:"Plan"+(openPicks?" ("+openPicks+")":"")}]:[])].map(t=>(
+              <button key={t.id} onClick={()=>setView(t.id)} aria-current={view===t.id?"page":undefined} style={{flex:"1 0 auto",padding:"12px 9px",minHeight:"44px",border:"none",borderBottom:view===t.id?"2px solid "+C.accent:"2px solid transparent",color:view===t.id?C.accent:C.muted,fontWeight:view===t.id?"700":"400",fontSize:"13px",letterSpacing:"0.3px",whiteSpace:"nowrap",background:"none",cursor:"pointer",fontFamily:SF}}>
                 {t.label}
               </button>
             ))}

@@ -5,7 +5,7 @@ import { foodImg, recCat } from "../logic/recipes.js";
 
 // BILD ZUM GERICHT - eigenes Foto, sonst ruhige Platzhalterkachel (Rubrik-Farbe, Anfangsbuchstabe, Name).
 // KI-Symbolbilder vom externen Dienst nur, wenn settings.aiImages an ist; dann mit Hinweis "Symbolbild".
-export default function DishImage({name,rec,img,aiImages,height=150,children,style,dim=false,compact=false}){
+export default function DishImage({name,rec,img,aiImages,height=150,children,style,dim=false,compact=false,minimal=false}){
   const [loaded,setLoaded]=useState(false);
   const [failed,setFailed]=useState(false);
   const src = img || (aiImages&&!failed ? foodImg(name) : "");
@@ -19,7 +19,7 @@ export default function DishImage({name,rec,img,aiImages,height=150,children,sty
         : (
           <div style={{position:"absolute",inset:0,display:"flex",alignItems:compact?"flex-start":"center",justifyContent:"center",gap:"14px",padding:compact?"56px 20px 0":"0 20px",boxSizing:"border-box"}}>
             <div style={{width:"64px",height:"64px",borderRadius:"50%",border:"2px solid rgba(255,255,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:SER,fontSize:"34px",color:"rgba(255,255,255,0.9)",flexShrink:0}}>{String(name||"?").trim().charAt(0).toUpperCase()||"?"}</div>
-            {!compact&&<div style={{minWidth:0}}>
+            {!compact&&!minimal&&<div style={{minWidth:0}}>
               <div style={{fontFamily:SF,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",color:"rgba(255,255,255,0.55)",marginBottom:"4px"}}>{cat}</div>
               <div style={{fontFamily:SER,fontSize:"20px",color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
             </div>}

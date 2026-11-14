@@ -1,10 +1,8 @@
 // EINKAUFSLISTE - Posten als Objekt <id> -> {text, checked, cat, src, key, order, addedAt, basic, forceBuy, slots} (reine Funktionen)
 // src "plan" = aus "Einkaufsliste aus dem Plan", "manuell" = Handeingabe oder "+" am Rezept
 // basic = Grundvorrat (Block "Vorrat prüfen"), forceBuy = trotzdem kaufen, slots = Plan-Zellen, aus denen der Posten per "+" kam
-import { DAYS, MEALS, SHOP_ORDER, SHOP_CAT_ALIAS } from "../data.js";
+import { SHOP_ORDER, SHOP_CAT_ALIAS } from "../data.js";
 import { shopCat, ingKey, parseIng, fmtIng, aggregateIngs, scaleIng, isBasicText } from "./ingredients.js";
-import { slotList } from "./weeks.js";
-import { dn } from "./recipes.js";
 
 // Firebase-sicherer Schluessel: Zeit (Basis 36) + Zufall, sortiert sich zeitlich
 export const newShopId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -39,7 +37,7 @@ export const orphanIds = (shopping) => {
 export const nextOrder = (shopping) => shoppingList(shopping).reduce((m,x)=>Math.max(m,x.order||0),0)+1;
 // Offene Posten der eigentlichen Liste (Grundvorrat zaehlt nicht)
 export const uncheckedCount = (shopping) => shoppingList(shopping).filter(x=>isListed(x)&&!x.checked).length;
-// Plan-Zellen (wk|Tag|Slot|Gericht), deren Zutaten schon per "+" in der Liste sind
+// Zellen (Altbestand), deren Zutaten schon per "+" in der Liste sind
 export const addedSlotKeys = (shopping) => {
   const out={};
   shoppingList(shopping).forEach(it=>{ Object.keys(it.slots||{}).forEach(k=>{ out[k]=true; }); });
@@ -110,23 +108,6 @@ export const scaledIngredients = (rec, servings) => {
   const base=rec&&rec.servings>0?rec.servings:4, target=servings>0?servings:base;
   const f=target/base;
   return ((rec&&rec.ingredients)||[]).map(i=>scaleIng(i,f));
-};
-
-// Einkaufsliste aus einer Woche: Rezeptzutaten (skaliert auf servings) zusammengefuehrt, Gerichte ohne Rezept als "(Zutaten pruefen)"
-export const planItems = (week, recipes, now, opts={}) => {
-  const ts=now===undefined?Date.now():now;
-  const rawIngs=[], dishes=[];
-  DAYS.forEach(day=>MEALS.forEach(meal=>{
-    slotList(week&&week[day]&&week[day].meals&&week[day].meals[meal]).forEach(dish=>{
-      const rec=recipes&&recipes[dish];
-      if(rec&&rec.ingredients&&rec.ingredients.length) scaledIngredients(rec,opts.servings).forEach(i=>rawIngs.push(i));
-      else dishes.push(dn(dish)+" (Zutaten prüfen)");
-    });
-  }));
-  const out={}; let order=1;
-  aggregateIngs(rawIngs).forEach(t=>{ out[newShopId()+String(order).padStart(3,"0")]=makeShopItem(t,{src:"plan",order:order++,now:ts}); });
-  [...new Set(dishes)].forEach(t=>{ out[newShopId()+String(order).padStart(3,"0")]=makeShopItem(t,{src:"plan",order:order++,cat:"Sonstiges",now:ts,basic:false}); });
-  return out;
 };
 
 // Liste aus dem Plan ZUSAMMENFUEHREN statt ersetzen (Bauplan Abschnitt 9):

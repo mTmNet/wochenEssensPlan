@@ -63,9 +63,9 @@ export const ingStatus = (ing,stock) => {
   if(!key) return null;
   if(isBasic(key)) return {name,basic:true,p:1,src:""};
   const toks = key.split(" ");
-  let best = 0, src = "";
-  stock.forEach(s=>{ if(s.p>best&&toks.some(a=>s.toks.some(b=>tokMatch(a,b)))){ best=s.p; src=s.name; } });
-  return {name,basic:false,p:best,src};
+  let best = 0, src = "", left, skey = "";
+  stock.forEach(s=>{ if(s.p>best&&toks.some(a=>s.toks.some(b=>tokMatch(a,b)))){ best=s.p; src=s.name; left=s.left; skey=s.key; } });
+  return {name,basic:false,p:best,src,left,key:skey};
 };
 // Punktzahl (Bauplan Abschnitt 7): Abdeckung*100 + Bewertung*4 + min(gekocht,5)*3 - 25 wenn in den letzten 7 Tagen gekocht.
 // Ohne Haushaltsbuch (leerer stock) ist die Abdeckung 0.

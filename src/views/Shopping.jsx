@@ -40,8 +40,8 @@ export default function Shopping({state,api}){
             {total===0&&shopLikely.length===0&&shopBasics.length===0?(
               <div style={{textAlign:"center",padding:"48px 24px",color:C.muted}}>
                 <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"10px"}}>Die Einkaufsliste ist leer.</div>
-                <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Trag oben etwas ein, erzeuge die Liste aus dem Wochenplan oder füge Zutaten einzelner Gerichte über das + im Plan hinzu.</div>
-                <button onClick={()=>setView("plan")} style={btn("dark")}>ZUM WOCHENPLAN</button>
+                <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Trag oben etwas ein, erzeuge die Liste aus dem Vorgemerkten oder füge an einem Rezept „Auf die Einkaufsliste“ die Zutaten hinzu.</div>
+                <button onClick={()=>setView("plan")} style={btn("dark")}>ZUM VORGEMERKTEN</button>
               </div>
             ):(
               <div>
@@ -101,7 +101,7 @@ export default function Shopping({state,api}){
                     )}
                   </div>
                 )}
-                {!hbLink&&<div style={{fontSize:"11px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Mit verknüpftem Haushaltsbuch (Reiter „Heute“) wandern wahrscheinlich vorrätige Zutaten in einen eigenen Block.</div>}
+                {!hbLink&&<div style={{fontSize:"11px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Mit verknüpftem Haushaltsbuch (Reiter „Vorrat“) wandern wahrscheinlich vorrätige Zutaten in einen eigenen Block.</div>}
                 <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px"}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
               </div>
             )}

@@ -1,5 +1,5 @@
-// WOCHEN UND DATUM (reine Funktionen, ISO-8601-Wochen: Montag Wochenbeginn, Jahreswechsel korrekt)
-import { DAYS, MEALS } from "../data.js";
+// DATUM UND KALENDERWOCHEN (reine Funktionen, ISO-8601-Wochen: Montag Wochenbeginn, Jahreswechsel korrekt)
+import { DAYS } from "../data.js";
 
 const pad2 = (n) => String(n).padStart(2,"0");
 const fmtISO = (d) => d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
@@ -60,41 +60,3 @@ export const weekLabel = (key) => {
     : a.getDate()+". "+mon(a)+"–"+b.getDate()+". "+mon(b);
   return "KW "+kw+" · "+range;
 };
-// Welcher Slot passt zur Uhrzeit: vor 11 Uhr Fruehstueck, 11–14 Uhr Mittag, danach Abend
-export const mealSlotNow = (d) => { const h=(d||new Date()).getHours(); return h<11?"Fr":h<14?"Mi":"Ab"; };
-// Slot-Reihenfolge fuer "Heute im Plan": aktueller Slot zuerst, dann die spaeteren, dann die schon vergangenen
-export const slotOrderNow = (d) => {
-  const main=MEALS.filter(m=>m!=="Zw"), i=Math.max(0,main.indexOf(mealSlotNow(d)));
-  return [...main.slice(i),...main.slice(0,i),...MEALS.filter(m=>m==="Zw")];
-};
-
-// Leere Woche: pro Tag alle Slots leer (Array), kein Koch
-export const emptyWeek = () => {
-  const p={};
-  DAYS.forEach(d=>{p[d]={meals:{},cook:""};MEALS.forEach(m=>{p[d].meals[m]=[];});});
-  p.planId="";
-  return p;
-};
-// Slotwert -> Array (Einzel-Strings und "" aus dem Altbestand, Firebase-Objekte mit Indexschluesseln)
-export const slotList = (v) => {
-  if(!v) return [];
-  if(Array.isArray(v)) return v.filter(x=>typeof x==="string"&&x.trim());
-  if(typeof v==="string") return v.trim()?[v]:[];
-  if(typeof v==="object") return Object.keys(v).sort((a,b)=>a-b).map(k=>v[k]).filter(x=>typeof x==="string"&&x.trim());
-  return [];
-};
-// Woche vom Server oder aus dem Altbestand in die feste Form bringen (fehlende Tage/Slots ergaenzen)
-export const migrateWeek = (plan) => {
-  const w=emptyWeek();
-  if(!plan||typeof plan!=="object") return w;
-  DAYS.forEach(d=>{
-    const src=plan[d];
-    if(!src||typeof src!=="object") return;
-    const meals=src.meals&&typeof src.meals==="object"?src.meals:src;   // ganz alte Form: Tag = Slots direkt
-    MEALS.forEach(m=>{ w[d].meals[m]=slotList(meals[m]); });
-    w[d].cook=typeof src.cook==="string"?src.cook:"";
-  });
-  w.planId = typeof plan.planId==="string" ? plan.planId : "";   // Essensplan, aus dem die Woche stammt (leer = keiner)
-  return w;
-};
-export const normalizeWeek = migrateWeek;

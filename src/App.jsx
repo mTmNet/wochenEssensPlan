@@ -1,20 +1,21 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
-import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL, DAYS, MEALS } from "./data.js";
+import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { hbStock, scoreRecipe, hbCats, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
-import { mealPlanById } from "./mealplans.js";
-import { todayISO, isoWeekKey, shiftWeek, todayDayKey, slotOrderNow, emptyWeek, normalizeWeek, migrateWeek, slotList } from "./logic/weeks.js";
-import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, isProven, ghostKeys, isKids, isQuick } from "./logic/recipes.js";
-import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, planItems, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, addedSlotKeys } from "./logic/shopping.js";
+import { hbStock, ingStatus, pickFoodCat, goneKey } from "./logic/stock.js";
+import { todayISO } from "./logic/weeks.js";
+import { pickList, pickItems, newPickId } from "./logic/picks.js";
+import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
+import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed } from "./logic/shopping.js";
 import { shopCat, ingKey } from "./logic/ingredients.js";
 import { CLASSICS } from "./classics.js";
 import Join from "./views/Join.jsx";
 import Shell from "./views/Shell.jsx";
 import Heute from "./views/Heute.jsx";
 import Plan from "./views/Plan.jsx";
+import Vorrat from "./views/Vorrat.jsx";
 import Shopping from "./views/Shopping.jsx";
 import Recipes from "./views/Recipes.jsx";
 import RecipeDetail from "./views/RecipeDetail.jsx";
@@ -24,8 +25,6 @@ import CookMode from "./views/CookMode.jsx";
 const SESSION_KEY = "wochenplan_session";
 // SCHRIFTZOOM - pro Geraet gespeichert (nicht synchronisiert)
 const ZOOM_KEY = "wochenplan_zoom";
-// "HEUTE"-FILTER - pro Geraet gespeichert
-const HEUTE_CAT_KEY = "wochenplan_heute_cat";
 // Poll-Takt: nur plans/<CODE>/meta, Teile werden bei geaendertem Zeitstempel nachgeladen
 const POLL_MS = 10000;
 const DEFAULT_SETTINGS = { aiImages:false };
@@ -55,19 +54,13 @@ export default function App() {
   const [syncErr,setSyncErr]         = useState("");
   const [toast,setToast]             = useState("");      // kurzer Hinweis unten (Zurueck-Taste, geloescht auf anderem Geraet, kopiert)
 
-  // WOCHEN: plans/<CODE>/weeks/<YYYY-Www>; weekKey = angezeigte Woche
-  const [weeks,setWeeks]             = useState({});
-  const [mealPlanPicker,setMealPlanPicker] = useState(null);   // Dialog "Essensplan übernehmen": Plan-Id oder null
-  const [weekKey,setWeekKey]         = useState(()=>isoWeekKey(todayISO()));
+  // VORGEMERKT: plans/<CODE>/picks/<id> = {key, day, createdAt}
+  const [picksRaw,setPicksRaw]       = useState({});
   const [recipes,setRecipes]         = useState({});      // plans/<CODE>/recipes/<recKey>
   const [shopping,setShopping]       = useState({});      // plans/<CODE>/shopping/<id>
   const [images,setImages]           = useState({});      // eigene Bilder (recKey -> dataUrl), recipeImages/<CODE>
 
-  const [view,setView]               = useState("plan");
-  const [activeCell,setActiveCell]   = useState(null);
-  const [cellInput,setCellInput]     = useState("");
-  const [openCat,setOpenCat]         = useState(null);
-  const [cookPicker,setCookPicker]   = useState(null);
+  const [view,setView]               = useState("heute");
 
   const [detailRecipe,setDetailRecipe] = useState(null);
   const [editMode,setEditMode]       = useState(false);
@@ -91,27 +84,22 @@ export default function App() {
   const [hbBook,setHbBook]           = useState(null);  // geladenes Buch (nur lesend)
   const [hbLoading,setHbLoading]     = useState(false);
   const [hbErr,setHbErr]             = useState("");
-  const [heuteCat,setHeuteCat]       = useState(()=>{ try{ return localStorage.getItem(HEUTE_CAT_KEY)||"all"; }catch(e){ return "all"; } });
   const [aiBusy,setAiBusy]           = useState(false);
   const [aiErr,setAiErr]             = useState("");
 
   const syncTimer    = useRef(null);
-  const cellRef      = useRef(null);
-  const cookRef      = useRef(null);
   const exitArmedRef = useRef(false);
   const handleBackRef= useRef(()=>false);
   const backHandlers = useRef([]);        // von Ansichten registrierte Schliess-Handler (Dialoge, Menue)
-  const editingRef   = useRef({cell:false,shop:false,recipe:false}); // offene Eingaben: der Teil wird nicht vom Server ueberschrieben
+  const editingRef   = useRef({shop:false,recipe:false}); // offene Eingaben: der Teil wird nicht vom Server ueberschrieben
   const pendingRef   = useRef(0);         // Anzahl laufender eigener Schreibvorgaenge
   const dirtyRef     = useRef(new Set()); // Teile, deren letztes Schreiben scheiterte: der Poll laedt sie unabhaengig vom Zeitstempel nach
   const metaRef      = useRef({});        // zuletzt GESEHENE Zeitstempel (nur der Poll setzt sie)
   const codeRef      = useRef("");
-  const weekKeyRef   = useRef(weekKey);
   const recipesRef   = useRef(recipes);
   const shoppingRef  = useRef(shopping);
   const toastTimer   = useRef(null);
   codeRef.current = activeCode;
-  weekKeyRef.current = weekKey;
   recipesRef.current = recipes;
   shoppingRef.current = shopping;
 
@@ -148,8 +136,7 @@ export default function App() {
 
   // Zustand aus den geladenen Plandaten setzen (Beitritt, Migration)
   const applyPlanData = (data,imgs)=>{
-    const ws={}; Object.keys(asObj(data.weeks)).forEach(k=>{ ws[k]=normalizeWeek(data.weeks[k]); });
-    setWeeks(ws);
+    setPicksRaw(asObj(data.picks));
     setShopping(Array.isArray(data.shopping)?migrateShopping(data.shopping):asObj(data.shopping));
     setRecipes(normalizeRecipes(asObj(data.recipes)));
     setParticipants(asList(data.participants).filter(Boolean));
@@ -169,19 +156,12 @@ export default function App() {
     if(code!==codeRef.current) return;
     if(meta===undefined){ setSyncOk(false); setSyncErr(ERR_NET); return; }
     if(meta===null){ setSyncOk(false); setSyncErr("Plan wurde nicht gefunden."); return; }
-    const prev=metaRef.current||{}, ed=editingRef.current, wk=weekKeyRef.current, dirty=dirtyRef.current;
+    const prev=metaRef.current||{}, ed=editingRef.current, dirty=dirtyRef.current;
     const seen={...prev}; const jobs=[];
     const canApply=()=>pendingRef.current===0&&code===codeRef.current;   // kein eigener Schreibvorgang dazwischen gestartet
     const need=(part)=>meta[part+"UpdatedAt"]!==prev[part+"UpdatedAt"]||dirty.has(part);
-    if(need("weeks")&&!ed.cell){
-      // Sichtbare und aktuelle Woche frisch laden; andere gecachte Wochen verwerfen (werden beim Oeffnen frisch geholt)
-      const cur=isoWeekKey(todayISO()), keys=[...new Set([wk,cur])];
-      jobs.push(Promise.all(keys.map(k=>fbGet("plans/"+code+"/weeks/"+k))).then(ws=>{
-        if(ws.every(w=>w!==undefined)&&canApply()){
-          setWeeks(()=>{ const n={}; keys.forEach((k,i)=>{ n[k]=normalizeWeek(ws[i]); }); return n; });
-          seen.weeksUpdatedAt=meta.weeksUpdatedAt; dirty.delete("weeks");
-        }
-      }));
+    if(need("picks")){
+      jobs.push(fbGet("plans/"+code+"/picks").then(pk=>{ if(pk!==undefined&&canApply()){ setPicksRaw(asObj(pk)); seen.picksUpdatedAt=meta.picksUpdatedAt; dirty.delete("picks"); } }));
     }
     if(need("shopping")&&!ed.shop){
       jobs.push(fbGet("plans/"+code+"/shopping").then(s=>{ if(s!==undefined&&canApply()){ setShopping(Array.isArray(s)?migrateShopping(s):asObj(s)); seen.shoppingUpdatedAt=meta.shoppingUpdatedAt; dirty.delete("shopping"); cleanupServer(undefined,s); } }));
@@ -232,10 +212,8 @@ export default function App() {
   // steht meta/imagesMigrated, sonst wird beim naechsten Beitritt nachgeholt.
   // Liefert die neuen Plandaten (oder null bei Netzfehler). plan, updatedAt (alt) und globalRecipes bleiben stehen.
   const migratePlan = async(code,pd)=>{
-    const now=Date.now(), wk=isoWeekKey(todayISO());
+    const now=Date.now();
     const patch={};
-    const weeksNew={...asObj(pd.weeks)};
-    if(!weeksNew[wk]){ weeksNew[wk]=migrateWeek(pd.plan); patch["weeks/"+wk]=weeksNew[wk]; }
     let shoppingNew=pd.shopping;
     if(Array.isArray(pd.shopping)||!pd.shopping){ shoppingNew=migrateShopping(Array.isArray(pd.shopping)?pd.shopping:[],now); patch.shopping=Object.keys(shoppingNew).length?shoppingNew:null; }
     let recipesNew=asObj(pd.recipes), imgs={}, imgsOk=true;
@@ -247,7 +225,7 @@ export default function App() {
       if(Object.keys(recipesNew).length) patch.recipes=recipesNew;
       const r=await copyOldImages(code,recipesNew); imgs=r.imgs; imgsOk=r.ok;
     }
-    const meta={createdAt:pd.updatedAt||now,updatedAt:now,weeksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now};
+    const meta={createdAt:pd.updatedAt||now,updatedAt:now,picksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now};
     if(imgsOk) meta.imagesMigrated=true;
     patch.meta=meta;
     const settingsNew={...DEFAULT_SETTINGS,...asObj(pd.settings)};
@@ -258,7 +236,7 @@ export default function App() {
     if(m2&&m2.updatedAt){ const fresh=await fbGet("plans/"+code); if(!fresh||!fresh.meta) return null; return {...fresh,_imgs:undefined}; }
     if(!(await fbPatch("plans/"+code,patch))) return null;
     if(!imgsOk) failWrite("Rezeptbilder konnten nicht übernommen werden – wird beim nächsten Beitritt nachgeholt.");
-    return {...pd,weeks:weeksNew,shopping:shoppingNew||{},recipes:recipesNew,meta,settings:settingsNew,_imgs:imgs};
+    return {...pd,shopping:shoppingNew||{},recipes:recipesNew,meta,settings:settingsNew,_imgs:imgs};
   };
 
   // BEITRITT - nur bestehende Plaene; create = "Plan starten" / "Neuen Plan mit diesem Code anlegen";
@@ -281,9 +259,9 @@ export default function App() {
         if(!data) return fail(ERR_NET);
         imgs=data._imgs;
       }else if(o.create&&!o.restore){                            // neuer Plan (nur ausdruecklich)
-        const now=Date.now(), wk=isoWeekKey(todayISO());
-        data={participants:[nm],settings:{...DEFAULT_SETTINGS},weeks:{[wk]:emptyWeek()},
-              meta:{createdAt:now,updatedAt:now,weeksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now,imagesMigrated:true}};
+        const now=Date.now();
+        data={participants:[nm],settings:{...DEFAULT_SETTINGS},
+              meta:{createdAt:now,updatedAt:now,picksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now,imagesMigrated:true}};
         if(!(await fbPatch("plans/"+c,data))) return fail(ERR_NET);
       }else{
         return fail("Kein Plan mit diesem Code.",o.restore?"":c);
@@ -335,8 +313,8 @@ export default function App() {
   const resetSession=()=>{
     clearInterval(syncTimer.current);
     try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
-    setActiveCode("");codeRef.current="";setUserName("");setJoinInput("");setJoinErr("");setJoinOffer("");setView("plan");
-    setWeeks({});setShopping({});setRecipes({});setImages({});setParticipants([]);setSettings(DEFAULT_SETTINGS);metaRef.current={};dirtyRef.current=new Set();
+    setActiveCode("");codeRef.current="";setUserName("");setJoinInput("");setJoinErr("");setJoinOffer("");setView("heute");
+    setPicksRaw({});setShopping({});setRecipes({});setImages({});setParticipants([]);setSettings(DEFAULT_SETTINGS);metaRef.current={};dirtyRef.current=new Set();
     setHbLink(null);setHbBook(null);setHbErr("");
     setDetailRecipe(null);setCookMode(false);setEditMode(false);setEditData(null);setExtracted(null);
     setScreen("join");
@@ -359,111 +337,35 @@ export default function App() {
     return true;
   };
 
-  // WOCHE - angezeigte Woche aus weeks lesen; jede Woche wird beim Oeffnen frisch vom Server geholt (kein veralteter Cache)
-  const curWeekKey=isoWeekKey(todayISO());
-  const week=useMemo(()=>normalizeWeek(weeks[weekKey]),[weeks,weekKey]);
-  const selectWeek=async(key)=>{
-    setWeekKey(key);
-    if(!codeRef.current) return;
-    const w=await fbGet("plans/"+codeRef.current+"/weeks/"+key);
-    if(w!==undefined&&!editingRef.current.cell) setWeeks(p=>({...p,[key]:normalizeWeek(w)}));
+  // VORGEMERKT - picks/<id> = {key, day, createdAt}; jede Aenderung schreibt nur ihren Pfad
+  const picks=useMemo(()=>pickList(picksRaw),[picksRaw]);
+  const addPick=(key,day)=>{
+    if(!key||!recipesRef.current[key]) return false;        // Ref: gilt auch direkt nach dem Uebernehmen aus der Rezept-Basis
+    const id=newPickId(), item={key,day:day||"",createdAt:Date.now()};
+    setPicksRaw(prev=>({...prev,[id]:item}));
+    return writePlan({["picks/"+id]:item},"picks");
   };
-  // Slot schreiben: erst optimistisch lokal, dann gegen den Serverstand der Zelle abgleichen (fn wird auf beide angewandt),
-  // damit zwei Geraete, die kurz nacheinander dieselbe Zelle aendern, nichts verlieren
-  const writeSlot=async(wkKey,day,meal,fn)=>{
-    const apply=(prev,arr)=>{ const w=normalizeWeek(prev[wkKey]); w[day].meals[meal]=arr; return {...prev,[wkKey]:w}; };
-    const local=slotList(normalizeWeek(weeks[wkKey])[day].meals[meal]);
-    setWeeks(prev=>apply(prev,fn(slotList(normalizeWeek(prev[wkKey])[day].meals[meal]))));
-    const srv=codeRef.current?await fbGet("plans/"+codeRef.current+"/weeks/"+wkKey+"/"+day+"/meals/"+meal):undefined;
-    const arr=fn(srv===undefined?local:slotList(srv));
-    setWeeks(prev=>apply(prev,arr));
-    return writePlan({["weeks/"+wkKey+"/"+day+"/meals/"+meal]:arr},"weeks");
+  const removePick=(id)=>{
+    setPicksRaw(prev=>{ const n={...prev}; delete n[id]; return n; });
+    return writePlan({["picks/"+id]:null},"picks");
   };
-  // MEAL & COOK - ein Slot kann mehrere Rezepte enthalten (Array)
-  const addDish=(day,meal,name,wkKey)=>{
-    const nm=(name||"").trim();
-    if(!nm)return;
-    const key=recipes[nm]?nm:(recipes[recKey(nm)]?recKey(nm):nm);     // Rezeptschluessel oder freier Text
-    return writeSlot(wkKey||weekKey,day,meal,arr=>arr.includes(key)?arr:[...arr,key]);
+  const movePick=(id,day)=>{
+    setPicksRaw(prev=>prev[id]?{...prev,[id]:{...prev[id],day:day||""}}:prev);
+    return writePlan({["picks/"+id+"/day"]:day||""},"picks");
   };
-  const removeDish=(day,meal,name,wkKey)=>writeSlot(wkKey||weekKey,day,meal,arr=>arr.filter(d=>d!==name));
-  const setCook=(day,person)=>{
-    const val=(week[day]&&week[day].cook)===person?"":(person||"");
-    setWeeks(prev=>{ const w=normalizeWeek(prev[weekKey]); w[day].cook=val; return {...prev,[weekKey]:w}; });
-    writePlan({["weeks/"+weekKey+"/"+day+"/cook"]:val},"weeks");
-    setCookPicker(null);
-  };
-  // Letzte Woche in die angezeigte Woche uebernehmen: Vorwoche und Zielwoche frisch lesen, nur leere Slots fuellen
-  const copyLastWeek=async()=>{
-    const code=codeRef.current; if(!code) return false;
-    const prevKey=shiftWeek(weekKey,-1);
-    const [ps,ts]=await Promise.all([fbGet("plans/"+code+"/weeks/"+prevKey),fbGet("plans/"+code+"/weeks/"+weekKey)]);
-    if(ps===undefined||ts===undefined){ failWrite(ERR_NET); return false; }
-    const src=normalizeWeek(ps), target=normalizeWeek(ts);
-    const patch={};
-    DAYS.forEach(day=>{
-      MEALS.forEach(meal=>{
-        if(!target[day].meals[meal].length&&src[day].meals[meal].length){ target[day].meals[meal]=[...src[day].meals[meal]]; patch["weeks/"+weekKey+"/"+day+"/meals/"+meal]=target[day].meals[meal]; }
-      });
-      if(!target[day].cook&&src[day].cook){ target[day].cook=src[day].cook; patch["weeks/"+weekKey+"/"+day+"/cook"]=src[day].cook; }
-    });
-    setWeeks(prev=>({...prev,[weekKey]:target}));
-    if(!Object.keys(patch).length) return true;
-    return writePlan(patch,"weeks");
-  };
-  // ESSENSPLAN uebernehmen: fehlende Rezepte der Vorlage ins Kochbuch (source "essensplan"), die Slots der gewaehlten
-  // Wochen mit den Gerichten belegen (ersetzt belegte Felder, "Wer kocht?" bleibt), planId an der Woche merken. EIN PATCH.
-  const applyMealPlan=async(planId,weekKeys)=>{
-    const plan=mealPlanById(planId), code=codeRef.current;
-    if(!plan||!code||!weekKeys||!weekKeys.length) return false;
-    const patch={}, add={};
-    plan.recipes.forEach(r=>{
-      const k=recKey(r.name); if(!k||recipes[k]||add[k]) return;
-      add[k]=normalizeRecipe(k,{...r,source:"essensplan",plan:plan.id}); patch["recipes/"+k]=add[k];
-    });
-    const server=await Promise.all(weekKeys.map(wk=>fbGet("plans/"+code+"/weeks/"+wk)));
-    if(server.some(w=>w===undefined)){ failWrite(ERR_NET); return false; }
-    const next={};
-    weekKeys.forEach((wk,i)=>{
-      const w=normalizeWeek(server[i]);
-      DAYS.forEach(d=>MEALS.forEach(m=>{
-        const keys=((plan.days[d]&&plan.days[d][m])||[]).map(n=>recKey(n)).filter(Boolean);
-        w[d].meals[m]=keys; patch["weeks/"+wk+"/"+d+"/meals/"+m]=keys;
-      }));
-      w.planId=plan.id; patch["weeks/"+wk+"/planId"]=plan.id;
-      next[wk]=w;
-    });
-    if(Object.keys(add).length) setRecipes(prev=>({...prev,...add}));
-    setWeeks(prev=>({...prev,...next}));
-    setMealPlanPicker(null);
-    const ok=await writePlan(patch,Object.keys(add).length?["recipes","weeks"]:"weeks");
-    if(ok!==false) showToast("„"+plan.name+"“ für "+weekKeys.length+(weekKeys.length===1?" Woche":" Wochen")+" eingetragen"+(Object.keys(add).length?", "+Object.keys(add).length+" Rezepte ins Kochbuch.":"."));
-    return ok;
-  };
-  // Dialog aus einer anderen Ansicht oeffnen (Rezepte -> Woche)
-  const openMealPlan=(id)=>{ setView("plan"); setMealPlanPicker(id||null); };
-  // Woche abschliessen: Auswahl [{key, iso}] in die Kochhistorie der Rezepte, alles in EINEM Multi-Path-PATCH.
-  // Die Rezepte werden vorher frisch gelesen, damit keine geloeschten wiederbelebt und keine fremden Daten ueberschrieben werden.
-  const closeWeek=async(selection)=>{
-    const byKey={};
-    (selection||[]).forEach(s=>{ if(s&&s.iso&&recipes[s.key]) (byKey[s.key]=byKey[s.key]||[]).push(s.iso); });
-    const keys=Object.keys(byKey);
-    if(!keys.length) return false;
-    const srv=codeRef.current?await fbGet("plans/"+codeRef.current+"/recipes"):undefined;
-    const base=srv===undefined?recipes:normalizeRecipes(asObj(srv));
-    const now=Date.now(), patch={}, upd={}; let gone=0;
-    keys.forEach(k=>{
-      let rec=base[k];
-      if(!rec){ gone++; return; }
-      byKey[k].forEach(iso=>{ rec={...rec,...addCooked(rec,iso)}; });
-      upd[k]={...rec,updatedAt:now};
-      patch["recipes/"+k+"/cooked"]=rec.cooked; patch["recipes/"+k+"/lastCooked"]=rec.lastCooked; patch["recipes/"+k+"/updatedAt"]=now;
-    });
-    if(gone) showToast(gone===1?"Ein Rezept wurde auf einem anderen Gerät gelöscht.":gone+" Rezepte wurden auf einem anderen Gerät gelöscht.");
-    if(!Object.keys(upd).length) return false;
-    setRecipes(prev=>{ const n={...prev,...upd}; keys.forEach(k=>{ if(!base[k]) delete n[k]; }); return n; });
-    writePlan(patch,"recipes");
-    return true;
+  // "Gekocht" aus Heute/Vorgemerkt: Kochdatum heute, Vormerkung fuer heute weg, Rezept mit Bewertungsdialog oeffnen
+  const cookedToday=(key)=>{
+    const rec=recipesRef.current[key]; if(!rec) return;
+    const t=todayISO();
+    const todays=picks.filter(p=>p.key===key&&p.day===t);
+    if(todays.length){
+      const patch={}; todays.forEach(p=>{ patch["picks/"+p.id]=null; });
+      setPicksRaw(prev=>{ const n={...prev}; todays.forEach(p=>{ delete n[p.id]; }); return n; });
+      writePlan(patch,"picks");
+    }
+    markCooked(key,t);
+    setDetailRecipe(key);setCookStep(0);setCookMode(false);setEditMode(false);setEditData(null);
+    setRatingDraft(rec.rating||0);setNoteDraft(rec.notes||"");setRateAfterCook(true);
   };
 
   // SHOPPING - Objekt <id> -> Posten; jede Aenderung schreibt nur ihren Pfad
@@ -479,9 +381,9 @@ export default function App() {
     writePlan(patch,"shopping");
     return true;
   };
-  // Einkaufsliste aus dem Plan: ZUSAMMENFUEHREN statt ersetzen (Bauplan Abschnitt 9)
-  const buildShoppingFromPlan=()=>{
-    const items=planItems(week,recipes,undefined,{servings:household});
+  // Einkaufsliste aus dem Vorgemerkten: ZUSAMMENFUEHREN statt ersetzen
+  const buildShoppingFromPicks=()=>{
+    const items=pickItems(picks,recipes,undefined,{servings:household,today:todayISO()});
     const {next,patch}=mergeShopping(shoppingRef.current,items);
     if(Object.keys(patch).length){ setShopping(next); writePlan(patch,"shopping"); }
     setView("shopping");
@@ -727,11 +629,6 @@ export default function App() {
     writePlan({hb:link},"people");
     return true;
   };
-  const setHbCat=(cat)=>{
-    const link={...hbLink,cat};
-    setHbLink(link);
-    writePlan({hb:link},"people");
-  };
   // "Nicht mehr da": Position aus der Vorratsliste streichen, gilt bis zum naechsten Einkauf nach heute (plans/<code>/hb/gone)
   const markGone=(key)=>{
     if(!hbLink)return;
@@ -832,25 +729,19 @@ export default function App() {
       return;
     }
     // Umbenennen
-    const [srv,allWeeks]=await Promise.all([code?fbGet("plans/"+code+"/recipes/"+oldKey):undefined,code?fbGet("plans/"+code+"/weeks"):undefined]);
+    const [srv,allPicks]=await Promise.all([code?fbGet("plans/"+code+"/recipes/"+oldKey):undefined,code?fbGet("plans/"+code+"/picks"):undefined]);
     if(srv===null){ await recipeGone(oldKey); return; }
     const old=srv&&typeof srv==="object"?normalizeRecipe(oldKey,srv):(recipes[oldKey]||{});
     const rec={...old,...fields,updatedAt:now};
     const patch={["recipes/"+newKey]:rec,["recipes/"+oldKey]:null};
     const parts=["recipes"];
-    const ws=allWeeks&&typeof allWeeks==="object"?allWeeks:weeks;
-    const localWeeks={};
-    Object.keys(asObj(ws)).forEach(wk=>{
-      const w=normalizeWeek(ws[wk]); let touched=false;
-      Object.keys(w).forEach(day=>Object.keys(w[day].meals).forEach(meal=>{
-        const arr=w[day].meals[meal];
-        if(arr.includes(oldKey)){ const n=[...new Set(arr.map(d=>d===oldKey?newKey:d))]; w[day].meals[meal]=n; patch["weeks/"+wk+"/"+day+"/meals/"+meal]=n; touched=true; }
-      }));
-      if(touched) localWeeks[wk]=w;
-    });
-    if(Object.keys(localWeeks).length) parts.push("weeks");
+    // Vormerkungen (frisch gelesen) auf den neuen Schluessel umstellen
+    const pk=allPicks&&typeof allPicks==="object"?allPicks:picksRaw;
+    const pkNext={...asObj(pk)}; let touched=false;
+    Object.keys(pkNext).forEach(id=>{ if(pkNext[id]&&pkNext[id].key===oldKey){ pkNext[id]={...pkNext[id],key:newKey}; patch["picks/"+id+"/key"]=newKey; touched=true; } });
+    if(touched) parts.push("picks");
     setRecipes(prev=>{ const n={...prev}; delete n[oldKey]; n[newKey]=rec; return n; });
-    setWeeks(prev=>{ const n={...prev}; Object.keys(localWeeks).forEach(wk=>{ if(n[wk]||wk===weekKey||wk===curWeekKey) n[wk]=localWeeks[wk]; }); return n; });
+    if(touched) setPicksRaw(pkNext);
     setDetailRecipe(newKey);
     setEditMode(false);setEditData(null);
     writePlan(patch,parts);
@@ -893,16 +784,6 @@ export default function App() {
   const downloadRecipePDF=(key)=>{ const rec=recipes[key]; if(rec) openPrint(makeRecipePDF(key,rec,images[key],settings.aiImages)); };
   const downloadPDF=()=>openPrint(makeCookbookPDF(recipes,images,settings.aiImages));
 
-  // CLOSE DROPDOWNS
-  useEffect(()=>{
-    const h=(e)=>{
-      if(cellRef.current&&!cellRef.current.contains(e.target)){setActiveCell(null);setOpenCat(null);}
-      if(cookRef.current&&!cookRef.current.contains(e.target))setCookPicker(null);
-    };
-    document.addEventListener("mousedown",h);
-    return()=>document.removeEventListener("mousedown",h);
-  },[]);
-
   // Notiz-Entwurf laden, wenn ein Rezept geoeffnet wird; Detail schliessen, wenn das Rezept (anderswo) verschwunden ist
   useEffect(()=>{
     if(detailRecipe&&recipes[detailRecipe]) setNoteDraft(recipes[detailRecipe].notes||"");
@@ -919,7 +800,7 @@ export default function App() {
   const zoom=(d)=>setFontZoom(z=>Math.min(1.4,Math.max(0.8,Math.round((z+d)*10)/10)));
 
   // Sync-Schutz: offene Planzelle, Einkaufszeile oder Rezept-Editor -> der Teil wird nicht vom Server ueberschrieben
-  editingRef.current = {cell:activeCell!==null, shop:editShopId!==null, recipe:editMode};
+  editingRef.current = {shop:editShopId!==null, recipe:editMode};
 
   // ZURUECK-TASTE: schliesst die oberste offene Ebene statt aus der App zu fliegen.
   // Ansichten registrieren eigene Dialoge (Woche abschliessen, Menue, Wochenplan-Auswahl) ueber registerBackHandler.
@@ -927,8 +808,6 @@ export default function App() {
   const registerBackHandler=useCallback((fn)=>{ backHandlers.current.push(fn); return ()=>{ backHandlers.current=backHandlers.current.filter(f=>f!==fn); }; },[]);
   handleBackRef.current=()=>{
     for(let i=backHandlers.current.length-1;i>=0;i--){ if(backHandlers.current[i]()) return true; }
-    if(activeCell!==null){ setActiveCell(null); setOpenCat(null); return true; }
-    if(cookPicker!==null){ setCookPicker(null); return true; }
     if(rateAfterCook){ setRateAfterCook(false); return true; }
     if(cookMode){ setCookMode(false); return true; }
     if(editMode){ setEditMode(false); setEditData(null); return true; }
@@ -957,48 +836,11 @@ export default function App() {
     return()=>window.removeEventListener("popstate",onPop);
   },[screen]);
 
-  // HEUTE / EINKAUF: Buch beim Oeffnen des Reiters laden (nicht im 10s-Poll), Bestand + Rangliste berechnen
+  // HEUTE / VORRAT / EINKAUF: Buch beim Oeffnen des Reiters laden (nicht im 10s-Poll), Bestand berechnen
   useEffect(()=>{
-    if((view==="heute"||view==="shopping")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
+    if((view==="heute"||view==="shopping"||view==="vorrat")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
   },[view,hbLink&&hbLink.code]);
-  useEffect(()=>{ try{ localStorage.setItem(HEUTE_CAT_KEY,heuteCat); }catch(e){} },[heuteCat]);
   const stock=useMemo(()=>hbStock(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone),[hbBook,hbLink]);
-  // Rangliste (Bauplan Abschnitt 7): "Bewaehrt" = gekocht und >= 3 Sterne, "Schnell" = <= 30 Min. oder Rubrik,
-  // Fruehstueck erscheint nach 11 Uhr nur ueber den eigenen Chip
-  const heuteFilter=(r,c)=>{
-    const skip=["Beilagen & Salate","Soßen & Dips"];
-    const lateForBreakfast=new Date().getHours()>=11;
-    const general=!skip.includes(c)&&!(lateForBreakfast&&c==="Frühstück");
-    if(heuteCat==="all") return general;
-    if(heuteCat==="proven") return general&&isProven(r);
-    if(heuteCat==="Schnelle Küche") return general&&isQuick(r);
-    if(heuteCat==="Kinderessen") return general&&isKids(r);
-    return c===heuteCat;
-  };
-  const ranked=useMemo(()=>{
-    if(view!=="heute") return [];
-    return Object.keys(recipes)
-      .filter(n=>heuteFilter(recipes[n],recCat(recipes[n])))
-      .map(n=>({name:n,...scoreRecipe(recipes[n],stock)}))
-      // mit Haushaltsbuch zuerst nach Wahrscheinlichkeit (Abdeckung), dann nach Punktzahl; ohne nur nach Punktzahl
-      .sort((a,b)=>(stock.length?(b.cov-a.cov):0)||(b.score-a.score));
-  },[view,recipes,stock,heuteCat]);
-  // Aus der Rezept-Basis: Eintraege, die noch nicht im Kochbuch sind, nach Wahrscheinlichkeit (taeglich rotierend bei Gleichstand).
-  // Leeres Kochbuch: die ganze Basis, damit man sofort etwas zum Kochen hat; sonst die drei besten.
-  const classicPicks=useMemo(()=>{
-    if(view!=="heute") return [];
-    const dayIdx=Math.floor(Date.now()/86400000);
-    const all=CLASSICS
-      .filter(c=>!recipes[recKey(c.name)]&&(heuteCat==="proven"?false:heuteFilter(c,c.category)))
-      .map((c,i)=>({classic:c,i,...scoreRecipe(c,stock)}))
-      .sort((a,b)=>(b.cov-a.cov)||(((a.i+dayIdx)%7)-((b.i+dayIdx)%7))||(a.i-b.i));
-    return Object.keys(recipes).length?all.slice(0,3):all;
-  },[view,recipes,stock,heuteCat]);
-  // HEUTE IM PLAN: Slots des heutigen Tages aus der aktuellen Woche, aktueller Slot zuerst
-  const todayPlan=useMemo(()=>{
-    const d=normalizeWeek(weeks[curWeekKey])[todayDayKey()];
-    return slotOrderNow().flatMap(meal=>slotList(d&&d.meals[meal]).map(key=>({meal,key})));
-  },[weeks,curWeekKey,view]);
 
   // EINKAUFSLISTE in Bloecken (Bauplan Abschnitt 9): Liste, "Wahrscheinlich da" (stockP >= 0,6), "Vorrat pruefen" (Grundvorrat)
   const shopList=useMemo(()=>shoppingList(shopping).map(it=>{ const st=stock.length?ingStatus(it.text,stock):null; return {...it,stockP:st&&!st.basic?st.p:0}; }),[shopping,stock]);
@@ -1007,7 +849,6 @@ export default function App() {
   const shopBasics=useMemo(()=>shopList.filter(it=>it.basic&&!it.forceBuy),[shopList]);
   const shopGroups=useMemo(()=>groupShopping(shopMain),[shopMain]);
   const unchecked=shopMain.filter(x=>!x.checked).length;
-  const addedSlots=useMemo(()=>addedSlotKeys(shopping),[shopping]);
   // Liste teilen: Klartext ueber navigator.share, sonst Zwischenablage
   const shareShopping=async()=>{
     const text=shoppingText([...shopMain,...shopLikely]);
@@ -1032,28 +873,27 @@ export default function App() {
   // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
   const state={
     code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,settings,household,
-    weekKey,week,curWeekKey,todayPlan,today:todayISO(),recipes,mealPlanPicker,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,addedSlots,classics:CLASSICS,classicPicks,ranked,heuteCat,
+    picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,classics:CLASSICS,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
     importState:{importErr,extracting,extracted,savedMsg},
     // Rahmen und Dialoge
-    view,activeCell,cellInput,openCat,cookPicker,codeCopied,editShopId,editShopText,
+    view,codeCopied,editShopId,editShopText,
     detailRecipe,curRec,editMode,editData,cookStep,cookMode,rateAfterCook,ratingDraft,noteDraft,
     joinState:{myCode,joinInput,nameInput,nameHint,joinErr,joinOffer,joinBusy},
   };
   const api={
-    // Plan
-    setWeekKey:selectWeek,addDish,removeDish,setCook,copyLastWeek,closeWeek,applyMealPlan,openMealPlan,setMealPlanPicker,
+    // Vorgemerkt
+    addPick,removePick,movePick,cookedToday,
     // Einkauf
-    buildShoppingFromPlan,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,forceBuy,shareShopping,
+    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,forceBuy,shareShopping,
     // Rezepte
     openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,setHbCat,disconnectHb,reloadHb:loadHb,markGone,clearGone,setSetting,zoom,leavePlan,deletePlan,
+    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,setSetting,zoom,leavePlan,deletePlan,
     // Rahmen
-    setView,copyCode,showToast,registerBackHandler,setHeuteCat,
-    setActiveCell,setCellInput,setOpenCat,setCookPicker,cellRef,cookRef,
+    setView,copyCode,showToast,registerBackHandler,
     setEditShopId,setEditShopText,saveShopEdit,
     // Detail, Editor, Kochmodus
     closeRecipe:()=>{setDetailRecipe(null);setEditMode(false);setEditData(null);},setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit:()=>{setEditMode(false);setEditData(null);},
@@ -1077,6 +917,7 @@ export default function App() {
     return(
       <Shell state={state} api={api}>
         {view==="heute"&&<Heute state={state} api={api} />}
+        {view==="vorrat"&&<Vorrat state={state} api={api} />}
         {view==="plan"&&<Plan state={state} api={api} />}
         {view==="shopping"&&<Shopping state={state} api={api} />}
         {view==="recipes"&&<Recipes state={state} api={api} />}

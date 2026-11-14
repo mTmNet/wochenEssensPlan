@@ -1,8 +1,8 @@
 // Wochen und Datum: ISO-8601-Wochen, Wochendaten, Migration der alten Planform
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isoWeekKey, weekDates, shiftWeek, weekLabel, todayDay, todayDayKey, shortDate, daysSince, emptyWeek, migrateWeek, slotList, mealSlotNow, slotOrderNow, todayISO } from "../src/logic/weeks.js";
-import { DAYS, MEALS } from "../src/data.js";
+import {isoWeekKey, weekDates, shiftWeek, weekLabel, todayDay, todayDayKey, shortDate, daysSince, todayISO } from "../src/logic/weeks.js";
+import { DAYS } from "../src/data.js";
 
 test("isoWeekKey: Jahreswechsel nach ISO 8601", () => {
   assert.equal(isoWeekKey("2026-01-01"), "2026-W01");   // Donnerstag
@@ -80,51 +80,4 @@ test("daysSince ist nie negativ und rechnet in ganzen Tagen", () => {
   assert.equal(daysSince(todayISO()), 0);                                  // heute = 0, egal zu welcher Uhrzeit
   assert.equal(daysSince(""), null);
   assert.equal(daysSince(null), null);
-});
-
-test("mealSlotNow: vor 11 Fruehstueck, 11-14 Mittag, danach Abend", () => {
-  assert.equal(mealSlotNow(new Date(2026, 9, 4, 8)), "Fr");
-  assert.equal(mealSlotNow(new Date(2026, 9, 4, 10, 59)), "Fr");
-  assert.equal(mealSlotNow(new Date(2026, 9, 4, 11)), "Mi");
-  assert.equal(mealSlotNow(new Date(2026, 9, 4, 12)), "Mi");
-  assert.equal(mealSlotNow(new Date(2026, 9, 4, 14)), "Ab");
-  assert.equal(mealSlotNow(new Date(2026, 9, 4, 19)), "Ab");
-});
-
-test("slotOrderNow: aktueller Slot zuerst, Snacks immer zuletzt", () => {
-  assert.deepEqual(slotOrderNow(new Date(2026, 9, 4, 8)), ["Fr","Mi","Ab","Zw"]);
-  assert.deepEqual(slotOrderNow(new Date(2026, 9, 4, 12)), ["Mi","Ab","Fr","Zw"]);
-  assert.deepEqual(slotOrderNow(new Date(2026, 9, 4, 19)), ["Ab","Fr","Mi","Zw"]);
-  assert.deepEqual([...slotOrderNow()].sort(), [...MEALS].sort());
-});
-
-test("emptyWeek und slotList", () => {
-  const w = emptyWeek();
-  assert.deepEqual(Object.keys(w).filter(k=>k!=="planId"), DAYS);
-  assert.equal(w.planId, "", "kein Essensplan");
-  assert.equal(migrateWeek({ planId:"eisen-postpartal" }).planId, "eisen-postpartal", "planId bleibt beim Normalisieren erhalten");
-  DAYS.forEach(d => { assert.equal(w[d].cook, ""); MEALS.forEach(m => assert.deepEqual(w[d].meals[m], [])); });
-  assert.deepEqual(slotList(""), []);
-  assert.deepEqual(slotList("Pasta"), ["Pasta"]);
-  assert.deepEqual(slotList(["A","","B"]), ["A","B"]);
-  assert.deepEqual(slotList({0:"A",1:"B"}), ["A","B"]);
-  assert.deepEqual(slotList(null), []);
-});
-
-test("migrateWeek: Einzel-Strings werden Arrays, leere Slots leere Arrays, Koch bleibt", () => {
-  const old = {
-    Mo: { meals: { Fr:"", Mi:"Reste", Ab:"Pasta Bolognese", Zw:"" }, cook:"Anna" },
-    Di: { meals: { Ab:["Risotto","Salat"] } },
-    Fr: { Ab:"Pizza" },                       // ganz alte Form ohne meals
-  };
-  const w = migrateWeek(old);
-  assert.deepEqual(w.Mo.meals, { Fr:[], Mi:["Reste"], Ab:["Pasta Bolognese"], Zw:[] });
-  assert.equal(w.Mo.cook, "Anna");
-  assert.deepEqual(w.Di.meals.Ab, ["Risotto","Salat"]);
-  assert.deepEqual(w.Di.meals.Fr, []);
-  assert.equal(w.Di.cook, "");
-  assert.deepEqual(w.Fr.meals.Ab, ["Pizza"]);
-  assert.deepEqual(w.So.meals, { Fr:[], Mi:[], Ab:[], Zw:[] });
-  assert.deepEqual(migrateWeek(null), emptyWeek());
-  assert.deepEqual(migrateWeek("kaputt"), emptyWeek());
 });

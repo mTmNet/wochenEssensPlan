@@ -1,12 +1,13 @@
 // Einkaufsliste: Migration, Posten aus dem Plan, Zutaten hinzufuegen, Zusammenfuehren (mergeShopping), Gruppierung, Teilen-Text
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { migrateShopping, planItems, addIngredients, mergeShopping, groupShopping, shoppingText, makeShopItem, shoppingList, uncheckedCount, orphanIds, addedSlotKeys, scaledIngredients, isListed, nextOrder } from "../src/logic/shopping.js";
+import { migrateShopping, addIngredients, mergeShopping, groupShopping, shoppingText, makeShopItem, shoppingList, uncheckedCount, orphanIds, addedSlotKeys, scaledIngredients, isListed, nextOrder } from "../src/logic/shopping.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
-import { emptyWeek } from "../src/logic/weeks.js";
+import { pickItems } from "../src/logic/picks.js";
 import { SHOP_ORDER } from "../src/data.js";
 
-const week = () => { const w=emptyWeek(); w.Mo.meals.Ab=["Pasta Bolognese"]; w.Di.meals.Ab=["Pasta Carbonara","Reste von gestern"]; return w; };
+const T="2026-11-14";
+const picks = () => [{id:"a",key:"Pasta Bolognese",day:T,createdAt:1},{id:"b",key:"Pasta Carbonara",day:"",createdAt:2},{id:"c",key:"Reste von gestern",day:"2026-11-16",createdAt:3},{id:"d",key:"Pasta Carbonara",day:"2026-11-01",createdAt:4}];
 const recipes = {
   "Pasta Bolognese": normalizeRecipe("Pasta Bolognese", { ingredients:["Pasta 200g","Hackfleisch 300g","Zwiebel 1 St.","Olivenöl 2 EL","Salz"], servings:4 }, 0),
   "Pasta Carbonara": normalizeRecipe("Pasta Carbonara", { ingredients:["Pasta 200g","Speck 100g","Eier 2 St."], servings:4 }, 0),
@@ -26,8 +27,8 @@ test("migrateShopping: Array -> Objekt mit festen Ids, src plan, key, checked bl
   assert.deepEqual(migrateShopping(null), {});
 });
 
-test("planItems: Zutaten ueber Rezepte addiert, skaliert auf servings, Gerichte ohne Rezept als (Zutaten pruefen), Grundvorrat markiert", () => {
-  const items = planItems(week(), recipes, 0, { servings:4 });
+test("pickItems: Zutaten ueber Rezepte addiert, skaliert auf servings, Gerichte ohne Rezept als (Zutaten pruefen), Grundvorrat markiert, Vergangenes bleibt weg", () => {
+  const items = pickItems(picks(), recipes, 0, { servings:4, today:T });
   const texts = Object.values(items).map(i=>i.text);
   assert.ok(texts.includes("Pasta 400 g"), "Pasta aus zwei Rezepten addiert: "+texts);
   assert.ok(texts.includes("Hackfleisch 300 g"), texts);
@@ -39,7 +40,7 @@ test("planItems: Zutaten ueber Rezepte addiert, skaliert auf servings, Gerichte 
   assert.equal(Object.values(items).find(i=>i.text==="Pasta 400 g").basic, undefined);
   assert.equal(Object.values(items).find(i=>i.text.includes("Zutaten prüfen")).cat, "Sonstiges");
   // Haushalt mit 2 Personen: Mengen halbiert
-  const half = planItems(week(), recipes, 0, { servings:2 });
+  const half = pickItems(picks(), recipes, 0, { servings:2, today:T });
   const ht = Object.values(half).map(i=>i.text);
   assert.ok(ht.includes("Pasta 200 g"), ht);
   assert.ok(ht.includes("Hackfleisch 150 g"), ht);

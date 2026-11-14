@@ -1,3 +1,5 @@
+> **Version 3 („Heute statt Woche“, November 2026):** Das Wochenraster, „Wer kocht?“, „Woche abschließen“ und die Essensplan-Vorlagen sind entfernt. An ihre Stelle tritt **Vormerken**: `plans/<CODE>/picks/<id> = {key, day: "YYYY-MM-DD" | "", createdAt}` (leer = „demnächst“), Meta-Zeitstempel `picksUpdatedAt`. Die Reiter sind Heute · Vorrat · Rezepte · Einkauf; „Plan“ erscheint nur mit Vormerkungen. Die Vorschlagslogik steht in `src/logic/suggest.js` (`cov*100 + Dringlichkeit (bis 30) + rating*3 − Bremse für frisch Gekochtes (45/30/12) + tägliche Streuung`; kein Häufigkeits-Bonus), das Vormerken in `src/logic/picks.js`. Abschnitte unten, die Wochen, Slots oder Essenspläne beschreiben, gelten für den Zweig `archiv/v2`.
+
 # Architektur und Datenmodell (Zielbild ab Version 2)
 
 Dieses Dokument ist der verbindliche Bauplan für den Umbau nach dem Testbericht (`TESTBERICHT.md`). Es beschreibt Modulaufteilung, Datenmodell, Synchronisation und die Verträge zwischen `App.jsx` und den Ansichten. Wer an einem Teil arbeitet, hält sich an die hier festgelegten Namen und Pfade.
