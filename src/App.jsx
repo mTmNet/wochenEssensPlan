@@ -704,7 +704,7 @@ export default function App() {
     writePlan({["settings/"+name]:value},"people");
   };
 
-  // BEKANNTES GERICHT FINDEN (KI) - auf Basis des wahrscheinlichen Bestands aus dem Haushaltsbuch; args {fast, kids, cuisine}
+  // BEKANNTES GERICHT FINDEN (KI) - auf Basis des wahrscheinlichen Bestands; args {fast, kids, cuisine, ingredients (Auswahl im Graph)}
   const suggestRecipe=async(args)=>{
     const o=args||{};
     if(aiBusy)return;
@@ -734,6 +734,8 @@ export default function App() {
       }else{
         user="Es liegen keine Einkaufsdaten vor. Nenne ein bekanntes Gericht mit üblichen Zutaten; \"genutzt\" und \"fehlt\" bleiben leer.\n";
       }
+      const chosen=Array.isArray(o.ingredients)?o.ingredients.map(x=>String(x||"").trim()).filter(Boolean).slice(0,12):[];
+      if(chosen.length) user+="\nAUSGEWÄHLT (im Graph angetippt): "+chosen.join(", ")+".\nDas Gericht MUSS alle ausgewählten Lebensmittel verwenden; sie gehören in \"genutzt\".\n";
       if(wishes.length) user+="\nWünsche: "+wishes.join(" ")+"\n";
       const names=Object.keys(recipes).slice(0,80).map(k=>recName(recipes[k],k));
       if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";

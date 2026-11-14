@@ -31,6 +31,7 @@ db.hb.books = { FAMILIE1: {
       {name:'Tellerlinsen', amount:1.99, sub:'Trockenwaren'},{name:'Möhren 1kg', amount:0.99, sub:'Gemüse'},
       {name:'Kartoffeln festk.', amount:2.49, sub:'Gemüse'},{name:'Lauch', amount:1.19, sub:'Gemüse'},
       {name:'Butter', amount:2.29, sub:'Milchprodukte'} ]},
+    e5: { date: iso(5), category:'Lebensmittel', shop:'Metzger', items:[ {name:'Bratwurst', amount:2.99, sub:'Fleisch'} ]},
     e4: { date: iso(30), category:'Lebensmittel', shop:'dm', items:[
       {name:'Haferflocken kernig', amount:0.99, sub:'Trockenwaren'},{name:'Honig', amount:3.99, sub:'Süßwaren'},
       {name:'Avocado', amount:1.49, sub:'Obst'} ]},
@@ -204,6 +205,37 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button[aria-label="Bananen entfernen"]'); await page.waitForTimeout(400);
   check(plan().hb.gone && Object.keys(plan().hb.gone).length===1, 'x bei Haushaltsbuch-Position setzt gone-Marker');
   await shot('05-vorrat');
+  // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
+  await page.click('button:text-is("Graph")'); await page.waitForTimeout(1500);   // Simulation kommt zur Ruhe
+  const G = 'svg[data-testid="vorrat-graph"]';
+  const nodeCount = await page.locator(G+' g[role="button"][aria-label$=" auswählen"]').count();
+  const groupLabels = await page.locator(G+' g[role="button"][aria-label^="Gruppe "]').allTextContents();
+  check(nodeCount>=8 && groupLabels.length>=3, 'Graph: Punkte in mehreren Wolken', {nodeCount, groupLabels});
+  check((await page.locator(G+' g[aria-label="Spaghetti Barilla auswählen"] circle[stroke="#F0EEE9"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
+  check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="#E05555"]').count())===1 && (await page.locator(G+' g[aria-label="Rinderhack 500g auswählen"] circle[stroke="#E05555"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Rinderhack ohne');
+  await page.click('button[aria-pressed="false"]:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
+  const edges = await page.locator(G+' line[data-edge="present"]').count();
+  const missing = await page.locator(G+' g[data-edge="missing"]').count();
+  check(edges>=2 && missing>=1 && await page.isVisible('button:has-text("ZUM REZEPT")') && await page.isVisible('text=/\\d+ von \\d+ Zutaten da/'), 'Graph: Rezept zeigt Kanten zu vorhandenen und fehlende Zutaten, Leiste mit Zum Rezept', {edges, missing});
+  await shot('05b-graph-rezept');
+  await page.click('button[aria-label="Rezept ausblenden"]'); await page.waitForTimeout(200);
+  check((await page.locator(G+' line[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
+  await page.click(G+' g[aria-label="Kokosmilch auswählen"]'); await page.waitForTimeout(200);
+  await page.click(G+' g[aria-label="Tellerlinsen auswählen"]'); await page.waitForTimeout(300);
+  check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
+  await page.click(G+' g[aria-label="Gruppe Gemüse zuklappen"]'); await page.waitForTimeout(300);
+  check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln 1kg auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
+  await shot('05c-graph-auswahl');
+  const aiBefore = aiCalls.length;
+  await page.click('button:has-text("DARAUS KOCHEN")');
+  await page.waitForSelector('#ki-vorschlag', {timeout:15000}); await page.waitForTimeout(300);
+  const lastAi = aiCalls[aiCalls.length-1]; const lastMsg = (lastAi&&lastAi.messages&&lastAi.messages[0]&&lastAi.messages[0].content)||'';
+  check(aiCalls.length===aiBefore+1 && lastAi.mode==='suggest' && /AUSGEWÄHLT[^\n]*Kokosmilch/.test(lastMsg) && /Tellerlinsen/.test(lastMsg), 'Daraus kochen: KI-Anfrage nennt die ausgewaehlten Produkte als Pflicht', lastMsg.slice(lastMsg.indexOf('AUSGEW'),lastMsg.indexOf('AUSGEW')+120));
+  check((await page.inputValue('input[aria-label="Rezeptname"]')).startsWith('Hähnchen-Paprika-Pfanne'), 'Daraus kochen: KI-Vorschlag im Reiter Rezepte');
+  await page.click('button:text-is("Vorrat")'); await page.waitForTimeout(600);
+  check(await page.isVisible(G), 'Vorrat: Graph-Ansicht wird gemerkt');
+  await page.click('button:text-is("Liste")'); await page.waitForTimeout(300);
+  check(await page.isVisible('text=Wahrscheinlich da (') && !(await page.isVisible(G)), 'Vorrat: Umschalter zurueck zur Liste');
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(400);
   check(await page.isVisible('text=/Vorrat: \\d+ Lebensmittel/') && (await page.locator('text=/\\d+ % da/').count())>=1, 'Heute: Vorrat-Zeile mit Anzahl, Vorschlaege mit Prozent');
   const pcts = (await page.locator('div[style*="font-size: 14px"][style*="font-weight: 700"]').allTextContents()).filter(t=>/^\d+ %$/.test(t.trim())).map(t=>parseInt(t,10));
