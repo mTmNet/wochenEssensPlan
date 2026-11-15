@@ -4,6 +4,8 @@ import { daysSince } from "../logic/weeks.js";
 import { STOCK_MIN, STOCK_GROUPS, fadeTable, guessGroup } from "../logic/stock.js";
 import { compressImageToBase64, kiErrText } from "../ai.js";
 import VorratGraph from "./VorratGraph.jsx";
+import { foodIcon } from "../logic/foodIcon.js";
+import { groupOf } from "../logic/graph.js";
 
 // VORRAT - eine Liste aus drei Quellen: Haushaltsbuch (automatisch), Speisekammer-Foto (KI) und Hand.
 // Dauervorrat (Pin) verblasst nie; x entfernt eigene Positionen bzw. streicht Haushaltsbuch-Positionen; lernendes Verblassen je Produkt.
@@ -53,7 +55,7 @@ export default function Vorrat({state,api}){
     return(
       <div key={s.key} style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 2px 8px 14px",borderTop:i?"1px solid "+C.border:"none",minHeight:"56px",boxSizing:"border-box"}}>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+          <div style={{fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{ const ic=foodIcon(s.name,groupOf(s)); return ic?<span aria-hidden="true" style={{marginRight:"8px"}}>{ic}</span>:null; })()}{s.name}</div>
           <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn].filter(Boolean).join(" · ")}</div>
         </div>
         {!s.permanent&&<span style={{fontSize:"16px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"46px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>}

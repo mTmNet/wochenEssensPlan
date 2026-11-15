@@ -226,7 +226,20 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
   await page.click(G+' g[aria-label="Gruppe Gemüse zuklappen"] text'); await page.waitForTimeout(300);
   check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln 1kg auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
+  // Emoji auf den Punkten, Verschieben eines Punkts (Lage im Plan), Zuruecksetzen
+  const passataTxt = await page.locator(G+' g[aria-label="Passata auswählen"] text').allTextContents();
+  check(passataTxt.includes('🍅') && passataTxt.includes('Passata'), 'Graph: Passata zeigt Emoji und Namen', passataTxt);
+  const bb = await page.locator(G+' g[aria-label="Passata auswählen"] circle').first().boundingBox();
+  await page.mouse.move(bb.x+bb.width/2, bb.y+bb.height/2); await page.mouse.down();
+  await page.mouse.move(bb.x+bb.width/2+10, bb.y+bb.height/2+8, {steps:3}); await page.mouse.move(bb.x+bb.width/2+34, bb.y+bb.height/2+26, {steps:6}); await page.mouse.up();
+  await page.waitForTimeout(500);
+  const layout = plan().stock?.layout||{};
+  const lk = Object.keys(layout);
+  check(lk.length===1 && lk[0]==='tomaten' && Number.isFinite(layout.tomaten.t) && layout.tomaten.r>150 && layout.tomaten.at>0, 'Graph: Verschieben schreibt stock/layout/tomaten (normierter Schluessel von Passata) = {t, r, at}', layout);
+  check((await page.locator(G+' g[aria-label="Passata auswählen"][data-manual="1"]').count())===1 && !(await page.isVisible('text=3 ausgewählt')), 'Graph: Passata als Hand-Lage markiert, Ziehen ist keine Auswahl');
   await shot('05c-graph-auswahl');
+  await page.click('button[aria-label="Anordnung zurücksetzen"]'); await page.waitForTimeout(400);
+  check(!plan().stock.layout && (await page.locator('button[aria-label="Anordnung zurücksetzen"]').count())===0, 'Graph: Zuruecksetzen loescht stock/layout');
   const aiBefore = aiCalls.length;
   await page.click('button:has-text("DARAUS KOCHEN")');
   await page.waitForSelector('#ki-vorschlag', {timeout:15000}); await page.waitForTimeout(300);

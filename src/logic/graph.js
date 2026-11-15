@@ -39,21 +39,30 @@ export const groupColor = (name) => GROUP_COLORS[name] || GROUP_COLORS.Sonstiges
 export const R_CENTER = 80;            // Rezeptkreis
 export const R_IN = 158;               // innerer Rand der Kuchenstuecke
 const ROW = 66, ARC = 96;              // Abstand der Ringe / nebeneinander (Platz fuer die Beschriftung)
-export const radialLayout = (nodes, collapsed) => {
+// manual = {key: {t, r}}: von Hand verschobene Punkte; t = Anteil im Stueck (0..1), r = Abstand von der Mitte. Sie bleiben, wo sie sind,
+// die uebrigen Punkte fuellen die Ringe automatisch. rAuto = Aussenrand ohne Hand-Lagen (Grenze fuers Ziehen: eine halbe Reihe weiter).
+export const radialLayout = (nodes, collapsed, manual) => {
   const col = collapsed instanceof Set ? collapsed : new Set(collapsed||[]);
+  const man = manual||{};
   const clusters = clusterList(nodes);
   const weights = clusters.map(c=>col.has(c.name)?1.3:c.n+1);
   const total = weights.reduce((a,b)=>a+b,0)||1;
   const sectors=[], placed=[];
-  let a=-Math.PI/2, rOut=R_IN+ROW;
+  let a=-Math.PI/2, rOut=R_IN+ROW, rMan=0;
   clusters.forEach((c,i)=>{
     const span=weights[i]/total*2*Math.PI;
     const sec={name:c.name,n:c.n,a0:a,a1:a+span,mid:a+span/2,color:groupColor(c.name),collapsed:col.has(c.name)};
-    const members=nodes.filter(n=>n.group===c.name).sort((x,y)=>y.p-x.p||x.name.localeCompare(y.name));
+    const all=nodes.filter(n=>n.group===c.name).sort((x,y)=>y.p-x.p||x.name.localeCompare(y.name));
     if(sec.collapsed){
       const r=R_IN+ROW*0.75; sec.x=Math.cos(sec.mid)*r; sec.y=Math.sin(sec.mid)*r; sec.r=24+4*Math.sqrt(c.n);
       rOut=Math.max(rOut,r+sec.r+24);
     }else{
+      const members=all.filter(n=>!isManual(man[n.key]));
+      all.filter(n=>isManual(man[n.key])).forEach(n=>{
+        const m=man[n.key], t=Math.max(0,Math.min(1,m.t)), r=Math.max(R_IN+ROW*0.3,m.r), ang=sec.a0+span*t;
+        placed.push({...n,x:Math.cos(ang)*r,y:Math.sin(ang)*r,ang,ring:-1,manual:true});
+        rMan=Math.max(rMan,r+ROW*0.62);
+      });
       let k=0, idx=0;
       while(idx<members.length){
         const r=R_IN+ROW*0.62+k*ROW;
@@ -64,7 +73,18 @@ export const radialLayout = (nodes, collapsed) => {
     }
     sectors.push(sec); a+=span;
   });
-  return {sectors,placed,rOut:Math.round(rOut)};
+  const rAuto=Math.round(rOut);
+  return {sectors,placed,rOut:Math.round(Math.max(rOut,rMan)),rAuto,rMax:rAuto+ROW*0.5};
+};
+const isManual = (m) => !!m && Number.isFinite(m.t) && Number.isFinite(m.r);
+// Zielpunkt (x,y) beim Ziehen -> Hand-Lage {t,r} im eigenen Stueck, am Rand abgefangen (Rand bleibt Rand, nie ein anderes Stueck)
+export const dragToManual = (sec, x, y, rMax) => {
+  const span=sec.a1-sec.a0;
+  let rel=((Math.atan2(y,x)-sec.a0)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+  if(rel>span) rel = (rel-span < 2*Math.PI-rel) ? span : 0;        // ausserhalb: naechste Kante
+  const t=Math.max(0.06,Math.min(0.94,span>0?rel/span:0.5));
+  const r=Math.max(R_IN+ROW*0.3,Math.min(rMax||Infinity,Math.hypot(x,y)));
+  return {t:Math.round(t*1000)/1000,r:Math.round(r)};
 };
 // SVG-Pfad eines Kuchenstuecks (Ringsegment) von r0 bis r1 zwischen den Winkeln a0 und a1; ein einziges Stueck = voller Ring
 export const sectorPath = (a0, a1, r0, r1) => {

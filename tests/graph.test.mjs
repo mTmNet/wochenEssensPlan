@@ -1,7 +1,7 @@
 // Graph des Vorrats: Gruppen, Wolken auf dem Ring, Simulation ohne Zufall, Rezept-Kanten, Rangliste zur Auswahl
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupOf, graphNodes, clusterList, radialLayout, sectorPath, recipeLinks, rankForSelection, nodeRadius, groupColor, R_IN, R_CENTER } from "../src/logic/graph.js";
+import { groupOf, graphNodes, clusterList, radialLayout, sectorPath, dragToManual, recipeLinks, rankForSelection, nodeRadius, groupColor, R_IN, R_CENTER } from "../src/logic/graph.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const item = (name,p,extra={}) => ({key:name.toLowerCase(),toks:[name.toLowerCase()],name,p,left:10,sub:"",...extra});
@@ -95,4 +95,28 @@ test("rankForSelection: ohne Auswahl nach Abdeckung, mit Auswahl nach Treffern; 
   assert.equal(sel[0].hits, 1); assert.equal(sel[0].of, 1);
   const two = rankForSelection(pool, stock, ["hackfleisch","reis"]);
   assert.equal(two[0].key, "Chili"); assert.equal(two[0].hits, 2);
+});
+
+test("radialLayout mit Hand-Lagen: verschobener Punkt bleibt, die anderen fuellen die Ringe; dragToManual bleibt im Stueck", () => {
+  const nodes = graphNodes(["Apfel","Birne","Banane"].map(n=>item(n,0.8,{sub:"Obst"})).concat([item("Reis",0.6,{sub:"Trockenwaren"})]));
+  const base = radialLayout(nodes);
+  const obst = base.sectors[0];
+  const man = {apfel:{t:0.9,r:R_IN+200}};
+  const l = radialLayout(nodes, new Set(), man);
+  const apfel = l.placed.find(n=>n.key==="apfel");
+  assert.ok(apfel.manual && apfel.ring===-1);
+  assert.ok(Math.abs(Math.hypot(apfel.x,apfel.y)-(R_IN+200))<1e-6);
+  assert.ok(Math.abs(apfel.ang-(obst.a0+0.9*(obst.a1-obst.a0)))<1e-9, "Winkel = a0 + t*span");
+  assert.equal(l.placed.filter(n=>n.group==="Obst"&&!n.manual).length, 2);
+  assert.ok(l.rOut>=R_IN+200 && l.rAuto===base.rAuto && l.rMax>l.rAuto, "Aussenrand waechst mit, rAuto und rMax bleiben die Grenze");
+  // Ziehen: Punkt innerhalb des Stuecks -> t im Bereich, r begrenzt
+  const inside = dragToManual(obst, Math.cos(obst.mid)*250, Math.sin(obst.mid)*250, l.rMax);
+  assert.ok(Math.abs(inside.t-0.5)<0.01 && inside.r===250);
+  // Ziehen weit nach aussen und ueber die Kante hinaus: Rand
+  const far = dragToManual(obst, Math.cos(obst.a1+0.3)*2000, Math.sin(obst.a1+0.3)*2000, l.rMax);
+  assert.equal(far.t, 0.94); assert.equal(far.r, Math.round(l.rMax));
+  const before = dragToManual(obst, Math.cos(obst.a0-0.2)*300, Math.sin(obst.a0-0.2)*300, l.rMax);
+  assert.equal(before.t, 0.06);
+  // zu nah an der Mitte: mindestens innerer Rand
+  assert.ok(dragToManual(obst, 1, 1, l.rMax).r > R_IN);
 });

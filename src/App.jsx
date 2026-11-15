@@ -683,6 +683,20 @@ export default function App() {
     if(patch["hb/gone/"+goneKey(item.key)]) setHbLink(prev=>prev?{...prev,gone:{...(prev.gone||{}),[goneKey(item.key)]:todayISO()}}:prev);
     writePlan(patch,parts);
   };
+  // GRAPH: von Hand verschobene Punkte unter stock/layout/<goneKey> = {t, r, at}; Eintraege zu Produkten, die seit 90 Tagen nicht mehr
+  // im Vorrat sind, werden beim naechsten Schreiben aufgeraeumt. Zuruecksetzen loescht alle Hand-Lagen.
+  const setStockLayout=(key,pos)=>{
+    const gk=goneKey(key); if(!gk||!pos) return;
+    const now=Date.now(), cur=(stockRaw&&stockRaw.layout)||{}, patch={["stock/layout/"+gk]:{t:pos.t,r:pos.r,at:now}};
+    const present=new Set(stock.map(s=>goneKey(s.key)));
+    Object.keys(cur).forEach(k=>{ const e=cur[k]; if(k!==gk&&!present.has(k)&&(!e||!(e.at>now-90*86400000))) patch["stock/layout/"+k]=null; });
+    setStockRaw(prev=>{ const layout={...(prev.layout||{})}; Object.keys(patch).forEach(pk=>{ const k=pk.slice("stock/layout/".length); if(patch[pk]===null) delete layout[k]; else layout[k]=patch[pk]; }); return {...prev,layout}; });
+    return writePlan(patch,"stock");
+  };
+  const resetStockLayout=()=>{
+    setStockRaw(prev=>{ const n={...prev}; delete n.layout; return n; });
+    return writePlan({"stock/layout":null},"stock");
+  };
   // SPEISEKAMMER-FOTO: erkennbare Lebensmittel per KI auflisten; liefert [{name, sub}] (Gruppe geprueft) oder wirft
   const scanPantry=async(image)=>{
     if(!image||!image.base64) throw new Error("Kein Bild");
@@ -946,7 +960,7 @@ export default function App() {
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,setPermanent,removeStock,scanPantry,setSetting,zoom,leavePlan,deletePlan,
+    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,setPermanent,removeStock,scanPantry,setStockLayout,resetStockLayout,setSetting,zoom,leavePlan,deletePlan,
     // Rahmen
     setView,copyCode,showToast,registerBackHandler,
     setEditShopId,setEditShopText,saveShopEdit,
