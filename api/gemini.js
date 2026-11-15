@@ -70,7 +70,11 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.[0]?.text || "";
+    // Text kann auf mehrere parts verteilt sein (z. B. nach einem thought-Teil): alle Textteile zusammennehmen
+    const text = (candidate?.content?.parts || []).filter((p) => p && typeof p.text === "string" && !p.thought).map((p) => p.text).join("") || "";
+    if (text && candidate?.finishReason === "MAX_TOKENS") {
+      return res.status(422).json({ error: "Die Antwort der KI wurde abgeschnitten (MAX_TOKENS). Bitte erneut versuchen, mit weniger Zutaten in der Auswahl." });
+    }
 
     if (!text) {
       const reason = candidate?.finishReason || "UNKNOWN";

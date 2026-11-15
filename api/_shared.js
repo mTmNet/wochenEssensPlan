@@ -1,9 +1,11 @@
 // Hilfsfunktionen für die KI-Function. Dateien mit führendem Unterstrich sind bei Vercel keine Functions.
 
 // Erzeugungsparameter je Modus: Extraktion kaum kreativ, Vorschlag etwas freier. Unbekannt oder fehlend -> wie "extract".
+// Gemini 2.5 Flash zaehlt seine "Denk-Tokens" mit ins Ausgabebudget; fuer JSON-Antworten (Rezept, Zuordnung) ist Denken unnoetig
+// und hat Antworten abgeschnitten ("Kein JSON in Antwort"). Darum: Denken aus, Budget grosszuegig.
 export function pickGeneration(mode) {
-  if (mode === "suggest") return { temperature: 0.3, maxOutputTokens: 4000 };
-  return { temperature: 0.1, maxOutputTokens: 6000 };
+  if (mode === "suggest") return { temperature: 0.3, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } };
+  return { temperature: 0.1, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } };
 }
 
 // Erster Header-Wert, auch wenn Node ein Array liefert

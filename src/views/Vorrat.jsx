@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { C, SF, SER, micro as label, btn, input, iconBtn, chip } from "../theme.js";
 import { daysSince } from "../logic/weeks.js";
 import { STOCK_MIN, STOCK_GROUPS, fadeTable, guessGroup } from "../logic/stock.js";
+import { isBasicText } from "../logic/ingredients.js";
 import { compressImageToBase64, kiErrText } from "../ai.js";
 import VorratGraph from "./VorratGraph.jsx";
 import { foodIcon } from "../logic/foodIcon.js";
@@ -19,7 +20,7 @@ const loadMode=()=>{ try{ return localStorage.getItem(MODE_KEY)==="graph"?"graph
 const saveMode=(m)=>{ try{ localStorage.setItem(MODE_KEY,m); }catch(e){} };
 
 export default function Vorrat({state,api}){
-  const {stock,hbLink,hbLoading,hbErr,hbBook,learned,vocab,unmapped,aliasBusy,aliasErr}=state;
+  const {stock,stockRaw,hbLink,hbLoading,hbErr,hbBook,learned,vocab,unmapped,aliasBusy,aliasErr}=state;
   const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast,setAlias,clearAlias,mapNamesAI}=api;
   const [rename,setRename]=useState(null);      // {item, value} - Dialog "Name zuordnen"
   const [hbInput,setHbInput]=useState("");
@@ -33,6 +34,8 @@ export default function Vorrat({state,api}){
   const visible=stock.filter(s=>!s.permanent&&s.p>=STOCK_MIN);
   const goneCount=hbLink&&hbLink.gone?Object.keys(hbLink.gone).length:0;
   const learnedCount=Object.keys(learned||{}).length;
+  // Zuordnungen "kein Lebensmittel" (Name leer) - zum Wiedereinblenden; aeltere Eintraege ohne Rohname zeigen den Schluessel
+  const hidden=Object.keys((stockRaw&&stockRaw.alias)||{}).map(k=>{ const e=stockRaw.alias[k]; return e&&typeof e==="object"&&e.name===""?{key:k,label:(e.raw||k.replace(/_/g," "))}:null; }).filter(Boolean);
   const fades=fadeTable();
   const doConnect=async()=>{ if(await connectHb(hbInput)) setHbInput(""); };
   const doAdd=()=>{ const n=name.trim(); if(!n) return; addStockItem(n,group||guessGroup(n)); setName(""); setGroup(""); showToast("„"+n+"“ im Vorrat."); };
@@ -46,7 +49,7 @@ export default function Vorrat({state,api}){
       setScan({busy:false,err:items.length?"":"Auf dem Foto wurden keine Lebensmittel erkannt.",items:items.map(it=>({...it,on:true}))});
     }catch(err){ const m=(err&&err.message)||"Unbekannter Fehler"; setScan({busy:false,err:kiErrText(m)||("Fehler: "+m),items:[]}); }
   };
-  const takeScan=()=>{ const list=scan.items.filter(it=>it.on); if(!list.length){ setScan(null); return; } addStockItems(list.map(it=>({name:it.name,sub:it.sub,src:"foto"}))); showToast(list.length+" Lebensmittel aus dem Foto übernommen."); setScan(null); };
+  const takeScan=()=>{ const list=scan.items.filter(it=>it.on&&it.name.trim()); if(!list.length){ setScan(null); return; } addStockItems(list.map(it=>({name:it.name.trim(),sub:it.sub,src:"foto"}))); const basics=list.filter(it=>isBasicText(it.name)).length; showToast(list.length+" Lebensmittel aus dem Foto übernommen."+(basics?" "+basics+" davon Grundvorrat (immer da).":"")); setScan(null); };
   const tile={...btn("ghost"),minHeight:"44px",padding:"10px 6px",fontSize:"12px",letterSpacing:"1px",whiteSpace:"nowrap"};
   const row=(s,i)=>{
     const d=s.last?daysSince(s.last):null;
@@ -71,11 +74,14 @@ export default function Vorrat({state,api}){
   };
   const scanBox=scan&&!scan.busy?(
         <div style={{border:"1px solid "+C.accent,marginTop:"4px"}}>
-          <div style={{padding:"8px 12px",fontSize:"12px",color:C.muted,borderBottom:"1px solid "+C.border,lineHeight:"1.5"}}>{scan.err||"Erkannt auf dem Foto – Haken weg, was nicht stimmt; Gruppe anpassen, wenn nötig."}</div>
+          <div style={{padding:"8px 12px",fontSize:"12px",color:C.muted,borderBottom:"1px solid "+C.border,lineHeight:"1.5"}}>{scan.err||"Erkannt auf dem Foto – Namen und Gruppe anpassen, Haken weg, was nicht stimmt."}</div>
           {scan.items.map((it,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"6px 12px",borderBottom:"1px solid "+C.border,minHeight:"44px"}}>
               <input type="checkbox" checked={it.on} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,on:e.target.checked}:x)}))} aria-label={it.name+" übernehmen"} style={{width:"20px",height:"20px",accentColor:C.accent}} />
-              <span style={{flex:1,fontSize:"15px",color:it.on?C.text:C.subtle}}>{it.name}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <input value={it.name} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,name:e.target.value}:x)}))} aria-label={"Name für "+it.name} style={{width:"100%",boxSizing:"border-box",background:"transparent",border:"none",borderBottom:"1px dashed "+C.border,padding:"6px 0",fontSize:"15px",color:it.on?C.text:C.subtle,fontFamily:SF,outline:"none"}} />
+                {isBasicText(it.name)&&<div style={{fontSize:"11px",color:C.subtle,marginTop:"2px"}}>Grundvorrat, zählt immer als da, steht nicht in der Liste</div>}
+              </div>
               <select value={it.sub} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,sub:e.target.value}:x)}))} aria-label={"Gruppe für "+it.name} style={{...sel,padding:"6px 8px",minHeight:"34px",fontSize:"12px"}}>
                 {STOCK_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
               </select>
@@ -174,6 +180,7 @@ export default function Vorrat({state,api}){
         <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
         <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. ★ Dauervorrat verblasst nie. Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position gestrichen.":goneCount+" Positionen gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
+        {hidden.length>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>Als „kein Lebensmittel“ ausgeblendet:</span>{hidden.map(h=>(<button key={h.key} onClick={()=>{ clearAlias([],[h.key]); showToast("„"+h.label+"“ wieder eingeblendet."); }} aria-label={h.label+" wieder einblenden"} style={{background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"12px",cursor:"pointer",padding:"5px 8px",fontFamily:SF}}>{h.label} ×</button>))}</div>}
         <div style={{marginTop:"6px"}}>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Name antippen, um eine Zuordnung zu ändern.</div>
       </div>
     </div>}

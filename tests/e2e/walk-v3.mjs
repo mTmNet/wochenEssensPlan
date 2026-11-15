@@ -196,6 +196,12 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('div[role="dialog"] button:text-is("SPEICHERN")'); await page.waitForTimeout(500);
   const alias2 = plan().stock?.alias||{};
   check(alias2.lachsfilet?.name==='Lachs' && alias2.lachsfilet.src==='hand' && (await page.locator('button[aria-label="Lachs: Name zuordnen"]').count())===1 && await page.isVisible('text=aus: Lachsfilet TK'), 'Vorrat: Hand-Zuordnung Lachsfilet -> Lachs unter stock/alias (src hand), Zeile heisst Lachs', alias2);
+  // Kein Lebensmittel: Zeile verschwindet, unten "wieder einblenden" bringt sie zurueck
+  await page.click('button[aria-label="Honig: Name zuordnen"]'); await page.waitForTimeout(200);
+  await page.click('div[role="dialog"] button:text-is("KEIN LEBENSMITTEL")'); await page.waitForTimeout(500);
+  check((await page.locator('button[aria-label="Honig: Name zuordnen"]').count())===0 && plan().stock.alias.honig?.name==='' && plan().stock.alias.honig.raw==='Honig' && await page.isVisible('button[aria-label="Honig wieder einblenden"]'), 'Vorrat: "Kein Lebensmittel" blendet Honig aus, unten steht es zum Wiedereinblenden');
+  await page.click('button[aria-label="Honig wieder einblenden"]'); await page.waitForTimeout(500);
+  check((await page.locator('button[aria-label="Honig: Name zuordnen"]').count())===1 && !plan().stock.alias.honig, 'Vorrat: Wieder einblenden loescht die Zuordnung, Honig ist zurueck');
   const rowNames = await page.locator('button[aria-label$=": Name zuordnen"]').allTextContents();
   check(rowNames.some(t=>/Hackfleisch/.test(t)) && rowNames.some(t=>/Paprika$/.test(t.trim())) && rowNames.some(t=>/Joghurt/.test(t)) && !rowNames.some(t=>/500g|3er|Natur|3,5/.test(t)), 'Vorrat: Zeilen zeigen Zutatennamen statt Kassenbon-Bezeichnungen', rowNames);
   check(await page.isVisible('text=aus: Rinderhack 500g'), 'Vorrat: Herkunft "aus: Rinderhack 500g" in der Zeile');
@@ -214,12 +220,13 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVQIW2P8z8DwnwEIGAEQ4AHu0b8t1AAAAABJRU5ErkJggg==','base64');
   await page.setInputFiles('input[type="file"]', {name:'speisekammer.png', mimeType:'image/png', buffer:png});
   await page.waitForSelector('button:has-text("ÜBERNEHMEN")', {timeout:15000});
-  check((await page.locator('input[type="checkbox"]').count())===4 && await page.isVisible('text=Rote Linsen'), 'Foto: 4 erkannte Lebensmittel zur Pruefung');
+  check((await page.locator('input[type="checkbox"]').count())===4 && (await page.inputValue('input[aria-label="Name für Rote Linsen"]'))==='Rote Linsen', 'Foto: 4 erkannte Lebensmittel zur Pruefung, Namen editierbar');
   await page.locator('input[aria-label="Spülmittel übernehmen"]').uncheck();
+  await page.fill('input[aria-label="Name für Kichererbsen"]', 'Kichererbsen Dose');
   await page.click('button:has-text("3 ÜBERNEHMEN")'); await page.waitForTimeout(600);
   const own2 = Object.values(plan().stock?.items||{});
   check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
-  check(await page.isVisible('text=Kichererbsen') && await page.isVisible('text=aus: Rote Linsen'), 'Vorrat: Foto-Positionen in der Liste (Rote Linsen als Linsen mit Herkunft)');
+  check(await page.isVisible('text=Kichererbsen') && await page.isVisible('text=aus: Rote Linsen') && own2.some(i=>i.name==='Kichererbsen Dose'), 'Vorrat: Foto-Positionen in der Liste (Name im Dialog geaendert, Rote Linsen als Linsen mit Herkunft)');
   await page.click('button[aria-label="Kichererbsen entfernen"]'); await page.waitForTimeout(400);
   check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position (Kichererbsen aus dem Foto) loescht nur den Eintrag, kein gone-Marker');
   await page.click('button[aria-label="Bananen entfernen"]'); await page.waitForTimeout(400);

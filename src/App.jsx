@@ -926,7 +926,7 @@ export default function App() {
   // Zuordnung speichern: stock/alias/<aliasKey(roh)> = {name, src, at}; name "" = kein Lebensmittel
   const writeAliases=(map,src)=>{
     const now=Date.now(), patch={}, add={};
-    Object.keys(map).forEach(raw=>{ const k=aliasKey(raw); if(!k) return; const e={name:map[raw],src,at:now}; add[k]=e; patch["stock/alias/"+k]=e; });
+    Object.keys(map).forEach(raw=>{ const k=aliasKey(raw); if(!k) return; const e={name:map[raw],src,at:now,raw:String(raw).slice(0,80)}; add[k]=e; patch["stock/alias/"+k]=e; });
     if(!Object.keys(add).length) return;
     setStockRaw(prev=>({...prev,alias:{...(prev.alias||{}),...add}}));
     writePlan(patch,"stock");
@@ -958,8 +958,8 @@ export default function App() {
   },[unmapped,screen]);
   // Hand-Korrektur aus der Vorratsliste: alle Rohnamen einer Zeile auf einen Namen ("" = kein Lebensmittel) oder zuruecksetzen
   const setAlias=(raws,name)=>{ const map={}; (raws||[]).forEach(r=>{ map[r]=name; }); writeAliases(map,"hand"); };
-  const clearAlias=(raws)=>{
-    const patch={}; const ks=(raws||[]).map(aliasKey).filter(Boolean); if(!ks.length) return;
+  const clearAlias=(raws,keys)=>{
+    const patch={}; const ks=[...(raws||[]).map(aliasKey),...(keys||[])].filter(Boolean); if(!ks.length) return;
     ks.forEach(k=>{ patch["stock/alias/"+k]=null; });
     setStockRaw(prev=>{ const a={...(prev.alias||{})}; ks.forEach(k=>{ delete a[k]; }); return {...prev,alias:a}; });
     writePlan(patch,"stock");
