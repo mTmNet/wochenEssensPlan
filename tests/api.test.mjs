@@ -5,7 +5,7 @@ import { pickGeneration, originAllowed, makeRateLimiter, toGeminiContents, readE
 
 test("pickGeneration: extract, suggest, unbekannt, fehlend", () => {
   assert.deepEqual(pickGeneration("extract"), { temperature: 0.1, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } });
-  assert.deepEqual(pickGeneration("suggest"), { temperature: 0.3, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } });
+  assert.deepEqual(pickGeneration("suggest"), { temperature: 0.3, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 1024 } });
   assert.deepEqual(pickGeneration("irgendwas"), pickGeneration("extract"));
   assert.deepEqual(pickGeneration(undefined), pickGeneration("extract"));
 });
