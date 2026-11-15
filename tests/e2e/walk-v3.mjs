@@ -296,7 +296,37 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("VORMERKEN")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).some(p=>p.key==='Pasta Carbonara'), 'Rezeptdetail: Vormerken schreibt picks');
-  await page.click('text=ZURÜCK'); await page.waitForTimeout(200);
+  // KOCHBUCH ALS DATEI (Stufe 4): sichern (Download), laden mit Vorschau, ersetzen / ueberspringen, Fotos
+  await page.goBack().catch(()=>{}); await page.waitForTimeout(200);
+  if(!(await page.isVisible('button:has-text("SICHERN (.JSON)")'))){ await page.click(IN_APP); await page.waitForTimeout(300); }
+  const [dl] = await Promise.all([ page.waitForEvent('download', {timeout:15000}), page.click('button:has-text("SICHERN (.JSON)")') ]);
+  const dlPath = await dl.path();
+  const exported = JSON.parse(fs.readFileSync(dlPath,'utf8'));
+  const recCount = Object.keys(plan().recipes).length;
+  check(/^wochenplan-kochbuch-\d{4}-\d{2}-\d{2}\.json$/.test(dl.suggestedFilename()) && exported.format==='wochenplan-kochbuch' && exported.count===recCount && Object.keys(exported.recipes).length===recCount && Array.isArray(exported.recipes['Pasta Bolognese'].cooked) && exported.recipes['Pasta Bolognese'].cooked.includes(T), 'Kochbuch sichern: JSON-Datei mit allen Rezepten inkl. Kochdaten', {name:dl.suggestedFilename(), count:exported.count, recCount});
+  const PNG_URL = 'data:image/png;base64,'+png.toString('base64');
+  const importFile = JSON.stringify({format:'wochenplan-kochbuch', version:1, exportedAt:'2026-11-01T10:00:00.000Z', recipes:{
+    'Pasta Bolognese': {name:'Pasta Bolognese', ingredients:['500 g Hackfleisch','Tomaten'], steps:['Importierte Fassung.'], rating:2, notes:'Import-Test'},
+    'Importiertes Testgericht': {name:'Importiertes Testgericht', ingredients:['1 Test'], steps:['Testen.'], category:'Hauptgericht'},
+  }, images:{'Importiertes Testgericht': PNG_URL}});
+  await page.setInputFiles('input[accept="application/json,.json"]', {name:'kochbuch.json', mimeType:'application/json', buffer:Buffer.from(importFile,'utf8')});
+  await page.waitForSelector('div[role="dialog"]', {timeout:5000});
+  const dlg = await page.locator('div[role="dialog"]').textContent();
+  check(/2 Rezepte/.test(dlg) && /1 neu/.test(dlg) && /1 schon im Kochbuch/.test(dlg) && /1 Foto/.test(dlg) && /\b1\.11\.2026/.test(dlg), 'Kochbuch laden: Vorschau mit Anzahl, neu, vorhanden, Foto, Datum', dlg.slice(0,200));
+  await page.check('div[role="dialog"] input[value="replace"]');
+  await page.click('div[role="dialog"] button:text-is("IMPORTIEREN")'); await page.waitForTimeout(800);
+  const impRec = plan().recipes['Importiertes Testgericht'], bolo = plan().recipes['Pasta Bolognese'];
+  check(!!impRec && impRec.steps[0]==='Testen.' && bolo.rating===2 && bolo.notes==='Import-Test' && bolo.steps[0]==='Importierte Fassung.' && Object.keys(plan().recipes).length===recCount+1, 'Kochbuch laden (ersetzen): neues Rezept da, Pasta Bolognese ersetzt', {impRec:!!impRec, rating:bolo.rating});
+  check(String(db.wochen.recipeImages?.[code]?.['Importiertes Testgericht']||'').startsWith('data:image/png;base64,'), 'Kochbuch laden: Foto unter recipeImages/<CODE>/<key>');
+  check(await page.isVisible('text=Importiertes Testgericht') && !(await page.isVisible('div[role="dialog"]')), 'Kochbuch laden: Dialog zu, Rezept in der Liste');
+  await page.setInputFiles('input[accept="application/json,.json"]', {name:'kochbuch.json', mimeType:'application/json', buffer:Buffer.from(importFile,'utf8')});
+  await page.waitForSelector('div[role="dialog"]', {timeout:5000});
+  await page.click('div[role="dialog"] button:text-is("IMPORTIEREN")'); await page.waitForTimeout(500);
+  check(Object.keys(plan().recipes).length===recCount+1 && plan().recipes['Pasta Bolognese'].rating===2 && !(await page.isVisible('div[role="dialog"]')), 'Kochbuch laden (behalten): nichts ueberschrieben');
+  await page.setInputFiles('input[accept="application/json,.json"]', {name:'kaputt.json', mimeType:'application/json', buffer:Buffer.from('{"hallo":1}','utf8')});
+  await page.waitForSelector('div[role="dialog"]', {timeout:5000});
+  check(/keine Rezepte/.test(await page.locator('div[role="dialog"]').textContent()), 'Kochbuch laden: unbrauchbare Datei zeigt Fehler');
+  await page.click('div[role="dialog"] button:text-is("SCHLIESSEN")'); await page.waitForTimeout(200);
   // Menue: Datenschutz, Vorgemerkt
   await page.click('button[aria-label="Menü"]'); await page.waitForTimeout(200);
   const menu = (await page.locator('div[role="menu"]').textContent());

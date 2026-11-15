@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { C, SF, SER, chip, btn, iconBtn, microMuted as lbl, input as inp } from "../theme.js";
+import { C, SF, SER, chip, btn, iconBtn, micro as label, microMuted as lbl, input as inp } from "../theme.js";
+import Modal from "../components/Modal.jsx";
 import { CATS, CUISINE_LIST, TAGS } from "../data.js";
 import { recName, recCat, recKey, sortRecipeKeys, cookedLabel, cookedCount, recTags, isKids, isQuick } from "../logic/recipes.js";
 import { compressImageToBase64 } from "../ai.js";
@@ -11,7 +12,10 @@ const SORTS=[{id:"cooked",label:"Zuletzt gekocht"},{id:"best",label:"Beste"},{id
 export default function Recipes({state,api}){
   const {recipes,classics,importState}=state;
   const {importErr,extracting,extracted,savedMsg}=importState;
-  const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF}=api;
+  const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF,exportCookbookFile,loadCookbookFile,confirmCookbookImport,cancelCookbookImport}=api;
+  const cookbookImport=state.cookbookImport;
+  const cbFileRef=useRef(null);
+  const [cbMode,setCbMode]=useState("skip");
   // lokaler UI-Zustand: Importeingaben, Suche, Filter, Sortierung
   const [importMode,setImportMode]=useState("text");       // "text" | "photo"
   const [photoMode,setPhotoMode]=useState("page");         // "page" (Rezeptseite / Screenshot) | "dish" (Fertiges Gericht)
@@ -274,6 +278,46 @@ export default function Recipes({state,api}){
                 <button onClick={downloadPDF} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"2px"}}>KOCHBUCH ALS PDF DRUCKEN / SPEICHERN</button>
                 <div style={{fontSize:"11px",color:C.muted,textAlign:"center",marginTop:"8px",lineHeight:"1.5"}}>Ein neues Fenster öffnet sich. Dort „Als PDF speichern“ im Druckdialog wählen.</div>
               </div>
+            )}
+
+            {/* Kochbuch als Datei: sichern und laden (Plan wechseln) */}
+            <div style={{marginTop:"14px",background:C.white,border:"1px solid "+C.border,padding:"12px 14px"}}>
+              <div style={label}>Kochbuch als Datei</div>
+              <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Alle Rezepte mit Bewertung, Notizen, Kochdaten und Fotos in einer Datei. Damit nimmst du dein Kochbuch in einen anderen Plan mit oder hast eine Sicherung.</div>
+              <input ref={cbFileRef} type="file" accept="application/json,.json" style={{display:"none"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(e.target) e.target.value=""; if(f){ setCbMode("skip"); loadCookbookFile(f); } }} />
+              <div style={{display:"flex",gap:"6px"}}>
+                <button onClick={exportCookbookFile} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5}}>SICHERN (.JSON)</button>
+                <button onClick={()=>cbFileRef.current&&cbFileRef.current.click()} style={{...btn("ghost"),flex:1,color:C.accent}}>AUS DATEI LADEN</button>
+              </div>
+            </div>
+
+            {cookbookImport&&(
+              <Modal title="Kochbuch laden" micro="Aus Datei" onClose={cancelCookbookImport}>
+                {cookbookImport.err?(
+                  <div style={{fontSize:"14px",color:C.err,lineHeight:"1.5",marginBottom:"12px"}}>{cookbookImport.err}</div>
+                ):(
+                  <>
+                    <div style={{fontSize:"14px",color:C.text,lineHeight:"1.6",marginBottom:"12px"}}>
+                      {cookbookImport.exportedAt?"Gesichert am "+new Date(cookbookImport.exportedAt).toLocaleDateString("de-DE")+": ":"Datei: "}<b>{cookbookImport.count} {cookbookImport.count===1?"Rezept":"Rezepte"}</b>{Object.keys(cookbookImport.images||{}).length?", "+Object.keys(cookbookImport.images).length+" Foto(s)":""}.<br />
+                      <span style={{color:C.ok}}>{cookbookImport.added} neu</span>{cookbookImport.existing?<span style={{color:C.muted}}> · {cookbookImport.existing} schon im Kochbuch</span>:null}
+                    </div>
+                    {cookbookImport.existing>0&&(
+                      <div role="radiogroup" aria-label="Vorhandene Rezepte" style={{display:"grid",gap:"6px",marginBottom:"12px"}}>
+                        {[["skip","Vorhandene behalten, nur neue laden"],["replace","Vorhandene durch die Datei ersetzen (Bewertung, Notizen, Kochdaten aus der Datei)"]].map(([m,t])=>(
+                          <label key={m} style={{display:"flex",gap:"10px",alignItems:"flex-start",fontSize:"13px",color:cbMode===m?C.text:C.muted,cursor:"pointer",padding:"8px 10px",border:"1px solid "+(cbMode===m?C.accent:C.border)}}>
+                            <input type="radio" name="cbmode" value={m} checked={cbMode===m} onChange={()=>setCbMode(m)} style={{accentColor:C.accent,marginTop:"2px"}} />
+                            <span>{t}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div style={{display:"flex",gap:"6px"}}>
+                  {!cookbookImport.err&&<button onClick={()=>confirmCookbookImport(cbMode)} disabled={cookbookImport.busy} style={{...btn("primary"),flex:2,opacity:cookbookImport.busy?0.6:1}}>{cookbookImport.busy?"WIRD GELADEN…":"IMPORTIEREN"}</button>}
+                  <button onClick={cancelCookbookImport} style={{...btn("ghost"),flex:1}}>{cookbookImport.err?"SCHLIESSEN":"ABBRECHEN"}</button>
+                </div>
+              </Modal>
             )}
           </div>
   );

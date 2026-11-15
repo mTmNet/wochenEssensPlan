@@ -11,6 +11,7 @@ import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed } from "./logic/shopping.js";
 import { shopCat, ingKey } from "./logic/ingredients.js";
+import { exportCookbook, cookbookFileName, parseCookbook, planImport } from "./logic/cookbook.js";
 import { CLASSICS } from "./classics.js";
 import Join from "./views/Join.jsx";
 import Shell from "./views/Shell.jsx";
@@ -854,6 +855,42 @@ export default function App() {
     w.document.close();
     setTimeout(()=>{w.print();},1000);
   };
+  // KOCHBUCH ALS DATEI (Stufe 4): sichern als JSON (Rezepte mit Bewertung, Notizen, Kochdaten, Fotos) und aus einer Datei laden
+  const [cookbookImport,setCookbookImport]=useState(null);   // {recipes, images, exportedAt, count, added, existing, err, busy}
+  const exportCookbookFile=()=>{
+    const data=exportCookbook(recipes,images);
+    const blob=new Blob([JSON.stringify(data,null,1)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=cookbookFileName(); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    showToast(data.count+" Rezepte als Datei gesichert.");
+  };
+  const loadCookbookFile=async(file)=>{
+    if(!file) return;
+    try{
+      const text=await file.text();
+      const parsed=parseCookbook(text);
+      const keys=Object.keys(parsed.recipes), existing=keys.filter(k=>!!recipesRef.current[k]);
+      setCookbookImport({...parsed,added:keys.length-existing.length,existing:existing.length,err:"",busy:false});
+    }catch(e){ setCookbookImport({recipes:{},images:{},count:0,added:0,existing:0,err:(e&&e.message)||"Datei konnte nicht gelesen werden.",busy:false}); }
+  };
+  const confirmCookbookImport=async(mode)=>{
+    const imp=cookbookImport; if(!imp||imp.err||imp.busy) return;
+    const plan=planImport(recipesRef.current,imp,mode);
+    const keys=Object.keys(plan.recipes);
+    if(!keys.length){ setCookbookImport(null); showToast("Nichts zu laden: alle Rezepte sind schon da."); return; }
+    setCookbookImport(prev=>({...prev,busy:true}));
+    const patch={}; keys.forEach(k=>{ patch["recipes/"+k]=plan.recipes[k]; });
+    setRecipes(prev=>({...prev,...plan.recipes}));
+    await writePlan(patch,"recipes");
+    let imgFail=0;
+    for(const k of Object.keys(plan.images)){
+      setImages(prev=>({...prev,[k]:plan.images[k]}));
+      if(!(await fbPatch("recipeImages/"+codeRef.current,{[k]:plan.images[k]}))) imgFail++;
+    }
+    setCookbookImport(null);
+    showToast(plan.added.length+" neu"+(plan.replaced.length?", "+plan.replaced.length+" ersetzt":"")+(plan.skipped.length?", "+plan.skipped.length+" übersprungen":"")+(imgFail?" · "+imgFail+" Foto(s) nicht gespeichert":"")+".",4000);
+  };
   const downloadRecipePDF=(key)=>{ const rec=recipes[key]; if(rec) openPrint(makeRecipePDF(key,rec,images[key],settings.aiImages)); };
   const downloadPDF=()=>openPrint(makeCookbookPDF(recipes,images,settings.aiImages));
 
@@ -998,7 +1035,7 @@ export default function App() {
     code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,aliasBusy,aliasErr,settings,household,
     picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,classics:CLASSICS,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
-    importState:{importErr,extracting,extracted,savedMsg},
+    importState:{importErr,extracting,extracted,savedMsg},cookbookImport,
     // Rahmen und Dialoge
     view,codeCopied,editShopId,editShopText,
     detailRecipe,curRec,editMode,editData,cookStep,cookMode,rateAfterCook,ratingDraft,noteDraft,
@@ -1020,7 +1057,7 @@ export default function App() {
     setEditShopId,setEditShopText,saveShopEdit,
     // Detail, Editor, Kochmodus
     closeRecipe:()=>{setDetailRecipe(null);setEditMode(false);setEditData(null);},setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit:()=>{setEditMode(false);setEditData(null);},
-    downloadRecipePDF,downloadPDF,finishCook,setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,
+    downloadRecipePDF,downloadPDF,exportCookbookFile,loadCookbookFile,confirmCookbookImport,cancelCookbookImport:()=>setCookbookImport(null),finishCook,setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,
     // Beitritt
     setNameInput,setJoinInput,startPlan,joinPlan,createWithCode,
   };
