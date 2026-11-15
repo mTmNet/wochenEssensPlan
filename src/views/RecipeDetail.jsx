@@ -4,6 +4,7 @@ import { CATS, CUISINE_LIST, TAGS } from "../data.js";
 import { recName, recCat, cookedLabel, recTags } from "../logic/recipes.js";
 import { dayLabel } from "../logic/picks.js";
 import { scaleIng } from "../logic/ingredients.js";
+import { ingStatus, STOCK_MIN } from "../logic/stock.js";
 import PickDay from "../components/PickDay.jsx";
 import Stars from "../components/Stars.jsx";
 import Modal from "../components/Modal.jsx";
@@ -23,7 +24,7 @@ const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255
 // REZEPTDETAIL - Kopfbild (DishImage), Rubrik/Kueche/Herkunft/Portionen/Zeit, Aktionen (Kochmodus, Zum Wochenplan, Auf die Einkaufsliste,
 // Bearbeiten, Als PDF), Bewertung, Notizen, Zutaten mit Portionen-Stepper, Zubereitung, Kochhistorie, Loeschen; Bearbeiten; Bewertungsdialog mit Foto
 export default function RecipeDetail({state,api}){
-  const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast}=state;
+  const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast,stock}=state;
   const {setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,rateRecipe,noteRecipe,closeRecipe,uploadImage,resetImage,setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit,
          downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,cookedToday,registerBackHandler,showToast}=api;
   const imgFileRef=useRef(null), dishPhotoRef=useRef(null);
@@ -123,12 +124,17 @@ export default function RecipeDetail({state,api}){
                   </div>
                 </div>
                 {factor!==1&&<div style={{fontSize:"11px",color:C.muted,marginBottom:"6px"}}>Mengen umgerechnet von {base} auf {portions} Portionen.</div>}
-                {ings.map((ing,i)=>(
+                {ings.map((ing,i)=>{
+                  const st=stock&&stock.length?ingStatus(ing,stock):null;
+                  const tag=!st||st.basic?null:st.p>=0.6?{t:"da",c:C.ok}:st.p>=STOCK_MIN?{t:"vielleicht · "+Math.round(st.p*100)+" %",c:C.accent}:{t:"fehlt",c:C.muted};
+                  return(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:i<ings.length-1?"1px solid "+C.border:"none"}}>
-                    <div style={{width:"4px",height:"4px",borderRadius:"50%",background:C.accent,flexShrink:0}} />
-                    <span style={{fontSize:"14px",color:C.text}}>{scaleIng(ing,factor)}</span>
+                    <div style={{width:"4px",height:"4px",borderRadius:"50%",background:tag?tag.c:C.accent,flexShrink:0}} />
+                    <span style={{fontSize:"14px",color:C.text,flex:1,minWidth:0}}>{scaleIng(ing,factor)}</span>
+                    {tag&&<span data-stock={tag.t.split(" ")[0]} style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",color:tag.c,flexShrink:0}}>{tag.t}</span>}
                   </div>
-                ))}
+                  );
+                })}
                 {household!==base&&portions===base&&<button onClick={()=>setPortions(household)} style={{...btn("ghost"),marginTop:"10px",padding:"8px 12px",letterSpacing:"0.5px"}}>Auf {household} Personen umrechnen</button>}
               </div>
               {steps.length>0&&(

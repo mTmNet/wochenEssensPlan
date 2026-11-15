@@ -6,6 +6,7 @@ import { compressImageToBase64, kiErrText } from "../ai.js";
 import VorratGraph from "./VorratGraph.jsx";
 import { foodIcon } from "../logic/foodIcon.js";
 import { groupOf } from "../logic/graph.js";
+import Modal from "../components/Modal.jsx";
 
 // VORRAT - eine Liste aus drei Quellen: Haushaltsbuch (automatisch), Speisekammer-Foto (KI) und Hand.
 // Dauervorrat (Pin) verblasst nie; x entfernt eigene Positionen bzw. streicht Haushaltsbuch-Positionen; lernendes Verblassen je Produkt.
@@ -18,8 +19,9 @@ const loadMode=()=>{ try{ return localStorage.getItem(MODE_KEY)==="graph"?"graph
 const saveMode=(m)=>{ try{ localStorage.setItem(MODE_KEY,m); }catch(e){} };
 
 export default function Vorrat({state,api}){
-  const {stock,hbLink,hbLoading,hbErr,hbBook,learned}=state;
-  const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast}=api;
+  const {stock,hbLink,hbLoading,hbErr,hbBook,learned,vocab,unmapped,aliasBusy,aliasErr}=state;
+  const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast,setAlias,clearAlias,mapNamesAI}=api;
+  const [rename,setRename]=useState(null);      // {item, value} - Dialog "Name zuordnen"
   const [hbInput,setHbInput]=useState("");
   const [name,setName]=useState("");
   const [group,setGroup]=useState("");
@@ -52,11 +54,13 @@ export default function Vorrat({state,api}){
     const left=s.permanent?"":s.left<=0?"läuft heute aus":s.left===1?"noch 1 Tag":"noch "+s.left+" Tage";
     const src=(s.srcs||[]).filter(x=>x!=="perm").map(x=>SRC_LABEL[x]||x).join(" + ");
     const lrn=s.learnedN?"gelernt aus "+s.learnedN+(s.learnedN===1?" Kauf":" Käufen"):"";
+    const rawsOther=(s.raws||[]).filter(r=>r.trim().toLowerCase()!==s.name.trim().toLowerCase());
+    const aus=rawsOther.length?"aus: "+rawsOther.slice(0,3).join(", ")+(rawsOther.length>3?" …":""):"";
     return(
       <div key={s.key} style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 2px 8px 14px",borderTop:i?"1px solid "+C.border:"none",minHeight:"56px",boxSizing:"border-box"}}>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{ const ic=foodIcon(s.name,groupOf(s)); return ic?<span aria-hidden="true" style={{marginRight:"8px"}}>{ic}</span>:null; })()}{s.name}</div>
-          <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn].filter(Boolean).join(" · ")}</div>
+          <button onClick={()=>setRename({item:s,value:s.name})} title="Name zuordnen" aria-label={s.name+": Name zuordnen"} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:SF,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{ const ic=foodIcon(s.name,groupOf(s)); return ic?<span aria-hidden="true" style={{marginRight:"8px"}}>{ic}</span>:null; })()}{s.name}</button>
+          <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn,aus].filter(Boolean).join(" · ")}</div>
         </div>
         {!s.permanent&&<span style={{fontSize:"16px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"46px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>}
         {!s.permanent&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:s.p>=0.99?C.subtle:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
@@ -142,6 +146,9 @@ export default function Vorrat({state,api}){
         <div style={{flex:"1 1 160px",minWidth:0}}>
           <div style={{fontSize:"15px",color:C.text}}>Haushaltsbuch <b style={{letterSpacing:"2px"}}>{hbLink.code}</b></div>
           <div style={{fontSize:"13px",color:hbErr?C.err:C.muted}}>{hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+(learnedCount?" · Verblassen gelernt für "+learnedCount+(learnedCount===1?" Produkt":" Produkte"):"")):"verbunden"}</div>
+          {aliasBusy&&<div style={{fontSize:"12px",color:C.accent}}>KI ordnet Produktnamen zu…</div>}
+          {!aliasBusy&&aliasErr&&<div style={{fontSize:"12px",color:C.err}}>{aliasErr}</div>}
+          {!aliasBusy&&!aliasErr&&unmapped.length>0&&<div style={{fontSize:"12px",color:C.muted,display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{unmapped.length===1?"1 Name ungeklärt":unmapped.length+" Namen ungeklärt"}</span><button onClick={()=>mapNamesAI(unmapped)} style={{background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"6px 4px",fontFamily:SF,fontWeight:"700",letterSpacing:"1px"}}>MIT KI ZUORDNEN</button></div>}
         </div>
         <div style={{display:"flex",gap:"6px"}}>
           <button onClick={()=>reloadHb()} disabled={hbLoading} style={{...tile,color:C.accent,opacity:hbLoading?0.5:1}}>↻</button>
@@ -167,8 +174,29 @@ export default function Vorrat({state,api}){
         <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
         <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. ★ Dauervorrat verblasst nie. Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position gestrichen.":goneCount+" Positionen gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
+        <div style={{marginTop:"6px"}}>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Name antippen, um eine Zuordnung zu ändern.</div>
       </div>
     </div>}
+
+    {/* NAME ZUORDNEN */}
+    {rename&&(
+      <Modal title="Name zuordnen" micro="Vorrat" onClose={()=>setRename(null)}>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>
+          {(rename.item.raws||[]).length?<>Auf dem Kassenbon: <b style={{color:C.text}}>{(rename.item.raws||[]).join(", ")}</b>. </>:null}
+          Wie heißt das Produkt in deinen Rezepten? Die Zuordnung gilt ab jetzt für alle Teilnehmer.
+        </div>
+        <input value={rename.value} onChange={e=>setRename(r=>({...r,value:e.target.value}))} list="vokabular" placeholder="Zutatenname, z. B. Tomaten" aria-label="Zutatenname" autoFocus style={{...input,marginBottom:"10px"}} />
+        <datalist id="vokabular">{(vocab||[]).slice(0,300).map(v=><option key={v.key} value={v.name} />)}</datalist>
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+          <button onClick={()=>{ const n=rename.value.trim(); if(!n) return; setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],n); showToast("Zugeordnet: "+n); setRename(null); }} disabled={!rename.value.trim()} style={{...btn("primary"),flex:"1 1 120px",opacity:rename.value.trim()?1:0.5}}>SPEICHERN</button>
+          <button onClick={()=>{ setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],""); showToast("Als „kein Lebensmittel“ ausgeblendet."); setRename(null); }} style={{...btn("ghost"),flex:"1 1 120px"}}>KEIN LEBENSMITTEL</button>
+        </div>
+        <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
+          <button onClick={()=>{ clearAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name]); setRename(null); }} style={{...btn("ghost"),flex:1}}>ZURÜCKSETZEN</button>
+          <button onClick={()=>setRename(null)} style={{...btn("ghost"),flex:1}}>ABBRECHEN</button>
+        </div>
+      </Modal>
+    )}
   </div>
   );
 }

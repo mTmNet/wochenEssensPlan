@@ -51,6 +51,15 @@ export const buildPantryPrompt = (groups) =>
   "Ordne jedes Lebensmittel einer Gruppe zu, genau eine aus: "+groups.join(", ")+". "+
   "Antworte NUR mit JSON ohne Markdown: {\"items\":[{\"name\":\"Spaghetti\",\"gruppe\":\"Trockenwaren\"}]}";
 
+// NAMEN ZUORDNEN: Kassenbon-Bezeichnungen auf die Zutatennamen der Rezepte (Vokabular) abbilden; nur Unklares kommt hier an
+export const buildAliasPrompt = (vocabNames) =>
+  "Du ordnest Bezeichnungen von Kassenbons und Einkaufslisten den Zutatennamen eines Kochbuchs zu. "+
+  "VOKABULAR (bevorzugte Namen): "+(vocabNames||[]).join(", ")+". "+
+  "Regeln: 1. Ist das Produkt eine Zutat aus dem Vokabular, nimm GENAU diesen Namen (gleiche Schreibweise). "+
+  "2. Sonst einen kurzen, gebräuchlichen deutschen Namen (1 bis 2 Wörter, Mehrzahl wie in Rezepten üblich), ohne Marke, Menge, Größe, Bio, Sorte oder Fettstufe (\"Bio Strauchtomaten 500g\" -> \"Tomaten\", \"Vollmilch 3,5%\" -> \"Milch\"). "+
+  "3. Kein Lebensmittel (Reinigung, Drogerie, Tierbedarf, Pfand): null. "+
+  "Antworte NUR mit JSON ohne Markdown: {\"zuordnung\":[{\"roh\":\"Bezeichnung wie angefragt\",\"name\":\"Tomaten\"},{\"roh\":\"Spülmittel\",\"name\":null}]}";
+
 // Verstaendliche Fehlermeldung fuer KI-Aufrufe (Extrahieren + Vorschlagen); die Servertexte werden nur erkannt, nie angezeigt
 export const kiErrText = (msg) => {
   if(msg.includes("404")) return "Die KI ist gerade nicht erreichbar (404). Bitte das Server-Protokoll prüfen.";

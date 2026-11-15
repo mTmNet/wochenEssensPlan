@@ -63,8 +63,13 @@ const mockAi = async(route)=>{
   const body = JSON.parse(route.request().postData()||'{}');
   aiCalls.push(body);
   let text;
-  if(String(body.system||'').includes('Speisekammer')){
-    text = JSON.stringify({items:[{name:'Kokosmilch',gruppe:'Konserven'},{name:'Rote Linsen',gruppe:'Trockenwaren'},{name:'Kartoffeln',gruppe:'Gemüse'},{name:'Spülmittel',gruppe:'Sonstiges'}]});
+  if(String(body.system||'').includes('Kassenbons')){
+    // Namen zuordnen: einfache Regel im Mock (erstes Wort), ein paar feste Faelle, Spuelmittel = kein Lebensmittel
+    const FIX = {'Jogh Natur':'Joghurt','Vollmilch 3,5%':'Milch','Lachsfilet TK':'Lachs','Eier 10er Bio':'Eier','Bratwurst':'Bratwurst','Honig':'Honig','Spülmittel':null,'Kokosmilch':'Kokosmilch','Haferflocken kernig':'Haferflocken','Butter':'Butter','Avocado':'Avocado'};
+    const raws = String(body.messages?.[0]?.content||'').split('\n').filter(l=>l.startsWith('- ')).map(l=>l.slice(2));
+    text = JSON.stringify({zuordnung: raws.map(r=>({roh:r, name: r in FIX ? FIX[r] : r.split(' ')[0]}))});
+  } else if(String(body.system||'').includes('Speisekammer')){
+    text = JSON.stringify({items:[{name:'Kokosmilch',gruppe:'Konserven'},{name:'Rote Linsen',gruppe:'Trockenwaren'},{name:'Kichererbsen',gruppe:'Konserven'},{name:'Spülmittel',gruppe:'Sonstiges'}]});
   } else if(body.mode==='suggest'){
     text = JSON.stringify({name:'Hähnchen-Paprika-Pfanne mit Reis', ingredients:['400 g Hähnchenbrustfilet','2 Paprika','1 Zwiebel','200 g Basmatireis','200 ml Kokosmilch','1 EL Currypulver','Salz','Pfeffer'], steps:['Reis nach Packung kochen.','Hähnchen würfeln, anbraten.','Paprika und Zwiebel zugeben, 5 Min. braten.','Kokosmilch und Curry zugeben, 8 Min. köcheln.','Mit Reis servieren.'], description:'Eine schnelle Pfanne aus dem, was da ist.', cuisine:'Asiatisch', genutzt:['Hähnchenbrustfilet','Paprika','Zwiebeln','Basmati Reis','Kokosmilch'], fehlt:['Currypulver']});
   } else {
@@ -180,16 +185,31 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.fill('input[placeholder="BUCH-CODE"]', 'FAMILIE1');
   await page.click('button:has-text("VERBINDEN")'); await page.waitForTimeout(800);
   check(plan().hb?.code==='FAMILIE1' && await page.isVisible('text=Wahrscheinlich da ('), 'Vorrat: Haushaltsbuch verbunden, Liste sichtbar');
+  // NAMEN NORMIEREN: Regeln sofort (Rinderhack 500g -> Hackfleisch, Paprika rot 3er -> Paprika), Rest per KI (ein Aufruf), gespeichert unter stock/alias
+  await page.waitForTimeout(1500);
+  const aliasCalls = aiCalls.filter(c=>String(c.system||'').includes('Kassenbons'));
+  const alias = plan().stock?.alias||{};
+  check(aliasCalls.length===1 && Object.keys(alias).length===1 && alias.bratwurst?.name==='Bratwurst' && alias.bratwurst.src==='ki', 'Normieren: ein KI-Aufruf nur fuer den einzigen unklaren Namen (Bratwurst), Ergebnis unter stock/alias', {calls:aliasCalls.length, alias, sent:aliasCalls[0]?.messages?.[0]?.content});
+  // Hand-Korrektur: "Lachsfilet" (Regel) -> "Lachs", gilt fuer die Rohbezeichnung "Lachsfilet TK"
+  await page.click('button[aria-label="Lachsfilet: Name zuordnen"]'); await page.waitForTimeout(200);
+  await page.fill('div[role="dialog"] input[aria-label="Zutatenname"]', 'Lachs');
+  await page.click('div[role="dialog"] button:text-is("SPEICHERN")'); await page.waitForTimeout(500);
+  const alias2 = plan().stock?.alias||{};
+  check(alias2.lachsfilet?.name==='Lachs' && alias2.lachsfilet.src==='hand' && (await page.locator('button[aria-label="Lachs: Name zuordnen"]').count())===1 && await page.isVisible('text=aus: Lachsfilet TK'), 'Vorrat: Hand-Zuordnung Lachsfilet -> Lachs unter stock/alias (src hand), Zeile heisst Lachs', alias2);
+  const rowNames = await page.locator('button[aria-label$=": Name zuordnen"]').allTextContents();
+  check(rowNames.some(t=>/Hackfleisch/.test(t)) && rowNames.some(t=>/Paprika$/.test(t.trim())) && rowNames.some(t=>/Joghurt/.test(t)) && !rowNames.some(t=>/500g|3er|Natur|3,5/.test(t)), 'Vorrat: Zeilen zeigen Zutatennamen statt Kassenbon-Bezeichnungen', rowNames);
+  check(await page.isVisible('text=aus: Rinderhack 500g'), 'Vorrat: Herkunft "aus: Rinderhack 500g" in der Zeile');
+  check(!(await page.isVisible('text=ungeklärt')), 'Vorrat: keine ungeklaerten Namen mehr');
   check(await page.isVisible('text=Verblasst nach:'), 'Vorrat: Verblassen-Hinweis');
   // Eigene Positionen: Hand, Dauervorrat (Pin), Foto, x
-  await page.fill('input[placeholder="Lebensmittel, z. B. Linsen"]', 'Tellerlinsen');
+  await page.fill('input[placeholder="Lebensmittel, z. B. Linsen"]', 'Zwiebeln');
   await page.click('button[aria-label="Hinzufügen"]'); await page.waitForTimeout(500);
   const own = Object.values(plan().stock?.items||{});
-  check(own.length===1 && own[0].name==='Tellerlinsen' && own[0].sub==='Trockenwaren' && own[0].src==='hand' && own[0].date===T, 'Vorrat: Handeintrag unter stock/items mit erratener Gruppe', own);
-  check(await page.isVisible('text=Haushaltsbuch + Hand'), 'Vorrat: Tellerlinsen zeigt beide Quellen (Haushaltsbuch + Hand)');
-  await page.click('button[aria-label="Spaghetti Barilla als Dauervorrat"]'); await page.waitForTimeout(500);
+  check(own.length===1 && own[0].name==='Zwiebeln' && own[0].sub==='Gemüse' && own[0].src==='hand' && own[0].date===T, 'Vorrat: Handeintrag unter stock/items mit erratener Gruppe', own);
+  check(await page.isVisible('text=Haushaltsbuch + Hand') && await page.isVisible('text=aus: Zwiebeln 1kg'), 'Vorrat: Zwiebeln (Hand) verschmilzt mit "Zwiebeln 1kg" aus dem Haushaltsbuch: beide Quellen, Herkunft in der Zeile');
+  await page.click('button[aria-label="Spaghetti als Dauervorrat"]'); await page.waitForTimeout(500);
   const perm = plan().stock?.perm||{};
-  check(Object.keys(perm).length===1 && perm[Object.keys(perm)[0]].name==='Spaghetti Barilla' && await page.isVisible('text=Dauervorrat (1)'), 'Vorrat: Pin schreibt stock/perm, Block Dauervorrat erscheint', perm);
+  check(Object.keys(perm).length===1 && perm[Object.keys(perm)[0]].name==='Spaghetti' && await page.isVisible('text=Dauervorrat (1)'), 'Vorrat: Pin schreibt stock/perm, Block Dauervorrat erscheint', perm);
   // Foto: kleines PNG, KI simuliert
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVQIW2P8z8DwnwEIGAEQ4AHu0b8t1AAAAABJRU5ErkJggg==','base64');
   await page.setInputFiles('input[type="file"]', {name:'speisekammer.png', mimeType:'image/png', buffer:png});
@@ -199,9 +219,9 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("3 ÜBERNEHMEN")'); await page.waitForTimeout(600);
   const own2 = Object.values(plan().stock?.items||{});
   check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
-  check(await page.isVisible('text=Kokosmilch') && await page.isVisible('text=Rote Linsen'), 'Vorrat: Foto-Positionen in der Liste');
-  await page.click('button[aria-label="Rote Linsen entfernen"]'); await page.waitForTimeout(400);
-  check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position loescht nur den Eintrag, kein gone-Marker');
+  check(await page.isVisible('text=Kichererbsen') && await page.isVisible('text=aus: Rote Linsen'), 'Vorrat: Foto-Positionen in der Liste (Rote Linsen als Linsen mit Herkunft)');
+  await page.click('button[aria-label="Kichererbsen entfernen"]'); await page.waitForTimeout(400);
+  check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position (Kichererbsen aus dem Foto) loescht nur den Eintrag, kein gone-Marker');
   await page.click('button[aria-label="Bananen entfernen"]'); await page.waitForTimeout(400);
   check(plan().hb.gone && Object.keys(plan().hb.gone).length===1, 'x bei Haushaltsbuch-Position setzt gone-Marker');
   // Auffrischen: Haken bei einer verblassten Haushaltsbuch-Position -> Handeintrag von heute, 100 %
@@ -214,11 +234,11 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const G = 'svg[data-testid="vorrat-graph"]';
   const nodeCount = await page.locator(G+' g[role="button"][aria-label$=" auswählen"]').count();
   const groupLabels = await page.locator(G+' g[role="button"][aria-label^="Gruppe "]').allTextContents();
-  check(!groupLabels.some(t=>/OBST/.test(t)) && groupLabels.some(t=>/GEM.SE \(4\)/.test(t)) && groupLabels.some(t=>/FLEISCH \(3\)/.test(t)), 'Graph: Gruppen stimmen (Gemuese 4 inkl. Foto-Kartoffeln, Fleisch 3, kein Obst nach Streichen der Bananen)', groupLabels);
+  check(!groupLabels.some(t=>/OBST/.test(t)) && groupLabels.some(t=>/GEM.SE \(3\)/.test(t)) && groupLabels.some(t=>/FLEISCH \(3\)/.test(t)), 'Graph: Gruppen stimmen (Gemuese 3, Fleisch 3, kein Obst nach Streichen der Bananen)', groupLabels);
   const sectorCount = await page.locator(G+' path[fill^="#"]').count();
   check(nodeCount>=8 && groupLabels.length>=3 && sectorCount===2*groupLabels.length, 'Graph: Punkte in mehreren Kuchenstuecken mit Farbakzent (Flaeche + Band)', {nodeCount, groupLabels, sectorCount});
-  check((await page.locator(G+' g[aria-label="Spaghetti Barilla auswählen"] circle[stroke="#F0EEE9"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
-  check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="#E05555"]').count())===1 && (await page.locator(G+' g[aria-label="Rinderhack 500g auswählen"] circle[stroke="#E05555"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Rinderhack ohne');
+  check((await page.locator(G+' g[aria-label="Spaghetti auswählen"] circle[stroke="#F0EEE9"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
+  check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="#E05555"]').count())===1 && (await page.locator(G+' g[aria-label="Hackfleisch auswählen"] circle[stroke="#E05555"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Hackfleisch ohne');
   await page.click('button[aria-pressed="false"]:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
   const edges = await page.locator(G+' line[data-edge="present"]').count();
   const center = await page.locator(G+' g[data-testid="graph-center"]').textContent();
@@ -227,21 +247,21 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button[aria-label="Rezept ausblenden"]'); await page.waitForTimeout(200);
   check((await page.locator(G+' line[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
   await page.click(G+' g[aria-label="Kokosmilch auswählen"]'); await page.waitForTimeout(200);
-  await page.click(G+' g[aria-label="Tellerlinsen auswählen"]'); await page.waitForTimeout(300);
-  check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
+  await page.click(G+' g[aria-label="Linsen auswählen"]'); await page.waitForTimeout(300);
+  check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('text=Kokosmilch, Linsen') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
   await page.click(G+' g[aria-label="Gruppe Gemüse zuklappen"] text'); await page.waitForTimeout(300);
-  check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln 1kg auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
+  check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
   // Emoji auf den Punkten, Verschieben eines Punkts (Lage im Plan), Zuruecksetzen
-  const passataTxt = await page.locator(G+' g[aria-label="Passata auswählen"] text').allTextContents();
-  check(passataTxt.includes('🍅') && passataTxt.includes('Passata'), 'Graph: Passata zeigt Emoji und Namen', passataTxt);
-  const bb = await page.locator(G+' g[aria-label="Passata auswählen"] circle').first().boundingBox();
+  const passataTxt = await page.locator(G+' g[aria-label="Tomaten auswählen"] text').allTextContents();
+  check(passataTxt.includes('🍅') && passataTxt.includes('Tomaten'), 'Graph: Passata heisst jetzt Tomaten, mit Emoji', passataTxt);
+  const bb = await page.locator(G+' g[aria-label="Tomaten auswählen"] circle').first().boundingBox();
   await page.mouse.move(bb.x+bb.width/2, bb.y+bb.height/2); await page.mouse.down();
   await page.mouse.move(bb.x+bb.width/2+10, bb.y+bb.height/2+8, {steps:3}); await page.mouse.move(bb.x+bb.width/2+34, bb.y+bb.height/2+26, {steps:6}); await page.mouse.up();
   await page.waitForTimeout(500);
   const layout = plan().stock?.layout||{};
   const lk = Object.keys(layout);
   check(lk.length===1 && lk[0]==='tomaten' && Number.isFinite(layout.tomaten.t) && layout.tomaten.r>150 && layout.tomaten.at>0, 'Graph: Verschieben schreibt stock/layout/tomaten (normierter Schluessel von Passata) = {t, r, at}', layout);
-  check((await page.locator(G+' g[aria-label="Passata auswählen"][data-manual="1"]').count())===1 && !(await page.isVisible('text=3 ausgewählt')), 'Graph: Passata als Hand-Lage markiert, Ziehen ist keine Auswahl');
+  check((await page.locator(G+' g[aria-label="Tomaten auswählen"][data-manual="1"]').count())===1 && !(await page.isVisible('text=3 ausgewählt')), 'Graph: Tomaten als Hand-Lage markiert, Ziehen ist keine Auswahl');
   await shot('05c-graph-auswahl');
   await page.click('button[aria-label="Anordnung zurücksetzen"]'); await page.waitForTimeout(400);
   check(!plan().stock.layout && (await page.locator('button[aria-label="Anordnung zurücksetzen"]').count())===0, 'Graph: Zuruecksetzen loescht stock/layout');
@@ -249,7 +269,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("DARAUS KOCHEN")');
   await page.waitForSelector('#ki-vorschlag', {timeout:15000}); await page.waitForTimeout(300);
   const lastAi = aiCalls[aiCalls.length-1]; const lastMsg = (lastAi&&lastAi.messages&&lastAi.messages[0]&&lastAi.messages[0].content)||'';
-  check(aiCalls.length===aiBefore+1 && lastAi.mode==='suggest' && /AUSGEWÄHLT[^\n]*Kokosmilch/.test(lastMsg) && /Tellerlinsen/.test(lastMsg), 'Daraus kochen: KI-Anfrage nennt die ausgewaehlten Produkte als Pflicht', lastMsg.slice(lastMsg.indexOf('AUSGEW'),lastMsg.indexOf('AUSGEW')+120));
+  check(aiCalls.length===aiBefore+1 && lastAi.mode==='suggest' && /AUSGEWÄHLT[^\n]*Kokosmilch/.test(lastMsg) && /Linsen/.test(lastMsg), 'Daraus kochen: KI-Anfrage nennt die ausgewaehlten Produkte als Pflicht', lastMsg.slice(lastMsg.indexOf('AUSGEW'),lastMsg.indexOf('AUSGEW')+120));
   check((await page.inputValue('input[aria-label="Rezeptname"]')).startsWith('Hähnchen-Paprika-Pfanne'), 'Daraus kochen: KI-Vorschlag im Reiter Rezepte');
   await page.click('button:text-is("Vorrat")'); await page.waitForTimeout(600);
   check(await page.isVisible(G), 'Vorrat: Graph-Ansicht wird gemerkt');
@@ -264,6 +284,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
   check(await page.isVisible('button:has-text("VORMERKEN")') && !(await page.isVisible('text=ZUM WOCHENPLAN')), 'Rezeptdetail: Vormerken statt Zum Wochenplan');
+  const tags = await page.locator('span[data-stock]').evaluateAll(els=>els.map(e=>e.getAttribute('data-stock')));
+  check(tags.includes('da') && tags.includes('fehlt') && (await page.locator('span[data-stock="da"]').count())>=2, 'Rezeptdetail: Zutaten mit "da" / "fehlt" nach Vorrat', tags);
   await page.click('button:has-text("VORMERKEN")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).some(p=>p.key==='Pasta Carbonara'), 'Rezeptdetail: Vormerken schreibt picks');

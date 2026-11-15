@@ -40,7 +40,25 @@ export const goneKey = (key) => String(key||"").replace(/\s+/g,"_").replace(/[.#
 
 // Liefert [{key,toks,p,name,sub,last,hl,left}] absteigend nach Wahrscheinlichkeit; Mehrfachkaeufe: p = 1 - Prod(1-p_i)
 // gone: {goneKey: "YYYY-MM-DD"} - von Hand als "nicht mehr da" markiert; gilt, bis nach diesem Datum neu gekauft wurde
-export const hbStock = (book,cat,gone,learned) => {
+// resolve (optional): Rohname -> {name, key} | null (kein Lebensmittel); ohne resolve gilt der normierte Rohname (src/logic/alias.js)
+const resolved = (resolve, raw) => {
+  if(!resolve) { const key=normKey(raw); return key?{name:raw,key}:undefined; }
+  const r = resolve(raw); if(r===null) return null;
+  return r&&r.key ? {name:r.name,key:r.key} : undefined;
+};
+// Rohbezeichnungen der Lebensmittel-Einkaeufe im Betrachtungsfenster (fuer die Namenszuordnung)
+export const hbRawNames = (book,cat,now) => {
+  const out = new Set(); if(!book||!book.entries||!cat) return [];
+  const ts = now===undefined?Date.now():now;
+  Object.values(book.entries).forEach(e=>{
+    if(!e||e.category!==cat||!Array.isArray(e.items)) return;
+    const age = (ts-new Date(e.date+"T12:00:00").getTime())/86400000;
+    if(!(age>-2)||age>HB_DAYS) return;
+    e.items.forEach(it=>{ if(!it||!(it.amount>0)||!it.name) return; const sub=fold(it.sub); if(HB_SKIP_SUB.some(k=>sub.includes(k))) return; if(isBasic(normKey(it.name))) return; out.add(String(it.name).trim()); });
+  });
+  return [...out];
+};
+export const hbStock = (book,cat,gone,learned,resolve) => {
   const map = {};
   if(!book||!book.entries||!cat) return [];
   const now = Date.now();
@@ -52,7 +70,8 @@ export const hbStock = (book,cat,gone,learned) => {
       if(!it||!(it.amount>0)) return;
       const sub = fold(it.sub);
       if(HB_SKIP_SUB.some(k=>sub.includes(k))) return;
-      const key = normKey(it.name);
+      const r = resolved(resolve,it.name); if(!r) return;
+      const key = r.key;
       if(!key||isBasic(key)) return;
       const hl = (learned&&learned[key]&&learned[key].hl)||halfLife(sub);
       const p = Math.pow(0.5,Math.max(0,age)/hl);
@@ -60,7 +79,8 @@ export const hbStock = (book,cat,gone,learned) => {
       // last = juengstes Einkaufsdatum (fuer die Vorratsliste im Reiter Heute)
       const last = prev&&prev.last>e.date?prev.last:e.date;
       const newest = !prev||last!==prev.last;
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:prev&&prev.p>p?prev.name:it.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,src:"hb",learnedN:learned&&learned[key]?learned[key].n:0};
+      const raws = prev?prev.raws:[]; if(!raws.includes(it.name)) raws.push(it.name);
+      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:r.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,src:"hb",learnedN:learned&&learned[key]?learned[key].n:0,raws};
     });
   });
   const g = gone||{};
@@ -112,7 +132,7 @@ export const hbCats = (bk) => {
 // (und das Alter beim Streichen mit x) ist ein Hinweis auf die echte Haltbarkeit: Halbwertszeit ~ Abstand/2.
 // Gelernt wird je Produkt (Schluessel) aus bis zu einem Jahr Einkaeufen, die Gruppenzeit ist der Startwert mit Gewicht 2.
 // Liefert {key: {hl, n, gaps}}; n = Anzahl Lernsignale. Ohne Signal kein Eintrag.
-export const learnHalfLives = (book,cat,gone,now) => {
+export const learnHalfLives = (book,cat,gone,now,resolve) => {
   const out = {};
   if(!book||!book.entries||!cat) return out;
   const ts = now===undefined?Date.now():now;
@@ -125,7 +145,8 @@ export const learnHalfLives = (book,cat,gone,now) => {
       if(!it||!(it.amount>0)) return;
       const sub = fold(it.sub);
       if(HB_SKIP_SUB.some(k=>sub.includes(k))) return;
-      const key = normKey(it.name);
+      const r = resolved(resolve,it.name); if(!r) return;
+      const key = r.key;
       if(!key||isBasic(key)) return;
       (dates[key]=dates[key]||new Set()).add(e.date);
       if(!subs[key]) subs[key]=it.sub||"";
@@ -148,14 +169,15 @@ export const learnHalfLives = (book,cat,gone,now) => {
 
 // EIGENER VORRAT: items {id:{name,sub,date,src}} (Hand oder Foto) verblassen wie Haushaltsbuch-Kaeufe; perm {goneKey:{name,sub}} = Dauervorrat (immer da).
 // buildStock fuehrt Haushaltsbuch, eigene Positionen und Dauervorrat zu EINER Liste zusammen (gleicher Schluessel = eine Zeile).
-export const buildStock = ({book,cat,gone,items,perm,learned,now}={}) => {
+export const buildStock = ({book,cat,gone,items,perm,learned,now,resolve}={}) => {
   const ts = now===undefined?Date.now():now;
   const map = {};
-  hbStock(book,cat,gone,learned).forEach(s=>{ map[s.key]={...s,srcs:["hb"],ownIds:[]}; });
+  hbStock(book,cat,gone,learned,resolve).forEach(s=>{ map[s.key]={...s,srcs:["hb"],ownIds:[]}; });
   const g = gone||{};
   Object.keys(items||{}).forEach(id=>{
     const it=items[id]; if(!it||typeof it!=="object"||!it.name) return;
-    const key=normKey(it.name); if(!key||isBasic(key)) return;
+    const r=resolved(resolve,it.name); if(!r) return;
+    const key=r.key; if(!key||isBasic(key)) return;
     const date=/^\d{4}-\d{2}-\d{2}$/.test(it.date)?it.date:new Date(ts).toISOString().slice(0,10);
     const gd=g[goneKey(key)]; if(gd&&date<=gd) return;
     const age=Math.max(0,(ts-new Date(date+"T12:00:00").getTime())/86400000);
@@ -164,16 +186,18 @@ export const buildStock = ({book,cat,gone,items,perm,learned,now}={}) => {
     const p=Math.pow(0.5,age/hl);
     const prev=map[key];
     if(prev){
-      map[key]={...prev,p:1-(1-prev.p)*(1-p),last:date>prev.last?date:prev.last,hl:date>prev.last?hl:prev.hl,srcs:[...new Set([...prev.srcs,it.src||"hand"])],ownIds:[...prev.ownIds,id]};
+      const raws=prev.raws||[]; if(!raws.includes(it.name)) raws.push(it.name);
+      map[key]={...prev,p:1-(1-prev.p)*(1-p),last:date>prev.last?date:prev.last,hl:date>prev.last?hl:prev.hl,srcs:[...new Set([...prev.srcs,it.src||"hand"])],ownIds:[...prev.ownIds,id],raws};
     }else{
-      map[key]={key,toks:key.split(" "),p,name:it.name,sub:it.sub||guessGroup(it.name),last:date,hl,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:learned&&learned[key]?learned[key].n:0};
+      map[key]={key,toks:key.split(" "),p,name:r.name,sub:it.sub||guessGroup(r.name),last:date,hl,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:learned&&learned[key]?learned[key].n:0,raws:[it.name]};
     }
   });
   Object.keys(perm||{}).forEach(gk=>{
     const pm=perm[gk]; if(!pm||typeof pm!=="object"||!pm.name) return;
-    const key=normKey(pm.name); if(!key||isBasic(key)) return;
+    const r=resolved(resolve,pm.name); if(!r) return;
+    const key=r.key; if(!key||isBasic(key)) return;
     const prev=map[key];
-    map[key]=prev?{...prev,permanent:true,p:1}:{key,toks:key.split(" "),p:1,name:pm.name,sub:pm.sub||guessGroup(pm.name),last:"",hl:Infinity,src:"perm",srcs:["perm"],ownIds:[],permanent:true,learnedN:0};
+    map[key]=prev?{...prev,permanent:true,p:1,permKey:gk}:{key,toks:key.split(" "),p:1,name:r.name,sub:pm.sub||guessGroup(r.name),last:"",hl:Infinity,src:"perm",srcs:["perm"],ownIds:[],permanent:true,learnedN:0,raws:[pm.name],permKey:gk};
   });
   return Object.values(map)
     .map(s=>{ if(s.permanent) return {...s,left:Infinity}; const age=Math.max(0,(ts-new Date(s.last+"T12:00:00").getTime())/86400000); return {...s,left:Math.max(0,Math.round(fadeDays(s.hl)-age))}; })

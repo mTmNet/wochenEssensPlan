@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, column } from "../theme.js";
 import { recName, stepMinutes } from "../logic/recipes.js";
+import { ingStatus, STOCK_MIN } from "../logic/stock.js";
 import Toast from "../components/Toast.jsx";
 
 // Signalton (ohne Datei) und Vibration, wenn ein Timer ablaeuft
@@ -19,7 +20,7 @@ const fmtMin = (m) => m>=60 ? (m%60===0 ? (m/60)+" Std." : Math.floor(m/60)+" St
 
 // KOCHMODUS - ein Schritt pro Bildschirm, einklappbare Zutatenleiste, Wake Lock, Timer fuer erkannte Zeitangaben, "Fertig" oeffnet den Bewertungsdialog
 export default function CookMode({state,api}){
-  const {detailRecipe,cookStep,curRec,toast}=state;
+  const {detailRecipe,cookStep,curRec,toast,stock}=state;
   const {setCookMode,setCookStep,finishCook,showToast}=api;
   const steps=curRec.steps||[], ings=curRec.ingredients||[];
   const [showIngs,setShowIngs]=useState(false);
@@ -66,7 +67,7 @@ export default function CookMode({state,api}){
             </button>
             {showIngs&&(
               <div style={{padding:"0 20px 12px",display:"flex",flexWrap:"wrap",gap:"6px"}}>
-                {ings.map((ing,i)=><span key={i} style={{fontSize:"13px",color:"rgba(255,255,255,0.85)",background:"rgba(255,255,255,0.08)",padding:"6px 10px",borderRadius:"3px"}}>{ing}</span>)}
+                {ings.map((ing,i)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; const col=!st||st.basic?"":st.p>=0.6?C.ok:st.p>=STOCK_MIN?C.accent:"rgba(255,255,255,0.35)"; return <span key={i} style={{fontSize:"13px",color:"rgba(255,255,255,0.85)",background:"rgba(255,255,255,0.08)",padding:"6px 10px",borderRadius:"3px",borderLeft:col?"3px solid "+col:"none"}}>{ing}{st&&!st.basic&&st.p<STOCK_MIN?<span style={{color:"rgba(255,255,255,0.45)"}}> · fehlt</span>:null}</span>; })}
               </div>
             )}
           </div>

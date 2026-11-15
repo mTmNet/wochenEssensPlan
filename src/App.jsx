@@ -2,9 +2,10 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete } from "./fb.js";
-import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS } from "./logic/stock.js";
+import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames } from "./logic/stock.js";
+import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } from "./logic/alias.js";
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
@@ -87,6 +88,9 @@ export default function App() {
   const [hbLoading,setHbLoading]     = useState(false);
   const [hbErr,setHbErr]             = useState("");
   const [aiBusy,setAiBusy]           = useState(false);
+  const [aliasBusy,setAliasBusy]     = useState(false);   // KI ordnet gerade Namen zu
+  const [aliasErr,setAliasErr]       = useState("");
+  const aliasTried=useRef(new Set());                      // in dieser Sitzung schon angefragte Rohnamen (kein Dauerlauf bei Fehlern)
   const [aiErr,setAiErr]             = useState("");
 
   const syncTimer    = useRef(null);
@@ -670,7 +674,7 @@ export default function App() {
   // Auffrischen (Haken in der Vorratsliste): "ist heute noch da" - zaehlt wie ein Handeintrag von heute, das Verblassen beginnt neu
   const refreshStock=(item)=>{ const gk=goneKey(item.key); const patch={}; if(hbLink&&hbLink.gone&&hbLink.gone[gk]){ patch["hb/gone/"+gk]=null; setHbLink(prev=>{ if(!prev||!prev.gone) return prev; const g={...prev.gone}; delete g[gk]; return {...prev,gone:g}; }); writePlan(patch,"people"); } return addStockItems([{name:item.name,sub:item.sub,src:"hand"}]); };
   const setPermanent=(item,on)=>{
-    const gk=goneKey(item.key); if(!gk) return;
+    const gk=(!on&&item.permKey)?item.permKey:goneKey(item.key); if(!gk) return;
     setStockRaw(prev=>{ const perm={...(prev.perm||{})}; if(on) perm[gk]={name:item.name,sub:item.sub||""}; else delete perm[gk]; return {...prev,perm}; });
     return writePlan({["stock/perm/"+gk]:on?{name:item.name,sub:item.sub||""}:null},"stock");
   };
@@ -678,10 +682,10 @@ export default function App() {
   const removeStock=(item)=>{
     const patch={}, parts=[];
     if(item.ownIds&&item.ownIds.length){ item.ownIds.forEach(id=>{ patch["stock/items/"+id]=null; }); parts.push("stock"); }
-    if(item.permanent){ patch["stock/perm/"+goneKey(item.key)]=null; if(!parts.includes("stock")) parts.push("stock"); }
+    if(item.permanent){ patch["stock/perm/"+(item.permKey||goneKey(item.key))]=null; if(!parts.includes("stock")) parts.push("stock"); }
     if(item.srcs&&item.srcs.includes("hb")&&hbLink){ patch["hb/gone/"+goneKey(item.key)]=todayISO(); parts.push("people"); }
     if(!parts.length) return;
-    setStockRaw(prev=>{ const items={...(prev.items||{})}, perm={...(prev.perm||{})}; (item.ownIds||[]).forEach(id=>{ delete items[id]; }); if(item.permanent) delete perm[goneKey(item.key)]; return {...prev,items,perm}; });
+    setStockRaw(prev=>{ const items={...(prev.items||{})}, perm={...(prev.perm||{})}; (item.ownIds||[]).forEach(id=>{ delete items[id]; }); if(item.permanent) delete perm[item.permKey||goneKey(item.key)]; return {...prev,items,perm}; });
     if(patch["hb/gone/"+goneKey(item.key)]) setHbLink(prev=>prev?{...prev,gone:{...(prev.gone||{}),[goneKey(item.key)]:todayISO()}}:prev);
     writePlan(patch,parts);
   };
@@ -909,9 +913,57 @@ export default function App() {
   useEffect(()=>{
     if((view==="heute"||view==="shopping"||view==="vorrat")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
   },[view,hbLink&&hbLink.code]);
+  // NAMEN NORMIEREN: Vokabular aus Kochbuch + Rezept-Basis, Aufloesung Rohname -> Zutatenname (Hand > KI > Regel), s. src/logic/alias.js
+  const vocab=useMemo(()=>vocabulary(recipes,CLASSICS),[recipes]);
+  const aliasMap=stockRaw.alias||{};
+  const resolve=useMemo(()=>{ const ctx={alias:aliasMap,vocab}; const cache={}; return (raw)=>{ if(!(raw in cache)) cache[raw]=resolveName(raw,ctx); return cache[raw]; }; },[aliasMap,vocab]);
   // Gelernte Halbwertszeiten aus den Kaufabstaenden (und x-Streichungen), dann die zusammengefuehrte Vorratsliste
-  const learned=useMemo(()=>learnHalfLives(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone),[hbBook,hbLink]);
-  const stock=useMemo(()=>buildStock({book:hbBook,cat:hbLink&&hbLink.cat,gone:hbLink&&hbLink.gone,items:stockRaw.items,perm:stockRaw.perm,learned}),[hbBook,hbLink,stockRaw,learned]);
+  const learned=useMemo(()=>learnHalfLives(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone,undefined,resolve),[hbBook,hbLink,resolve]);
+  const stock=useMemo(()=>buildStock({book:hbBook,cat:hbLink&&hbLink.cat,gone:hbLink&&hbLink.gone,items:stockRaw.items,perm:stockRaw.perm,learned,resolve}),[hbBook,hbLink,stockRaw,learned,resolve]);
+  // Rohnamen ohne Zuordnung (Haushaltsbuch + eigene Positionen) - die gehen gebuendelt an die KI, jede nur einmal je Sitzung
+  const rawNames=useMemo(()=>{ const own=Object.values(stockRaw.items||{}).map(i=>i&&i.name).filter(Boolean); return [...new Set([...hbRawNames(hbBook,hbLink&&hbLink.cat),...own])]; },[hbBook,hbLink,stockRaw.items]);
+  const unmapped=useMemo(()=>unmappedNames(rawNames,{alias:aliasMap,vocab}),[rawNames,aliasMap,vocab]);
+  // Zuordnung speichern: stock/alias/<aliasKey(roh)> = {name, src, at}; name "" = kein Lebensmittel
+  const writeAliases=(map,src)=>{
+    const now=Date.now(), patch={}, add={};
+    Object.keys(map).forEach(raw=>{ const k=aliasKey(raw); if(!k) return; const e={name:map[raw],src,at:now}; add[k]=e; patch["stock/alias/"+k]=e; });
+    if(!Object.keys(add).length) return;
+    setStockRaw(prev=>({...prev,alias:{...(prev.alias||{}),...add}}));
+    writePlan(patch,"stock");
+  };
+  const mapNamesAI=async(names)=>{
+    const list=(names||[]).filter(Boolean).slice(0,60); if(!list.length||aliasBusy) return 0;
+    list.forEach(n=>aliasTried.current.add(n));
+    setAliasBusy(true); setAliasErr("");
+    try{
+      const user="Bezeichnungen:\n"+list.map(n=>"- "+n).join("\n")+"\n\nAntworte für jede Bezeichnung genau einmal, \"roh\" exakt wie oben.";
+      const parsed=parseJsonBlock(await callAI({mode:"extract",system:buildAliasPrompt(vocab.slice(0,400).map(v=>v.name)),messages:[{role:"user",content:user}]}));
+      const map=parseAliasAnswer(parsed,list,vocab);
+      writeAliases(map,"ki");
+      const n=Object.keys(map).length;
+      if(n) showToast(n===1?"1 Produktname zugeordnet.":n+" Produktnamen zugeordnet.");
+      setAliasBusy(false); return n;
+    }catch(e){
+      console.error("Alias error:",e); const msg=(e&&e.message)||"Unbekannter Fehler";
+      setAliasErr(kiErrText(msg)||("Namen konnten nicht zugeordnet werden: "+msg.slice(0,80)));
+      setAliasBusy(false); return 0;
+    }
+  };
+  // automatisch: neue unklare Namen im Hintergrund zuordnen (nur im Plan, nicht beim Beitritt)
+  useEffect(()=>{
+    if(screen!=="app"||aliasBusy) return;
+    const fresh=unmapped.filter(n=>!aliasTried.current.has(n));
+    if(fresh.length) mapNamesAI(fresh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[unmapped,screen]);
+  // Hand-Korrektur aus der Vorratsliste: alle Rohnamen einer Zeile auf einen Namen ("" = kein Lebensmittel) oder zuruecksetzen
+  const setAlias=(raws,name)=>{ const map={}; (raws||[]).forEach(r=>{ map[r]=name; }); writeAliases(map,"hand"); };
+  const clearAlias=(raws)=>{
+    const patch={}; const ks=(raws||[]).map(aliasKey).filter(Boolean); if(!ks.length) return;
+    ks.forEach(k=>{ patch["stock/alias/"+k]=null; });
+    setStockRaw(prev=>{ const a={...(prev.alias||{})}; ks.forEach(k=>{ delete a[k]; }); return {...prev,alias:a}; });
+    writePlan(patch,"stock");
+  };
 
   // EINKAUFSLISTE in Bloecken (Bauplan Abschnitt 9): Liste, "Wahrscheinlich da" (stockP >= 0,6), "Vorrat pruefen" (Grundvorrat)
   const shopList=useMemo(()=>shoppingList(shopping).map(it=>{ const st=stock.length?ingStatus(it.text,stock):null; return {...it,stockP:st&&!st.basic?st.p:0}; }),[shopping,stock]);
@@ -943,7 +995,7 @@ export default function App() {
 
   // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
   const state={
-    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,settings,household,
+    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,aliasBusy,aliasErr,settings,household,
     picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,classics:CLASSICS,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
     importState:{importErr,extracting,extracted,savedMsg},
@@ -962,7 +1014,7 @@ export default function App() {
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,setStockLayout,resetStockLayout,setSetting,zoom,leavePlan,deletePlan,
+    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,setStockLayout,setAlias,clearAlias,mapNamesAI,resetStockLayout,setSetting,zoom,leavePlan,deletePlan,
     // Rahmen
     setView,copyCode,showToast,registerBackHandler,
     setEditShopId,setEditShopText,saveShopEdit,
