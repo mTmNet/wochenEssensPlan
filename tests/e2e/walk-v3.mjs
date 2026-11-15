@@ -206,24 +206,25 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(plan().hb.gone && Object.keys(plan().hb.gone).length===1, 'x bei Haushaltsbuch-Position setzt gone-Marker');
   await shot('05-vorrat');
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
-  await page.click('button:text-is("Graph")'); await page.waitForTimeout(1500);   // Simulation kommt zur Ruhe
+  await page.click('button:text-is("Graph")'); await page.waitForTimeout(500);
   const G = 'svg[data-testid="vorrat-graph"]';
   const nodeCount = await page.locator(G+' g[role="button"][aria-label$=" auswählen"]').count();
   const groupLabels = await page.locator(G+' g[role="button"][aria-label^="Gruppe "]').allTextContents();
-  check(nodeCount>=8 && groupLabels.length>=3, 'Graph: Punkte in mehreren Wolken', {nodeCount, groupLabels});
+  const sectorCount = await page.locator(G+' path[fill^="#"]').count();
+  check(nodeCount>=8 && groupLabels.length>=3 && sectorCount===2*groupLabels.length, 'Graph: Punkte in mehreren Kuchenstuecken mit Farbakzent (Flaeche + Band)', {nodeCount, groupLabels, sectorCount});
   check((await page.locator(G+' g[aria-label="Spaghetti Barilla auswählen"] circle[stroke="#F0EEE9"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
   check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="#E05555"]').count())===1 && (await page.locator(G+' g[aria-label="Rinderhack 500g auswählen"] circle[stroke="#E05555"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Rinderhack ohne');
   await page.click('button[aria-pressed="false"]:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
   const edges = await page.locator(G+' line[data-edge="present"]').count();
-  const missing = await page.locator(G+' g[data-edge="missing"]').count();
-  check(edges>=2 && missing>=1 && await page.isVisible('button:has-text("ZUM REZEPT")') && await page.isVisible('text=/\\d+ von \\d+ Zutaten da/'), 'Graph: Rezept zeigt Kanten zu vorhandenen und fehlende Zutaten, Leiste mit Zum Rezept', {edges, missing});
+  const center = await page.locator(G+' g[data-testid="graph-center"]').textContent();
+  check(edges>=2 && /fehlt: Knoblauch/.test(center) && /Pasta Bolognese/.test(center) && await page.isVisible('button:has-text("ZUM REZEPT")') && await page.isVisible('text=/\\d+ von \\d+ Zutaten da/'), 'Graph: Rezept im Mittelkreis mit Kanten zu vorhandenen Zutaten, Fehlendes im Kreis, Leiste mit Zum Rezept', {edges, center});
   await shot('05b-graph-rezept');
   await page.click('button[aria-label="Rezept ausblenden"]'); await page.waitForTimeout(200);
   check((await page.locator(G+' line[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
   await page.click(G+' g[aria-label="Kokosmilch auswählen"]'); await page.waitForTimeout(200);
   await page.click(G+' g[aria-label="Tellerlinsen auswählen"]'); await page.waitForTimeout(300);
   check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
-  await page.click(G+' g[aria-label="Gruppe Gemüse zuklappen"]'); await page.waitForTimeout(300);
+  await page.click(G+' g[aria-label="Gruppe Gemüse zuklappen"] text'); await page.waitForTimeout(300);
   check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln 1kg auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
   await shot('05c-graph-auswahl');
   const aiBefore = aiCalls.length;

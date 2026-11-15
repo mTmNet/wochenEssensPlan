@@ -1,7 +1,7 @@
 // Graph des Vorrats: Gruppen, Wolken auf dem Ring, Simulation ohne Zufall, Rezept-Kanten, Rangliste zur Auswahl
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupOf, graphNodes, clusterList, clusterCenters, clusterRadius, createSim, settle, clusterHull, boundsOf, recipeLinks, missingPositions, rankForSelection, nodeRadius } from "../src/logic/graph.js";
+import { groupOf, graphNodes, clusterList, radialLayout, sectorPath, recipeLinks, rankForSelection, nodeRadius, groupColor, R_IN, R_CENTER } from "../src/logic/graph.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const item = (name,p,extra={}) => ({key:name.toLowerCase(),toks:[name.toLowerCase()],name,p,left:10,sub:"",...extra});
@@ -24,38 +24,51 @@ test("graphNodes: ab STOCK_MIN oder Dauervorrat; Radius waechst mit p; auslaufen
   assert.equal(nodes[2].group, "Trockenwaren");
 });
 
-test("clusterList/clusterCenters: feste Reihenfolge, eine Wolke in der Mitte, mehrere auf dem Ring ohne Ueberlappung", () => {
+test("clusterList: feste Reihenfolge der Gruppen; groupColor hat fuer jede Gruppe einen Akzent", () => {
   const nodes = graphNodes([item("Reis",0.8,{sub:"Trockenwaren"}), item("Apfel",0.8,{sub:"Obst"}), item("Birne",0.7,{sub:"Obst"}), item("Lachs",0.9,{sub:"Fisch"})]);
   const cl = clusterList(nodes);
   assert.deepEqual(cl.map(c=>c.name), ["Obst","Fisch","Trockenwaren"]);
   assert.equal(cl[0].n, 2);
-  assert.deepEqual(clusterCenters([cl[0]]), {Obst:{x:0,y:0}});
-  const centers = clusterCenters(cl);
-  const names = Object.keys(centers);
-  assert.equal(names.length, 3);
-  for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++){
-    const a=centers[names[i]], b=centers[names[j]];
-    assert.ok(Math.hypot(a.x-b.x,a.y-b.y) >= clusterRadius(cl[i].n)+clusterRadius(cl[j].n), names[i]+"/"+names[j]+" ueberlappen");
-  }
-  // Mitte bleibt frei: kein Mittelpunkt naeher als 150 am Ursprung
-  names.forEach(n=>assert.ok(Math.hypot(centers[n].x,centers[n].y)>=150));
+  assert.ok(/^#/.test(groupColor("Obst")) && groupColor("Unbekannt")===groupColor("Sonstiges"));
 });
 
-test("Simulation: deterministisch, ohne NaN, kommt zur Ruhe, Punkte einer Wolke bleiben zusammen und ueberlappen nicht", () => {
-  const stock = ["Apfel","Birne","Banane","Trauben","Kiwi","Mango"].map(n=>item(n,0.8,{sub:"Obst"})).concat(["Reis","Linsen","Nudeln"].map(n=>item(n,0.6,{sub:"Trockenwaren"})));
-  const nodes = graphNodes(stock), cl = clusterList(nodes), centers = clusterCenters(cl);
-  const a = settle(createSim(nodes,centers)), b = settle(createSim(nodes,centers));
-  assert.deepEqual(a.nodes.map(n=>[n.x,n.y]), b.nodes.map(n=>[n.x,n.y]));
-  assert.ok(a.ticks<200, "kommt vor 200 Schritten zur Ruhe: "+a.ticks);
-  a.nodes.forEach(n=>{ assert.ok(Number.isFinite(n.x)&&Number.isFinite(n.y)); });
-  for(let i=0;i<a.nodes.length;i++) for(let j=i+1;j<a.nodes.length;j++){
-    const p=a.nodes[i], q=a.nodes[j];
-    assert.ok(Math.hypot(p.x-q.x,p.y-q.y) >= p.r+q.r, p.name+"/"+q.name+" ueberlappen");
+test("radialLayout: Kuchenstuecke fuellen den Kreis, Winkel nach Anzahl (+1), Punkte im eigenen Stueck ausserhalb des Rezeptkreises, ohne Ueberlappung", () => {
+  const stock = ["Apfel","Birne","Banane","Trauben","Kiwi","Mango","Pflaume","Feige"].map(n=>item(n,0.8,{sub:"Obst"}))
+    .concat(["Reis","Linsen","Nudeln"].map(n=>item(n,0.6,{sub:"Trockenwaren"})), [item("Lachs",0.9,{sub:"Fisch"})]);
+  const nodes = graphNodes(stock);
+  const {sectors,placed,rOut} = radialLayout(nodes);
+  assert.deepEqual(sectors.map(s=>s.name), ["Obst","Fisch","Trockenwaren"]);
+  const total = sectors.reduce((a,s)=>a+(s.a1-s.a0),0);
+  assert.ok(Math.abs(total-2*Math.PI)<1e-9);
+  assert.ok(Math.abs(sectors[0].a0+Math.PI/2)<1e-9, "beginnt oben");
+  const span = (s)=>s.a1-s.a0;
+  assert.ok(Math.abs(span(sectors[0])/span(sectors[2]) - 9/4) < 1e-9, "Obst (8+1) zu Trockenwaren (3+1)");
+  assert.equal(placed.length, nodes.length);
+  const sameAngle = (a,b)=>{ let d=(a-b)%(2*Math.PI); if(d<0) d+=2*Math.PI; return d; };
+  placed.forEach(n=>{
+    const sec = sectors.find(s=>s.name===n.group);
+    const rel = sameAngle(n.ang, sec.a0);
+    assert.ok(rel>=0 && rel<=span(sec)+1e-9, n.name+" liegt in seinem Stueck");
+    assert.ok(Math.hypot(n.x,n.y) > R_IN && Math.hypot(n.x,n.y) < rOut, n.name+" liegt zwischen innerem Rand und aussen");
+    assert.ok(Number.isFinite(n.x)&&Number.isFinite(n.y));
+  });
+  for(let i=0;i<placed.length;i++) for(let j=i+1;j<placed.length;j++){
+    const p=placed[i], q=placed[j];
+    assert.ok(Math.hypot(p.x-q.x,p.y-q.y) >= p.r+q.r+20, p.name+"/"+q.name+" zu nah");
   }
-  const hull = clusterHull(a.nodes, cl[0], centers.Obst);
-  a.nodes.filter(n=>n.group==="Obst").forEach(n=>assert.ok(Math.hypot(n.x-hull.x,n.y-hull.y)+n.r<=hull.r+0.01));
-  const bb = boundsOf([hull]);
-  assert.ok(bb.w>0&&bb.h>0&&bb.x<hull.x-hull.r);
+  // wahrscheinlichste innen: Apfel (0.8) ist nicht weiter aussen als ein schwaecherer Obst-Punkt
+  const obst = placed.filter(n=>n.group==="Obst");
+  assert.ok(obst.every(n=>n.ring<=2));
+  assert.ok(rOut > R_IN + 60 && R_CENTER < R_IN);
+  // zugeklappt: ein Kreis statt der Punkte, Stueck wird schmal
+  const col = radialLayout(nodes, new Set(["Obst"]));
+  assert.equal(col.placed.filter(n=>n.group==="Obst").length, 0);
+  assert.ok(col.sectors[0].collapsed && col.sectors[0].r>20 && span(col.sectors[0]) < span(sectors[0]));
+  // eine einzige Gruppe = voller Ring
+  const one = radialLayout(graphNodes([item("Lachs",0.9,{sub:"Fisch"})]));
+  assert.ok(Math.abs(span(one.sectors[0])-2*Math.PI)<1e-9);
+  assert.ok(sectorPath(one.sectors[0].a0,one.sectors[0].a1,100,200).startsWith("M 200 0 A"));
+  assert.ok(/^M .* Z$/.test(sectorPath(0,1,100,200)));
 });
 
 test("recipeLinks: vorhandene Zutaten als Kanten, fehlende getrennt, Grundvorrat zaehlt nicht", () => {
@@ -65,10 +78,6 @@ test("recipeLinks: vorhandene Zutaten als Kanten, fehlende getrennt, Grundvorrat
   assert.deepEqual(l.present.map(x=>x.key), ["hackfleisch","tomaten"]);
   assert.deepEqual(l.missing.map(x=>x.name), ["Zwiebeln","Spaghetti"]);
   assert.ok(Math.abs(l.cov-(0.8+0.5)/4)<1e-9);
-  assert.equal(missingPositions(3,0,0).length, 3);
-  assert.equal(missingPositions(0,0,0).length, 0);
-  const one = missingPositions(1,10,20,100)[0];
-  assert.ok(one.y>20, "fehlende Zutaten haengen unter dem Rezept");
 });
 
 test("rankForSelection: ohne Auswahl nach Abdeckung, mit Auswahl nach Treffern; Rezepte ohne Treffer fallen weg", () => {

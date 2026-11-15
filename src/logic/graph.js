@@ -2,7 +2,6 @@
 // Reine Funktionen und eine kleine, deterministische Kraeftesimulation (kein Zufall: Startlagen aus einem Hash des Schluessels).
 import { STOCK_GROUPS, STOCK_MIN, guessGroup, ingStatus } from "./stock.js";
 import { fold } from "./ingredients.js";
-import { hash01 } from "./suggest.js";
 
 // Gruppe einer Vorratsposition: Gruppenname aus Hand/Foto, sonst Haushaltsbuch-Unterrubrik erkennen, sonst aus dem Namen raten
 const SUB_HINTS = [["Obst",["obst","fruecht"]],["Gemüse",["gemuese","salat"]],["Fleisch",["fleisch","gefluegel"]],["Wurst",["wurst","aufschnitt"]],["Fisch",["fisch","meeresfr"]],["Brot & Backwaren",["brot","backwar","baeck"]],["Milchprodukte",["milch","molkerei","eier"]],["Käse",["kaese"]],["Getränke",["getraenk","trinken"]],["Süßes",["suess","schoko","snack"]],["Tiefkühl",["tiefkuehl","tk","gefr"]],["Konserven",["konserv","dose"]],["Trockenwaren",["trocken","nudel","reis","muesli"]]];
@@ -31,75 +30,49 @@ export const clusterList = (nodes) => {
   nodes.forEach(n=>{ (by[n.group]=by[n.group]||[]).push(n.key); });
   return Object.keys(by).sort((a,b)=>groupOrder(a)-groupOrder(b)||a.localeCompare(b)).map(name=>({name,keys:by[name],n:by[name].length}));
 };
-// Platzbedarf einer Wolke (Radius) nach Anzahl der Punkte - Punkte brauchen Platz fuer ihre Beschriftung
-export const clusterRadius = (n) => 40 + 32*Math.sqrt(Math.max(1,n));
-// Mittelpunkte der Wolken auf einem Ring um die Mitte (die Mitte bleibt fuer das Rezept frei); eine Wolke liegt in der Mitte
-export const clusterCenters = (clusters) => {
-  const k=clusters.length;
-  if(!k) return {};
-  if(k===1) return {[clusters[0].name]:{x:0,y:0}};
-  const radii=clusters.map(c=>clusterRadius(c.n));
-  const need=radii.reduce((a,r)=>a+2*r+30,0);
-  const R=Math.max(170, need/(2*Math.PI), Math.max(...radii)+120);
-  const out={};
-  // Winkel proportional zum Platzbedarf, damit grosse Wolken mehr Bogen bekommen
-  let ang=-Math.PI/2;
-  clusters.forEach((c,i)=>{
-    const span=(2*radii[i]+30)/need*2*Math.PI;
-    const a=ang+span/2;
-    out[c.name]={x:Math.round(Math.cos(a)*R),y:Math.round(Math.sin(a)*R)};
-    ang+=span;
-  });
-  return out;
-};
+// FARBAKZENT je Gruppe (leichter Hintergrund des Kuchenstuecks)
+export const GROUP_COLORS = {"Obst":"#E8A33D","Gemüse":"#6DBB5A","Fleisch":"#D9534F","Wurst":"#D98FA3","Fisch":"#4F8FD9","Brot & Backwaren":"#C9A46A","Milchprodukte":"#8FC7E8","Käse":"#E8D44D","Getränke":"#4FC9B8","Süßes":"#B57BD9","Tiefkühl":"#7FD8F0","Konserven":"#A8927A","Trockenwaren":"#D4B483","Sonstiges":"#9A9898"};
+export const groupColor = (name) => GROUP_COLORS[name] || GROUP_COLORS.Sonstiges;
 
-// SIMULATION: Zustand {nodes:[{key,x,y,vx,vy,r,group}], centers:{group:{x,y}}}; tick() bewegt einen Schritt und liefert die Restbewegung
-export const createSim = (nodes, centers) => {
-  const list=nodes.map(n=>{
-    const c=centers[n.group]||{x:0,y:0};
-    const a=hash01(n.key+"a")*2*Math.PI, d=8+hash01(n.key+"d")*clusterRadius(1);
-    return {...n,x:c.x+Math.cos(a)*d,y:c.y+Math.sin(a)*d,vx:0,vy:0};
-  });
-  const sim={nodes:list,centers,ticks:0};
-  sim.tick=()=>{
-    const ns=sim.nodes; let energy=0;
-    for(let i=0;i<ns.length;i++){
-      const a=ns[i], c=centers[a.group]||{x:0,y:0};
-      a.vx+=(c.x-a.x)*0.06; a.vy+=(c.y-a.y)*0.06;             // Zug zur Wolkenmitte
-      for(let j=i+1;j<ns.length;j++){
-        const b=ns[j];
-        let dx=b.x-a.x, dy=b.y-a.y; let d=Math.hypot(dx,dy);
-        if(d<0.01){ dx=hash01(a.key+b.key)-0.5; dy=0.5-hash01(b.key+a.key); d=Math.hypot(dx,dy); }
-        const same=a.group===b.group;
-        // Beschriftungen sind breit und haengen unter dem Punkt: seitlich zaehlt der Abstand nur halb, so ruecken Nachbarn eher nebeneinander als uebereinander
-        const de=Math.hypot(dx*0.5,dy);
-        const min=a.r+b.r+(same?26:46);                          // Abstand inkl. Beschriftung; fremde Wolken halten mehr Abstand
-        if(de<min){ const f=(min-de)/d*0.5; a.vx-=dx*f; a.vy-=dy*f; b.vx+=dx*f; b.vy+=dy*f; }
+// RADIALES LAYOUT: Rezeptkreis in der Mitte, drumherum je Gruppe ein Kuchenstueck (Winkel nach Anzahl, +1 Grundgewicht,
+// damit kleine Gruppen Platz behalten). Die Punkte liegen auf Ringen im Stueck, die wahrscheinlichsten innen. Kein Zufall, keine Simulation.
+export const R_CENTER = 80;            // Rezeptkreis
+export const R_IN = 158;               // innerer Rand der Kuchenstuecke
+const ROW = 66, ARC = 96;              // Abstand der Ringe / nebeneinander (Platz fuer die Beschriftung)
+export const radialLayout = (nodes, collapsed) => {
+  const col = collapsed instanceof Set ? collapsed : new Set(collapsed||[]);
+  const clusters = clusterList(nodes);
+  const weights = clusters.map(c=>col.has(c.name)?1.3:c.n+1);
+  const total = weights.reduce((a,b)=>a+b,0)||1;
+  const sectors=[], placed=[];
+  let a=-Math.PI/2, rOut=R_IN+ROW;
+  clusters.forEach((c,i)=>{
+    const span=weights[i]/total*2*Math.PI;
+    const sec={name:c.name,n:c.n,a0:a,a1:a+span,mid:a+span/2,color:groupColor(c.name),collapsed:col.has(c.name)};
+    const members=nodes.filter(n=>n.group===c.name).sort((x,y)=>y.p-x.p||x.name.localeCompare(y.name));
+    if(sec.collapsed){
+      const r=R_IN+ROW*0.75; sec.x=Math.cos(sec.mid)*r; sec.y=Math.sin(sec.mid)*r; sec.r=24+4*Math.sqrt(c.n);
+      rOut=Math.max(rOut,r+sec.r+24);
+    }else{
+      let k=0, idx=0;
+      while(idx<members.length){
+        const r=R_IN+ROW*0.62+k*ROW;
+        const m=Math.max(1,Math.min(members.length-idx,Math.floor(span*r/ARC)));
+        for(let j=0;j<m;j++){ const n=members[idx++]; const ang=sec.a0+span*(j+0.5)/m; placed.push({...n,x:Math.cos(ang)*r,y:Math.sin(ang)*r,ang,ring:k}); }
+        rOut=Math.max(rOut,r+ROW*0.62); k++;
       }
     }
-    ns.forEach(n=>{ n.vx*=0.55; n.vy*=0.55; n.x+=n.vx; n.y+=n.vy; energy+=Math.abs(n.vx)+Math.abs(n.vy); });
-    sim.ticks++;
-    return energy;
-  };
-  return sim;
+    sectors.push(sec); a+=span;
+  });
+  return {sectors,placed,rOut:Math.round(rOut)};
 };
-// Simulation bis zur Ruhe laufen lassen (fuer Tests und den ersten Aufbau)
-export const settle = (sim, maxTicks=200) => { let e=Infinity; while(sim.ticks<maxTicks&&e>0.5){ e=sim.tick(); } return sim; };
-
-// Huelle einer Wolke: Kreis um die Mitte ihrer Punkte, Radius bis zum fernsten Punkt plus Rand
-export const clusterHull = (nodes, cluster, center) => {
-  const pts=nodes.filter(n=>n.group===cluster.name);
-  if(!pts.length) return {x:center.x,y:center.y,r:clusterRadius(1)};
-  const cx=pts.reduce((a,n)=>a+n.x,0)/pts.length, cy=pts.reduce((a,n)=>a+n.y,0)/pts.length;
-  const r=pts.reduce((m,n)=>Math.max(m,Math.hypot(n.x-cx,n.y-cy)+n.r),0)+30;
-  return {x:cx,y:cy,r:Math.max(r,clusterRadius(1))};
-};
-// Sichtfenster um alle Kreise mit Rand
-export const boundsOf = (circles, pad=24) => {
-  if(!circles.length) return {x:-200,y:-200,w:400,h:400};
-  const x0=Math.min(...circles.map(c=>c.x-c.r))-pad, y0=Math.min(...circles.map(c=>c.y-c.r))-pad;
-  const x1=Math.max(...circles.map(c=>c.x+c.r))+pad, y1=Math.max(...circles.map(c=>c.y+c.r))+pad;
-  return {x:x0,y:y0,w:Math.max(1,x1-x0),h:Math.max(1,y1-y0)};
+// SVG-Pfad eines Kuchenstuecks (Ringsegment) von r0 bis r1 zwischen den Winkeln a0 und a1; ein einziges Stueck = voller Ring
+export const sectorPath = (a0, a1, r0, r1) => {
+  const span=a1-a0;
+  const P=(r,a)=>Math.cos(a)*r+" "+Math.sin(a)*r;
+  if(span>=2*Math.PI-1e-6) return "M "+(r1)+" 0 A "+r1+" "+r1+" 0 1 1 "+(-r1)+" 0 A "+r1+" "+r1+" 0 1 1 "+r1+" 0 Z M "+(r0)+" 0 A "+r0+" "+r0+" 0 1 0 "+(-r0)+" 0 A "+r0+" "+r0+" 0 1 0 "+r0+" 0 Z";
+  const big=span>Math.PI?1:0;
+  return "M "+P(r0,a0)+" L "+P(r1,a0)+" A "+r1+" "+r1+" 0 "+big+" 1 "+P(r1,a1)+" L "+P(r0,a1)+" A "+r0+" "+r0+" 0 "+big+" 0 "+P(r0,a0)+" Z";
 };
 
 // REZEPT IM GRAPH: Zutaten -> vorhandene Knoten (Kanten) und fehlende Zutaten (graue, hohle Kreise am Rezept)
@@ -113,13 +86,6 @@ export const recipeLinks = (rec, stock) => {
   const total=present.length+missing.length;
   return {present,missing,cov:total?present.reduce((a,x)=>a+x.p,0)/total:0};
 };
-// Lage der fehlenden Zutaten: Faecher unter dem Rezeptknoten
-export const missingPositions = (n, cx, cy, radius=110) => {
-  const out=[];
-  for(let i=0;i<n;i++){ const t=n===1?0.5:i/(n-1); const a=Math.PI*0.25+t*Math.PI*0.5; out.push({x:cx+Math.cos(a)*radius,y:cy+Math.sin(a)*radius}); }
-  return out;
-};
-
 // REZEPTE ZUR AUSWAHL: pool [{key,rec,basis,...}] nach Treffern mit den gewaehlten Knoten (selected = Set von stock-keys) sortieren.
 // Ohne Auswahl zaehlt die Abdeckung; mit Auswahl zuerst, wer die meisten gewaehlten Produkte verwendet. Liefert [{...entry, hits, of, cov}]
 export const rankForSelection = (pool, stock, selected) => {

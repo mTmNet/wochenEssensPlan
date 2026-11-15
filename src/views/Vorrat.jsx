@@ -85,7 +85,7 @@ export default function Vorrat({state,api}){
     <div style={{margin:"4px 2px 12px",display:"flex",alignItems:"flex-end",gap:"10px"}}>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontFamily:SER,fontSize:"26px",color:C.text,lineHeight:1.15}}>Vorrat</div>
-        <div style={{fontSize:"13px",color:C.muted,marginTop:"3px"}}>{mode==="graph"?"Dein Vorrat als Karte – Wolken je Gruppe, Rezepte als Verbindungen.":"Was wahrscheinlich da ist – aus Haushaltsbuch, Foto und Hand."}</div>
+        <div style={{fontSize:"13px",color:C.muted,marginTop:"3px"}}>{mode==="graph"?"Dein Vorrat im Kreis – Rezept in der Mitte, Gruppen als Stücke.":"Was wahrscheinlich da ist – aus Haushaltsbuch, Foto und Hand."}</div>
       </div>
       <div role="group" aria-label="Ansicht" style={{display:"flex",border:"1px solid "+C.border,flexShrink:0}}>
         {[["list","Liste"],["graph","Graph"]].map(([m,t])=>(
