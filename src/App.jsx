@@ -667,6 +667,8 @@ export default function App() {
     return writePlan(patch,"stock");
   };
   const addStockItem=(name,sub)=>addStockItems([{name,sub,src:"hand"}]);
+  // Auffrischen (Haken in der Vorratsliste): "ist heute noch da" - zaehlt wie ein Handeintrag von heute, das Verblassen beginnt neu
+  const refreshStock=(item)=>{ const gk=goneKey(item.key); const patch={}; if(hbLink&&hbLink.gone&&hbLink.gone[gk]){ patch["hb/gone/"+gk]=null; setHbLink(prev=>{ if(!prev||!prev.gone) return prev; const g={...prev.gone}; delete g[gk]; return {...prev,gone:g}; }); writePlan(patch,"people"); } return addStockItems([{name:item.name,sub:item.sub,src:"hand"}]); };
   const setPermanent=(item,on)=>{
     const gk=goneKey(item.key); if(!gk) return;
     setStockRaw(prev=>{ const perm={...(prev.perm||{})}; if(on) perm[gk]={name:item.name,sub:item.sub||""}; else delete perm[gk]; return {...prev,perm}; });
@@ -960,7 +962,7 @@ export default function App() {
     // KI
     extractRecipe,suggestRecipe,saveExtracted,setExtracted,setImportErr,
     // Haushaltsbuch, Einstellungen, Sitzung
-    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,setPermanent,removeStock,scanPantry,setStockLayout,resetStockLayout,setSetting,zoom,leavePlan,deletePlan,
+    connectHb,disconnectHb,reloadHb:loadHb,markGone,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,setStockLayout,resetStockLayout,setSetting,zoom,leavePlan,deletePlan,
     // Rahmen
     setView,copyCode,showToast,registerBackHandler,
     setEditShopId,setEditShopText,saveShopEdit,

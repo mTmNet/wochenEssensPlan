@@ -6,8 +6,13 @@ import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const item = (name,p,extra={}) => ({key:name.toLowerCase(),toks:[name.toLowerCase()],name,p,left:10,sub:"",...extra});
 
-test("groupOf: Gruppenname, Haushaltsbuch-Unterrubrik, sonst aus dem Namen", () => {
+test("groupOf: Gruppenname, sonst Produktname (vor der Buchrubrik), sonst Buchrubrik", () => {
   assert.equal(groupOf({name:"Linsen",sub:"Trockenwaren"}), "Trockenwaren");
+  assert.equal(groupOf({name:"Brokkoli",sub:"Obst & Gemüse"}), "Gemüse");        // Rubrik "Obst & Gemuese" heisst nicht Obst
+  assert.equal(groupOf({name:"Bananen",sub:"Obst & Gemüse"}), "Obst");
+  assert.equal(groupOf({name:"Paprika rot 3er",sub:"Obst & Gemüse"}), "Gemüse");
+  assert.equal(groupOf({name:"TK Brokkoli",sub:"Tiefkühl"}), "Tiefkühl");
+  assert.equal(groupOf({name:"Rinderhack 500g",sub:"Frische"}), "Fleisch");
   assert.equal(groupOf({name:"Hackfleisch",sub:"Fleisch & Geflügel"}), "Fleisch");
   assert.equal(groupOf({name:"Joghurt",sub:"Molkerei"}), "Milchprodukte");
   assert.equal(groupOf({name:"Kokosmilch",sub:""}), "Konserven");
@@ -119,4 +124,28 @@ test("radialLayout mit Hand-Lagen: verschobener Punkt bleibt, die anderen fuelle
   assert.equal(before.t, 0.06);
   // zu nah an der Mitte: mindestens innerer Rand
   assert.ok(dragToManual(obst, 1, 1, l.rMax).r > R_IN);
+});
+
+test("relax: uebereinanderliegende Punkte stossen sich ab, der gezogene bleibt liegen, alle bleiben im Stueck", () => {
+  const nodes = graphNodes(["Apfel","Birne","Banane","Kiwi"].map(n=>item(n,0.8,{sub:"Obst"})));
+  // Birnes Lage in dem Layout, in dem Apfel schon von Hand liegt (die drei automatischen ordnen sich dann anders an)
+  const base = radialLayout(nodes, new Set(), {apfel:{t:0.06,r:R_IN+40}});
+  const birne = base.placed.find(n=>n.key==="birne");
+  const obst = base.sectors[0], span = obst.a1-obst.a0;
+  // Apfel von Hand genau auf die Birne legen (und beim Ziehen festhalten)
+  const man = {apfel:{t:((birne.ang-obst.a0)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)/span, r:Math.hypot(birne.x,birne.y)}};
+  const l = radialLayout(nodes, new Set(), man, "apfel");
+  const a = l.placed.find(n=>n.key==="apfel"), b = l.placed.find(n=>n.key==="birne");
+  assert.ok(Math.abs(Math.hypot(a.x,a.y)-man.apfel.r)<1e-6, "gezogener Punkt bleibt liegen");
+  assert.ok(Math.hypot(a.x-b.x,a.y-b.y) >= a.r+b.r+20, "Birne ist ausgewichen");
+  for(let i=0;i<l.placed.length;i++) for(let j=i+1;j<l.placed.length;j++){
+    const p=l.placed[i], q=l.placed[j];
+    assert.ok(Math.hypot(p.x-q.x,p.y-q.y) >= p.r+q.r+20, p.name+"/"+q.name+" zu nah");
+  }
+  l.placed.forEach(n=>{ const rel=((n.ang-obst.a0)%(2*Math.PI)+2*Math.PI)%(2*Math.PI); assert.ok(rel<=span+1e-9 && Math.hypot(n.x,n.y)<=l.rMax+1e-6, n.name+" bleibt im Stueck"); });
+  // ohne Festhalten weicht die Hand-Lage halb, die automatische ganz: beide bewegen sich
+  const l2 = radialLayout(nodes, new Set(), man);
+  const a2 = l2.placed.find(n=>n.key==="apfel"), b2 = l2.placed.find(n=>n.key==="birne");
+  assert.ok(Math.hypot(a2.x-b2.x,a2.y-b2.y) >= a2.r+b2.r+20);
+  assert.ok(Math.abs(Math.hypot(a2.x,a2.y)-man.apfel.r)>1e-6 || Math.abs(a2.ang-(obst.a0+span*man.apfel.t))>1e-6, "Hand-Lage weicht auch etwas");
 });

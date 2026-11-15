@@ -204,12 +204,17 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position loescht nur den Eintrag, kein gone-Marker');
   await page.click('button[aria-label="Bananen entfernen"]'); await page.waitForTimeout(400);
   check(plan().hb.gone && Object.keys(plan().hb.gone).length===1, 'x bei Haushaltsbuch-Position setzt gone-Marker');
+  // Auffrischen: Haken bei einer verblassten Haushaltsbuch-Position -> Handeintrag von heute, 100 %
+  await page.click('button[aria-label="Butter auffrischen: ist noch da"]'); await page.waitForTimeout(500);
+  const fresh = Object.values(plan().stock.items).find(i=>i.name==='Butter');
+  check(!!fresh && fresh.src==='hand' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + Hand'), 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
   await shot('05-vorrat');
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
   await page.click('button:text-is("Graph")'); await page.waitForTimeout(500);
   const G = 'svg[data-testid="vorrat-graph"]';
   const nodeCount = await page.locator(G+' g[role="button"][aria-label$=" auswählen"]').count();
   const groupLabels = await page.locator(G+' g[role="button"][aria-label^="Gruppe "]').allTextContents();
+  check(!groupLabels.some(t=>/OBST/.test(t)) && groupLabels.some(t=>/GEM.SE \(4\)/.test(t)) && groupLabels.some(t=>/FLEISCH \(3\)/.test(t)), 'Graph: Gruppen stimmen (Gemuese 4 inkl. Foto-Kartoffeln, Fleisch 3, kein Obst nach Streichen der Bananen)', groupLabels);
   const sectorCount = await page.locator(G+' path[fill^="#"]').count();
   check(nodeCount>=8 && groupLabels.length>=3 && sectorCount===2*groupLabels.length, 'Graph: Punkte in mehreren Kuchenstuecken mit Farbakzent (Flaeche + Band)', {nodeCount, groupLabels, sectorCount});
   check((await page.locator(G+' g[aria-label="Spaghetti Barilla auswählen"] circle[stroke="#F0EEE9"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');

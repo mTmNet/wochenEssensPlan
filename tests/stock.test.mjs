@@ -134,3 +134,17 @@ test("buildStock: Haushaltsbuch, eigene Positionen und Dauervorrat in einer List
   assert.equal(guessGroup("Kokosmilch"), "Konserven");
   assert.equal(guessGroup("Hähnchenbrust"), "Fleisch");
 });
+
+test("guessGroup: Emoji-Tabelle sortiert Gemuese und Obst richtig, Tiefkuehl und Dosen zuerst", () => {
+  assert.equal(guessGroup("Brokkoli"), "Gemüse");
+  assert.equal(guessGroup("Paprika rot 3er"), "Gemüse");
+  assert.equal(guessGroup("Bananen"), "Obst");
+  assert.equal(guessGroup("Avocado"), "Obst");
+  assert.equal(guessGroup("TK Brokkoli"), "Tiefkühl");
+  assert.equal(guessGroup("Erbsen tiefgefroren"), "Tiefkühl");
+  assert.equal(guessGroup("Tomaten Dose"), "Konserven");
+  assert.equal(guessGroup("Rinderhack 500g"), "Fleisch");
+  assert.equal(guessGroup("Jogh Natur"), "Milchprodukte");
+  assert.equal(guessGroup("Parmesan Stk"), "Käse");
+  assert.equal(guessGroup("Irgendwas"), "Sonstiges");
+});

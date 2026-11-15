@@ -28,11 +28,23 @@ const T = [
   // Sonstiges
   ["oel","🫒"],["olive","🫒"],["essig","🫙"],["senf","🫙"],["ketchup","🍅"],["mayo","🫙"],["sojasauce","🫙"],["sauce","🫙"],["sosse","🫙"],["brueh","🍲"],["suppe","🍲"],["gewuerz","🧂"],["salz","🧂"],["pfeffer","🧂"],["curry","🧂"],["kraeuter","🌿"],["basilikum","🌿"],["petersil","🌿"],["schnittlauch","🌿"],["dill","🌿"],["ingwer","🌿"],
 ];
+// Emoji -> Gruppe: dieselbe Stichworttabelle ordnet damit auch Kassenbon-Namen einer Gruppe zu (Brokkoli -> Gemuese, nicht Obst)
+export const EMOJI_GROUP = {
+  "🍅":"Gemüse","🫑":"Gemüse","🌶":"Gemüse","🥒":"Gemüse","🧅":"Gemüse","🧄":"Gemüse","🥕":"Gemüse","🥦":"Gemüse","🥬":"Gemüse","🥔":"Gemüse","🍠":"Gemüse","🍄":"Gemüse","🍆":"Gemüse","🎃":"Gemüse","🫛":"Gemüse","🌽":"Gemüse",
+  "🍎":"Obst","🍌":"Obst","🍐":"Obst","🍊":"Obst","🍋":"Obst","🍓":"Obst","🫐":"Obst","🍇":"Obst","🍉":"Obst","🍒":"Obst","🍑":"Obst","🥭":"Obst","🍍":"Obst","🥝":"Obst","🥑":"Obst",
+  "🍗":"Fleisch","🥩":"Fleisch","🌭":"Wurst","🥓":"Wurst","🐟":"Fisch","🦐":"Fisch",
+  "🧈":"Milchprodukte","🥚":"Milchprodukte","🥛":"Milchprodukte","🧀":"Käse",
+  "🍝":"Trockenwaren","🍚":"Trockenwaren","🥣":"Trockenwaren","🌾":"Trockenwaren","🥜":"Trockenwaren","🫘":"Trockenwaren",
+  "🍞":"Brot & Backwaren","🥐":"Brot & Backwaren","🥖":"Brot & Backwaren","🌯":"Brot & Backwaren","🍕":"Tiefkühl",
+  "🍫":"Süßes","🍪":"Süßes","🍰":"Süßes","🍦":"Tiefkühl","🍬":"Süßes","🍯":"Süßes","🥨":"Süßes","🍿":"Süßes",
+  "☕":"Getränke","🍵":"Getränke","🧃":"Getränke","🥤":"Getränke","💧":"Getränke","🍺":"Getränke","🍷":"Getränke","🍾":"Getränke",
+  "🥥":"Konserven","🥫":"Konserven","🧊":"Tiefkühl",
+};
 export const GROUP_ICON = {"Obst":"🍎","Gemüse":"🥬","Fleisch":"🥩","Wurst":"🥓","Fisch":"🐟","Brot & Backwaren":"🍞","Milchprodukte":"🥛","Käse":"🧀","Getränke":"🧃","Süßes":"🍬","Tiefkühl":"🧊","Konserven":"🥫","Trockenwaren":"🌾","Sonstiges":"🛒"};
 
+// Emoji nur aus dem Namen (ohne Gruppen-Rueckfall)
+export const nameIcon = (name) => { const n=" "+fold(name)+" "; for(const [k,e] of T) if(n.includes(k)) return e; return ""; };
 // Emoji zum Produktnamen; group = Gruppe als Rueckfall. Liefert "" wenn nichts passt.
-export const foodIcon = (name, group) => {
-  const n = " "+fold(name)+" ";
-  for(const [k,e] of T) if(n.includes(k)) return e;
-  return GROUP_ICON[group] || "";
-};
+export const foodIcon = (name, group) => nameIcon(name) || GROUP_ICON[group] || "";
+// Gruppe nur aus dem Namen ueber das Emoji ("" wenn unbekannt)
+export const nameGroup = (name) => EMOJI_GROUP[nameIcon(name)] || "";

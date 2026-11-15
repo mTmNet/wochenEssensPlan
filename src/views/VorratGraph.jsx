@@ -44,7 +44,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   // Hand-Lagen aus dem Plan (stock/layout/<goneKey>), waehrend des Ziehens die lokale Lage
   const manual=useMemo(()=>{ const out={}; const raw=(stockRaw&&stockRaw.layout)||{}; nodes.forEach(n=>{ const e=raw[goneKey(n.key)]; if(e&&Number.isFinite(e.t)&&Number.isFinite(e.r)) out[n.key]={t:e.t,r:e.r}; }); if(dragPos) out[dragPos.key]={t:dragPos.t,r:dragPos.r}; return out; },[nodes,stockRaw,dragPos]);
   const manualCount=Object.keys(manual).length-(dragPos&&!((stockRaw&&stockRaw.layout)||{})[goneKey(dragPos.key)]?1:0);
-  const layout=useMemo(()=>radialLayout(nodes,collapsed,manual),[nodes,collapsed,manual]);
+  const layout=useMemo(()=>radialLayout(nodes,collapsed,manual,dragPos?dragPos.key:""),[nodes,collapsed,manual,dragPos]);
   const {sectors,placed,rOut,rMax}=layout;
   const isCollapsed=(name)=>collapsed.has(name);
   const anchorOf=(key)=>{ const n=placed.find(x=>x.key===key); if(n) return n; const src=nodes.find(x=>x.key===key); const sec=src&&sectors.find(x=>x.name===src.group&&x.collapsed); return sec?{x:sec.x,y:sec.y,ang:sec.mid}:null; };
@@ -155,7 +155,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
                 {(isSel||isLinked)&&<circle r={n.r+7} fill="none" stroke={isSel?C.text:C.accent} strokeWidth="2" />}
                 <circle r={n.r} fill={C.accent} fillOpacity={0.25+0.55*n.p} stroke={n.permanent?C.text:"none"} strokeWidth={n.permanent?2:0} />
                 {n.expiring&&<circle r={n.r+3} fill="none" stroke={C.err} strokeWidth="2.5" strokeDasharray={(circ*0.62)+" "+circ} transform="rotate(-90)" strokeLinecap="round" />}
-                {icon?<text y="0.5" textAnchor="middle" dominantBaseline="central" fontSize={Math.round(n.r*1.45)} fillOpacity={0.6+0.4*n.p} style={{pointerEvents:"none"}}>{icon}</text>
+                {icon?<text y="0.5" textAnchor="middle" dominantBaseline="central" fontSize={Math.round(n.r*1.5)} opacity={0.7+0.3*n.p} style={{pointerEvents:"none"}}>{icon}</text>
                      :<text y="0.5" textAnchor="middle" dominantBaseline="central" fontSize={Math.round(n.r*1.1)} fontFamily={SER} fill={C.dark} style={{pointerEvents:"none"}}>{String(n.name).charAt(0).toUpperCase()}</text>}
                 <text y={n.r+13} textAnchor="middle" fontSize="11" fill={C.text} fillOpacity={0.55+0.45*n.p}>{short(n.name)}</text>
                 <circle r={Math.max(n.r+8,18)} fill="transparent" />

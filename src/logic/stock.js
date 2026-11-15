@@ -4,6 +4,7 @@ import { HALF_LIFE, HB_SKIP_SUB, HB_DAYS } from "../data.js";
 import { fold, normKey, tokMatch, isBasic, parseIng } from "./ingredients.js";
 import { daysSince } from "./weeks.js";
 import { cookedCount } from "./recipes.js";
+import { nameGroup } from "./foodIcon.js";
 
 export { fold };
 
@@ -13,6 +14,10 @@ export const halfLife = (sub) => { const s=fold(sub); for(const [k,d] of HALF_LI
 export const STOCK_GROUPS = ["Obst","Gemüse","Fleisch","Wurst","Fisch","Brot & Backwaren","Milchprodukte","Käse","Getränke","Süßes","Tiefkühl","Konserven","Trockenwaren","Sonstiges"];
 export const guessGroup = (name) => {
   const n = fold(name);
+  // Tiefkuehl und Dosen zuerst (TK-Brokkoli ist Tiefkuehl), dann die Emoji-Tabelle (Brokkoli -> Gemuese), dann grobe Stichwoerter
+  if(/(^|[\s-])tk([\s-]|$)|tiefkuehl|gefroren|tiefgefr/.test(n)) return "Tiefkühl";
+  if(/dose|konserve|passata|kokosmilch|eingelegt|im glas/.test(n)) return "Konserven";
+  const viaEmoji = nameGroup(name); if(viaEmoji) return viaEmoji;
   const T = [["Konserven",["dose","passata","kokosmilch","konserve","mais","kichererbsen"]],["Tiefkühl",["tiefkuehl","tk ","gefroren","pizza"]],["Obst",["apfel","banane","birne","beere","orange","zitrone","trauben","mango","kiwi","pfirsich","melone","obst"]],["Gemüse",["tomate","paprika","gurke","salat","zwiebel","karotte","moehre","brokkoli","kartoffel","zucchini","spinat","lauch","kohl","pilz","champignon","aubergine","kuerbis","bohnen","erbsen","fenchel","sellerie","gemuese"]],["Fisch",["lachs","fisch","forelle","thunfisch","garnele","kabeljau"]],["Wurst",["wurst","schinken","salami","speck"]],["Fleisch",["hack","fleisch","haehnchen","huehnchen","pute","rind","schwein","lamm","steak"]],["Käse",["kaese","parmesan","mozzarella","feta","gouda","emmentaler"]],["Milchprodukte",["milch","joghurt","jogh","quark","sahne","butter","eier","ei ","skyr","frischkaese"]],["Brot & Backwaren",["brot","broetchen","toast","baguette","mehl","hefe"]],["Getränke",["saft","wasser","cola","limo","bier","wein","tee","kaffee"]],["Süßes",["schokolade","kekse","gummibaer","bonbon","suess","kuchen","honig","marmelade"]],["Trockenwaren",["pasta","spaghetti","nudel","reis","linsen","haferflocken","muesli","couscous","bulgur","quinoa","zucker","nuesse","mandeln"]]];
   for(const [g,keys] of T) if(keys.some(k=>n.includes(k))) return g;
   return "Sonstiges";

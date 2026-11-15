@@ -19,7 +19,7 @@ const saveMode=(m)=>{ try{ localStorage.setItem(MODE_KEY,m); }catch(e){} };
 
 export default function Vorrat({state,api}){
   const {stock,hbLink,hbLoading,hbErr,hbBook,learned}=state;
-  const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,setPermanent,removeStock,scanPantry,showToast}=api;
+  const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast}=api;
   const [hbInput,setHbInput]=useState("");
   const [name,setName]=useState("");
   const [group,setGroup]=useState("");
@@ -59,8 +59,9 @@ export default function Vorrat({state,api}){
           <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn].filter(Boolean).join(" · ")}</div>
         </div>
         {!s.permanent&&<span style={{fontSize:"16px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"46px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>}
-        <button onClick={()=>setPermanent(s,!s.permanent)} aria-label={s.permanent?s.name+": Dauervorrat aufheben":s.name+" als Dauervorrat"} aria-pressed={!!s.permanent} title={s.permanent?"Dauervorrat aufheben":"Dauervorrat: ist immer da"} style={{...iconBtn,color:s.permanent?C.accent:C.subtle,fontSize:"18px"}}>{s.permanent?"★":"☆"}</button>
-        <button onClick={()=>removeStock(s)} aria-label={s.name+" entfernen"} title={s.srcs&&s.srcs.includes("hb")?"Nicht mehr da – aus der Liste streichen":"Entfernen"} style={{...iconBtn,color:C.muted}}>×</button>
+        {!s.permanent&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:s.p>=0.99?C.subtle:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
+        <button onClick={()=>setPermanent(s,!s.permanent)} aria-label={s.permanent?s.name+": Dauervorrat aufheben":s.name+" als Dauervorrat"} aria-pressed={!!s.permanent} title={s.permanent?"Dauervorrat aufheben":"Dauervorrat: ist immer da"} style={{...iconBtn,color:s.permanent?C.accent:C.subtle,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>{s.permanent?"★":"☆"}</button>
+        <button onClick={()=>removeStock(s)} aria-label={s.name+" entfernen"} title={s.srcs&&s.srcs.includes("hb")?"Nicht mehr da – aus der Liste streichen":"Entfernen"} style={{...iconBtn,color:C.muted,minWidth:"36px",padding:"6px 4px"}}>×</button>
       </div>
     );
   };
@@ -164,7 +165,7 @@ export default function Vorrat({state,api}){
       {visible.map(row)}
       <div style={{padding:"10px 14px",fontSize:"13px",color:C.subtle,borderTop:"1px solid "+C.border,lineHeight:"1.5"}}>
         <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
-        <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ★ Dauervorrat verblasst nie. Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+        <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. ★ Dauervorrat verblasst nie. Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position gestrichen.":goneCount+" Positionen gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
       </div>
     </div>}

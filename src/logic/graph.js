@@ -5,12 +5,16 @@ import { fold } from "./ingredients.js";
 
 // Gruppe einer Vorratsposition: Gruppenname aus Hand/Foto, sonst Haushaltsbuch-Unterrubrik erkennen, sonst aus dem Namen raten
 const SUB_HINTS = [["Obst",["obst","fruecht"]],["Gemüse",["gemuese","salat"]],["Fleisch",["fleisch","gefluegel"]],["Wurst",["wurst","aufschnitt"]],["Fisch",["fisch","meeresfr"]],["Brot & Backwaren",["brot","backwar","baeck"]],["Milchprodukte",["milch","molkerei","eier"]],["Käse",["kaese"]],["Getränke",["getraenk","trinken"]],["Süßes",["suess","schoko","snack"]],["Tiefkühl",["tiefkuehl","tk","gefr"]],["Konserven",["konserv","dose"]],["Trockenwaren",["trocken","nudel","reis","muesli"]]];
+// Reihenfolge: Gruppenname aus Hand/Foto -> aus dem Produktnamen (Brokkoli ist Gemuese, auch wenn die Buchrubrik "Obst & Gemuese" heisst)
+// -> Buchrubrik erkennen -> Sonstiges
 export const groupOf = (item) => {
   const sub = (item && item.sub) || "";
   if(STOCK_GROUPS.includes(sub)) return sub;
+  const byName = guessGroup((item && item.name) || "");
+  if(byName!=="Sonstiges") return byName;
   const f = fold(sub);
   if(f){ for(const [g,keys] of SUB_HINTS) if(keys.some(k=>f.includes(k))) return g; }
-  return guessGroup((item && item.name) || "");
+  return "Sonstiges";
 };
 
 // Radius eines Produktpunkts (Weltkoordinaten): klein bei geringer Wahrscheinlichkeit, gross bei hoher
@@ -41,7 +45,7 @@ export const R_IN = 158;               // innerer Rand der Kuchenstuecke
 const ROW = 66, ARC = 96;              // Abstand der Ringe / nebeneinander (Platz fuer die Beschriftung)
 // manual = {key: {t, r}}: von Hand verschobene Punkte; t = Anteil im Stueck (0..1), r = Abstand von der Mitte. Sie bleiben, wo sie sind,
 // die uebrigen Punkte fuellen die Ringe automatisch. rAuto = Aussenrand ohne Hand-Lagen (Grenze fuers Ziehen: eine halbe Reihe weiter).
-export const radialLayout = (nodes, collapsed, manual) => {
+export const radialLayout = (nodes, collapsed, manual, fixedKey) => {
   const col = collapsed instanceof Set ? collapsed : new Set(collapsed||[]);
   const man = manual||{};
   const clusters = clusterList(nodes);
@@ -73,8 +77,32 @@ export const radialLayout = (nodes, collapsed, manual) => {
     }
     sectors.push(sec); a+=span;
   });
-  const rAuto=Math.round(rOut);
-  return {sectors,placed,rOut:Math.round(Math.max(rOut,rMan)),rAuto,rMax:rAuto+ROW*0.5};
+  const rAuto=Math.round(rOut), rMax=rAuto+ROW*0.5;
+  relax(placed,sectors,fixedKey,rMax);
+  const rAll=placed.reduce((m,n)=>Math.max(m,Math.hypot(n.x,n.y)+ROW*0.62),rOut);
+  return {sectors,placed,rOut:Math.round(Math.max(rAll,rMan)),rAuto,rMax};
+};
+// ABSTOSSUNG (wie im Obsidian-Graph, nur ohne Dauerlauf): Punkte desselben Stuecks, die sich samt Beschriftung ueberlappen, schieben sich
+// auseinander; der gerade gezogene Punkt (fixedKey) bleibt liegen, Hand-Lagen weichen halb so weit wie automatische. Jeder Punkt bleibt in
+// seinem Stueck (Winkel mit Rand, Abstand zwischen innerem Rand und rMax). Fester Ablauf, kein Zufall.
+const GAP = 22;
+const relax = (placed, sectors, fixedKey, rMax) => {
+  const secOf={}; sectors.forEach(s=>{ secOf[s.name]=s; });
+  const w=(n)=>n.key===fixedKey?0:(n.manual?0.5:1);
+  for(let it=0; it<40; it++){
+    let moved=0;
+    for(let i=0;i<placed.length;i++) for(let j=i+1;j<placed.length;j++){
+      const a=placed[i], b=placed[j]; if(a.group!==b.group) continue;
+      const wa=w(a), wb=w(b); if(!(wa+wb)) continue;
+      let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
+      if(d<0.01){ dx=0.7; dy=0.7; d=Math.hypot(dx,dy); }
+      const min=a.r+b.r+GAP; if(d>=min) continue;
+      const push=(min-d)/(wa+wb), ux=dx/d, uy=dy/d;
+      a.x-=ux*push*wa; a.y-=uy*push*wa; b.x+=ux*push*wb; b.y+=uy*push*wb; moved++;
+    }
+    if(!moved) break;
+    placed.forEach(n=>{ if(n.key===fixedKey) return; const sec=secOf[n.group]; if(!sec) return; const m=dragToManual(sec,n.x,n.y,rMax); const ang=sec.a0+(sec.a1-sec.a0)*m.t; n.x=Math.cos(ang)*m.r; n.y=Math.sin(ang)*m.r; n.ang=ang; });
+  }
 };
 const isManual = (m) => !!m && Number.isFinite(m.t) && Number.isFinite(m.r);
 // Zielpunkt (x,y) beim Ziehen -> Hand-Lage {t,r} im eigenen Stueck, am Rand abgefangen (Rand bleibt Rand, nie ein anderes Stueck)
