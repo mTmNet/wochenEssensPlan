@@ -21,7 +21,7 @@ Antwort bei Fehlern: `{"error": "deutsche Meldung"}` mit passendem Status.
 |---|---|
 | 400 | `messages` fehlt oder ist leer |
 | 403 | Herkunft nicht erlaubt (siehe unten) |
-| 405 | andere Methode als POST |
+| 405 | andere Methode als POST oder GET (GET liefert nur den Status des Kostendeckels) |
 | 413 | Körper größer als 6 MB |
 | 422 | KI lieferte keinen Text (z. B. `RECITATION`: urheberrechtlich geschütztes Rezept) |
 | 429 | Drossel oder Tagesgrenze des Kostendeckels ausgelöst, oder Kontingent des KI-Dienstes aufgebraucht |
@@ -83,7 +83,9 @@ Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je
 }
 ```
 
-Prüfen: nach einer KI-Anfrage steht in der Firebase Console unter `aiUsage/<Geheimnis>/<heutiges Datum>/total` eine Zahl. Steht dort nichts, meldet das Vercel-Log „Kostendeckel: Zählerspeicher nicht nutzbar“ (Regel fehlt oder Geheimnis ungültig).
+Prüfen mit einem Klick: `https://<Adresse der App>/api/gemini` im Browser öffnen. Die Antwort `{"kostendeckel":{"aktiv":true|false,"grund":"…"}}` sagt, ob gezählt wird, und nennt sonst die Ursache (Variable fehlt oder ungültig, Regel fehlt, Datenbank nicht erreichbar). Die Abfrage ruft die KI nicht auf.
+
+Außerdem: nach einer KI-Anfrage steht in der Firebase Console unter `aiUsage/<Geheimnis>/<heutiges Datum>/total` eine Zahl. Steht dort nichts, meldet das Vercel-Log „Kostendeckel: Zählerspeicher nicht nutzbar“ (Regel fehlt oder Geheimnis ungültig).
 
 Grenzen des Deckels:
 

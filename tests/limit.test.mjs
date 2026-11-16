@@ -1,7 +1,7 @@
 // Kostendeckel der KI-Function: Tageszähler mit simuliertem Zählerspeicher (Realtime Database per REST)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkAndCount, limitsFrom, cleanCode, validSecret, dayKey, hashId, limitMessage, DEFAULT_LIMITS } from "../api/_limit.js";
+import { checkAndCount, limitStatus, limitsFrom, cleanCode, validSecret, dayKey, hashId, limitMessage, DEFAULT_LIMITS } from "../api/_limit.js";
 
 const SECRET = "a".repeat(40);
 const DB = "https://db.example";
@@ -123,4 +123,25 @@ test("limitMessage: je Grund eine deutsche Meldung, Zusatz wird angehängt", () 
   assert.match(limitMessage("total"), /Tageskontingent/);
   assert.match(limitMessage("ip"), /Anschluss/);
   assert.match(limitMessage("code", "Bitte von Hand eintragen."), /von Hand eintragen\.$/);
+});
+
+test("limitStatus: nennt den Grund, wenn der Deckel nicht zählt, und verrät das Geheimnis nicht", async () => {
+  const none = await limitStatus({ dbUrl: DB, secret: "" });
+  assert.equal(none.aktiv, false);
+  assert.match(none.grund, /nicht gesetzt/);
+  const bad = await limitStatus({ dbUrl: DB, secret: "mit leerzeichen und zu kurz" });
+  assert.equal(bad.aktiv, false);
+  assert.match(bad.grund, /ungültig/);
+  const denied = await limitStatus({ dbUrl: DB, secret: SECRET, fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({}) }) });
+  assert.equal(denied.aktiv, false);
+  assert.match(denied.grund, /Regel-Knoten aiUsage/);
+  const down = await limitStatus({ dbUrl: DB, secret: SECRET, fetchImpl: async () => { throw new Error("Netz weg"); } });
+  assert.equal(down.aktiv, false);
+  let stored = null;
+  const ok = await limitStatus({ dbUrl: DB, secret: SECRET, now: () => T0, fetchImpl: async (url, o = {}) => {
+    if (o.method === "PUT") { assert.deepEqual(JSON.parse(o.body), { ".sv": { increment: 1 } }); stored = (stored || 0) + 1; return { ok: true, status: 200, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => stored };
+  } });
+  assert.equal(ok.aktiv, true);
+  for (const s of [none, bad, denied, down, ok]) assert.ok(!JSON.stringify(s).includes(SECRET));
 });
