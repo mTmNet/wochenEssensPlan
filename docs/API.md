@@ -39,7 +39,7 @@ Antwort bei Fehlern: `{"error": "deutsche Meldung"}` mit passendem Status.
 
 ## Kostendeckel (Tageszähler)
 
-Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag (UTC), und zwar über alle Serverinstanzen hinweg. Die Zähler liegen in der eigenen Realtime Database unter `aiUsage/<AI_LIMIT_SECRET>/<Tag>/…`; IP und Plan-Code stehen dort nur als Hash. Ist eine Grenze erreicht, antwortet die Function mit 429 und ruft die KI nicht auf.
+Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag (UTC), und zwar über alle Serverinstanzen hinweg. Die Zähler liegen in der eigenen Realtime Database unter `aiUsage/<SHA-256 von AI_LIMIT_SECRET>/<Tag>/…`; IP und Plan-Code stehen dort nur als Hash. Ist eine Grenze erreicht, antwortet die Function mit 429 und ruft die KI nicht auf.
 
 | Grenze je Tag | Standard | Umgebungsvariable |
 |---|---|---|
@@ -49,7 +49,7 @@ Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag 
 
 Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je Minute):
 
-1. Ein zufälliges Geheimnis aus mindestens 32 Zeichen (nur Buchstaben, Ziffern, `-`, `_`) erzeugen und in Vercel als Umgebungsvariable `AI_LIMIT_SECRET` setzen, danach neu deployen. Das Geheimnis gehört nicht ins Repository.
+1. Ein zufälliges Geheimnis aus mindestens 16 Zeichen (beliebige Zeichen) erzeugen und in Vercel als Umgebungsvariable `AI_LIMIT_SECRET` setzen, danach neu deployen. Das Geheimnis gehört nicht ins Repository.
 2. In der Firebase Console (Projekt `wochenessenplan-3d0e1`) unter *Realtime Database → Regeln* den Knoten `aiUsage` ergänzen. Vollständiger Regelsatz zum Kopieren (die gehärteten Regeln für `recipeImages` und `globalRecipes` aus dem README plus `aiUsage`):
 
 ```json
@@ -83,9 +83,9 @@ Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je
 }
 ```
 
-Prüfen mit einem Klick: `https://<Adresse der App>/api/gemini` im Browser öffnen. Die Antwort `{"kostendeckel":{"aktiv":true|false,"grund":"…"}}` sagt, ob gezählt wird, und nennt sonst die Ursache (Variable fehlt oder ungültig, Regel fehlt, Datenbank nicht erreichbar). Die Abfrage ruft die KI nicht auf.
+Prüfen mit einem Klick: `https://<Adresse der App>/api/gemini` im Browser öffnen. Die Antwort `{"kostendeckel":{"aktiv":true|false,"grund":"…"}}` sagt, ob gezählt wird, und nennt sonst die Ursache (Variable fehlt oder zu kurz, Regel fehlt, Datenbank nicht erreichbar). Die Abfrage ruft die KI nicht auf.
 
-Außerdem: nach einer KI-Anfrage steht in der Firebase Console unter `aiUsage/<Geheimnis>/<heutiges Datum>/total` eine Zahl. Steht dort nichts, meldet das Vercel-Log „Kostendeckel: Zählerspeicher nicht nutzbar“ (Regel fehlt oder Geheimnis ungültig).
+Außerdem: nach einer KI-Anfrage steht in der Firebase Console unter `aiUsage/<64 Zeichen>/<heutiges Datum>/total` eine Zahl. Steht dort nichts, meldet das Vercel-Log „Kostendeckel: Zählerspeicher nicht nutzbar“ (Regel fehlt).
 
 Grenzen des Deckels:
 
@@ -104,7 +104,7 @@ Grenzen des Deckels:
 | Name | Bedeutung |
 |---|---|
 | `GEMINI_API_KEY` | Schlüssel für den KI-Dienst. Wird in den Vercel-Projekteinstellungen gesetzt; danach neu deployen. Fehlt er, antwortet die Function mit 500 und dem Text `GEMINI_API_KEY not configured`, den der Client als Konfigurationshinweis erkennt. |
-| `AI_LIMIT_SECRET` | Geheimnis für den Zählerpfad des Kostendeckels (mindestens 32 Zeichen). Fehlt es, ist der Deckel aus. |
+| `AI_LIMIT_SECRET` | Geheimnis für den Zählerpfad des Kostendeckels (mindestens 16 Zeichen). Fehlt es, ist der Deckel aus. |
 | `AI_LIMIT_TOTAL`, `AI_LIMIT_IP`, `AI_LIMIT_CODE` | Optionale Tagesgrenzen, Standard 300 / 60 / 80. |
 
 Für lokale Entwicklung reicht `vercel dev` mit einer `.env`-Datei, die den Schlüssel enthält. Die Datei gehört nicht ins Repository.
