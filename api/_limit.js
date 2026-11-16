@@ -5,7 +5,7 @@
 // (kind "uid") und ersetzt den Code; an der Logik ändert sich dafür nichts.
 import { createHash } from "node:crypto";
 
-export const DEFAULT_LIMITS = { total: 300, ip: 60, code: 80 };
+export const DEFAULT_LIMITS = { total: 300, ip: 60, code: 50 };
 
 const toInt = (v, fallback) => {
   const n = parseInt(String(v ?? "").trim(), 10);

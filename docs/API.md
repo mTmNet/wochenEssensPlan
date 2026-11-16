@@ -45,7 +45,7 @@ Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag 
 |---|---|---|
 | alle Anfragen zusammen | 300 | `AI_LIMIT_TOTAL` |
 | je IP | 60 | `AI_LIMIT_IP` |
-| je Plan-Code | 80 | `AI_LIMIT_CODE` |
+| je Plan-Code | 50 | `AI_LIMIT_CODE` |
 
 Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je Minute):
 
@@ -105,6 +105,6 @@ Grenzen des Deckels:
 |---|---|
 | `GEMINI_API_KEY` | Schlüssel für den KI-Dienst. Wird in den Vercel-Projekteinstellungen gesetzt; danach neu deployen. Fehlt er, antwortet die Function mit 500 und dem Text `GEMINI_API_KEY not configured`, den der Client als Konfigurationshinweis erkennt. |
 | `AI_LIMIT_SECRET` | Geheimnis für den Zählerpfad des Kostendeckels (mindestens 16 Zeichen). Fehlt es, ist der Deckel aus. |
-| `AI_LIMIT_TOTAL`, `AI_LIMIT_IP`, `AI_LIMIT_CODE` | Optionale Tagesgrenzen, Standard 300 / 60 / 80. |
+| `AI_LIMIT_TOTAL`, `AI_LIMIT_IP`, `AI_LIMIT_CODE` | Optionale Tagesgrenzen, Standard 300 / 60 / 50. |
 
 Für lokale Entwicklung reicht `vercel dev` mit einer `.env`-Datei, die den Schlüssel enthält. Die Datei gehört nicht ins Repository.
