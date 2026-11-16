@@ -5,6 +5,7 @@ import { pickList, groupPicks, dayLabel, dayChoices, addDays, picksForDay } from
 import { suggestScore, rankSuggestions, suggestable, hash01 } from "../src/logic/suggest.js";
 import { hbStock } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
+import { todayISO } from "../src/logic/weeks.js";
 
 const T = "2026-11-14";   // Samstag
 
@@ -26,6 +27,7 @@ test("groupPicks und dayLabel: Heute, Morgen, Wochentag, vorbei, Demnaechst", ()
 });
 
 test("suggestScore: Vorrat und Dringlichkeit zaehlen, frisch Gekochtes wird gebremst, kein Haeufigkeitsbonus", () => {
+  const T = todayISO();                 // hbStock rechnet mit dem echten Heute, darum hier kein festes Datum
   const d = (n) => addDays(T, -n);
   const book = { entries: { e1: { date: d(4), category:"Lebensmittel", items:[ { name:"Rinderhack 500g", amount:1, sub:"Fleisch" } ] }, e2: { date: d(1), category:"Lebensmittel", items:[ { name:"Spaghetti", amount:1, sub:"Trockenwaren" } ] } } };
   const stock = hbStock(book, "Lebensmittel");
