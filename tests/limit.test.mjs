@@ -1,7 +1,7 @@
 // Kostendeckel der KI-Function: Tageszähler mit simuliertem Zählerspeicher (Realtime Database per REST)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkAndCount, limitStatus, limitsFrom, cleanCode, validSecret, dayKey, hashId, limitMessage, DEFAULT_LIMITS } from "../api/_limit.js";
+import { checkAndCount, limitStatus, limitsFrom, cleanCode, validSecret, dayKey, hashId, limitMessage, secretPath, DEFAULT_LIMITS } from "../api/_limit.js";
 
 const SECRET = "a".repeat(40);
 const DB = "https://db.example";
@@ -54,7 +54,10 @@ test("cleanCode, validSecret, dayKey, hashId", () => {
   assert.equal(cleanCode(undefined), "");
   assert.equal(validSecret(SECRET), true);
   assert.equal(validSecret("zu-kurz"), false);
-  assert.equal(validSecret("a".repeat(31) + "/"), false);
+  assert.equal(validSecret("  " + "a".repeat(15) + "  "), false);
+  assert.equal(validSecret("Mit Sonderzeichen: +/=!? und Leerzeichen"), true);
+  assert.match(secretPath("Mit Sonderzeichen: +/=!? und Leerzeichen"), /^[0-9a-f]{64}$/);
+  assert.equal(secretPath(" " + SECRET + "\n"), secretPath(SECRET));
   assert.equal(dayKey(T0), "2026-11-16");
   assert.match(hashId("1.2.3.4", SECRET), /^[0-9a-f]{24}$/);
   assert.notEqual(hashId("1.2.3.4", SECRET), hashId("1.2.3.4", "b".repeat(40)));
@@ -71,7 +74,7 @@ test("ohne Geheimnis ist der Deckel aus und fragt den Speicher nicht", async () 
 test("zählt insgesamt, je IP und je Code; IP und Code stehen nicht im Klartext im Speicher", async () => {
   const db = fakeDb();
   assert.deepEqual(await run(db), { ok: true });
-  const base = "/aiUsage/" + SECRET + "/2026-11-16";
+  const base = "/aiUsage/" + secretPath(SECRET) + "/2026-11-16";
   assert.equal(db.store[base + "/total"], 1);
   assert.equal(db.store[base + "/ip/" + hashId("1.2.3.4", SECRET)], 1);
   assert.equal(db.store[base + "/code/" + hashId("ABCDEF1234", SECRET)], 1);
@@ -87,7 +90,7 @@ test("IP-Grenze greift, andere IP läuft weiter, dann greift die Code-Grenze, da
   assert.deepEqual(await run(db, other("9.9.9.9", "ABCDEF1234")), { ok: false, reason: "code" });
   assert.equal((await run(db, other("9.9.9.9", "ZZZZZZ9999"))).ok, true); // 5. Anfrage insgesamt
   assert.deepEqual(await run(db, other("7.7.7.7", "YYYYYY8888")), { ok: false, reason: "total" });
-  assert.equal(db.store["/aiUsage/" + SECRET + "/2026-11-16/total"], 5); // abgelehnte Anfragen zählen nicht
+  assert.equal(db.store["/aiUsage/" + secretPath(SECRET) + "/2026-11-16/total"], 5); // abgelehnte Anfragen zählen nicht
 });
 
 test("ohne Code gelten nur IP und Gesamtgrenze (alte App-Version im Cache)", async () => {
@@ -104,7 +107,7 @@ test("neuer Tag beginnt bei null und räumt alte Tage weg", async () => {
   const r = await run(db, { now: () => T0 + 24 * 3600 * 1000 });
   assert.equal(r.ok, true);
   assert.ok(!Object.keys(db.store).some((k) => k.includes("2026-11-16")));
-  assert.equal(db.store["/aiUsage/" + SECRET + "/2026-11-17/total"], 1);
+  assert.equal(db.store["/aiUsage/" + secretPath(SECRET) + "/2026-11-17/total"], 1);
 });
 
 test("gestörter Speicher: Anfrage wird durchgelassen und als übersprungen gemeldet", async () => {
@@ -129,9 +132,9 @@ test("limitStatus: nennt den Grund, wenn der Deckel nicht zählt, und verrät da
   const none = await limitStatus({ dbUrl: DB, secret: "" });
   assert.equal(none.aktiv, false);
   assert.match(none.grund, /nicht gesetzt/);
-  const bad = await limitStatus({ dbUrl: DB, secret: "mit leerzeichen und zu kurz" });
+  const bad = await limitStatus({ dbUrl: DB, secret: "zu kurz" });
   assert.equal(bad.aktiv, false);
-  assert.match(bad.grund, /ungültig/);
+  assert.match(bad.grund, /zu kurz/);
   const denied = await limitStatus({ dbUrl: DB, secret: SECRET, fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({}) }) });
   assert.equal(denied.aktiv, false);
   assert.match(denied.grund, /Regel-Knoten aiUsage/);
