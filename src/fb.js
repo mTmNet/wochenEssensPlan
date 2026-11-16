@@ -1,5 +1,6 @@
 // FIREBASE - eigenes Projekt "wochenessenplan-3d0e1" (seit 2026-10, alte DB wochenessenplan-default-rtdb bleibt als Backup)
-// Regeln: Wurzel gesperrt, plans/$code nur mit Code, globalRecipes + recipeImages offen
+// Regeln: Wurzel gesperrt, plans/$code und recipeImages/$code nur mit Code (recipeImages ist nicht auflistbar),
+// globalRecipes nur lesbar. Wortlaut siehe README.
 // Alles Neue liegt unter plans/<CODE>/… und recipeImages/<CODE>/…; globalRecipes und recipeImages/<Name> werden nur noch gelesen.
 export const FB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
 

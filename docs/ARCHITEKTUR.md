@@ -9,7 +9,7 @@ Dieses Dokument ist der verbindliche Bauplan für den Umbau nach dem Testbericht
 - Technik bleibt: React 18 + Vite, Inline-Styles, Firebase Realtime Database per REST, Vercel-Function `api/gemini.js`. Keine UI-Bibliothek, kein State-Framework.
 - Oberfläche auf Deutsch mit echten Umlauten (ZURÜCK, LÖSCHEN, Nochmal „Zurück“ drücken).
 - Keine Modellnamen oder KI-Anbieter in Texten der Oberfläche, Commit-Nachrichten oder Kommentaren. Die KI heißt in der App „KI“.
-- Keine Firebase-Regeländerung nötig: Alles Neue liegt unter `plans/<CODE>/…` (bereits per Code lesbar/schreibbar) und `recipeImages/<CODE>/…` (offen). `globalRecipes` und `recipeImages/<Name>` werden nur noch gelesen (Migration).
+- Keine Firebase-Regeländerung nötig: Alles Neue liegt unter `plans/<CODE>/…` (bereits per Code lesbar/schreibbar) und `recipeImages/<CODE>/…` (ebenfalls nur mit Code; die Wurzel `recipeImages` ist nicht lesbar, damit keine Plan-Codes auflistbar sind). `globalRecipes` und `recipeImages/<Name>` werden nur noch gelesen (Migration), Regeln siehe README.
 - Jede Änderung wird gezielt geschrieben (Multi-Path-PATCH auf `plans/<CODE>`), nie ganze Sammlungen. Vorbild: Haushaltsbuch (`entries/<id>` einzeln).
 - Schreibfehler werden gemeldet: alle Schreibhelfer liefern `true/false`, bei `false` wird die Sync-Leiste rot und ein Text gesetzt.
 
@@ -145,7 +145,7 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
    - `weeks[isoWeekKey(heute)] = migrateWeek(plan)` (Einzel-Strings zu Arrays, `""` zu `[]`).
    - `shopping` (Array) → Objekt mit festen Ids (`alt000`, `alt001`, …), `src: "plan"`, `key` berechnet – deterministisch, damit zwei gleichzeitig beitretende Geräte dasselbe schreiben.
    - `recipes` fehlt → `globalRecipes` lesen, jedes Rezept mit `normalizeRecipe` übernehmen (Schlüssel `recKey(name)`).
-   - `recipeImages` (Wurzel) lesen; Werte, die mit `data:` beginnen und zu einem übernommenen Rezept gehören, einzeln (ein PATCH je Bild) nach `recipeImages/<CODE>/<key>` kopieren – vor dem meta-PATCH. Nur wenn alle Kopien gelangen, steht `meta/imagesMigrated`; sonst holt der nächste Beitritt die fehlenden nach.
+   - Alte Bilder einzeln lesen (`recipeImages/<Name>` je Rezeptname aus `globalRecipes`, nie die Wurzel); Werte, die mit `data:` beginnen und zu einem übernommenen Rezept gehören, einzeln (ein PATCH je Bild) nach `recipeImages/<CODE>/<key>` kopieren – vor dem meta-PATCH. Nur wenn alle Kopien gelangen, steht `meta/imagesMigrated`; sonst holt der nächste Beitritt die fehlenden nach.
    - Unmittelbar vor dem Schreiben `meta` noch einmal lesen: ist es inzwischen da (anderes Gerät war schneller), wird nur geladen.
    - `meta` schreiben. `plan`, `updatedAt` (alt) und `globalRecipes` bleiben unverändert stehen.
 3. Weder `meta` noch `plan` → der Code existiert nicht. Beitreten meldet „Kein Plan mit diesem Code“. Nur „Plan starten“ legt einen Plan an (`participants`, `meta`, `settings`, leere `weeks`).
