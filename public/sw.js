@@ -19,7 +19,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;            // Datenbank, Google Fonts, fremde Bilder: unverändert
+  if (url.origin !== self.location.origin) return;            // Datenbank, fremde Bilder: unverändert
   if (url.pathname.startsWith("/api/")) return;                 // KI-Funktion immer live
   if (req.destination === "image" && !SHELL.includes(url.pathname)) return; // Rezeptfotos nicht cachen
 

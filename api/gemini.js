@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     if (!allow(clientIp(req))) return res.status(429).json({ error: "Zu viele Anfragen, bitte eine Minute warten." });
     res.setHeader("Cache-Control", "no-store");
-    return res.status(200).json({ kostendeckel: await limitStatus({ dbUrl: process.env.AI_LIMIT_DB_URL || LIMIT_DB, secret: process.env.AI_LIMIT_SECRET }) });
+    return res.status(200).json({ kostendeckel: await limitStatus({ dbUrl: process.env.AI_LIMIT_DB_URL || LIMIT_DB, secret: process.env.AI_LIMIT_SECRET }), region: process.env.VERCEL_REGION || "" }); // region: wo die Function läuft (soll fra1 sein, siehe vercel.json)
   }
 
   if (req.method !== "POST") {
