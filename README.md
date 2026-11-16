@@ -70,4 +70,6 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
 
 Unter `plans/<CODE>` liegen `participants`, `hb`, `settings`, `meta`, `picks` (Vormerkungen), `stock` (eigener Vorrat: `items`, `perm`), `shopping` und `recipes`; `weeks` aus Version 2 wird nicht mehr gelesen. `globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
 
+Für den Kostendeckel der KI (Tageszähler unter `aiUsage`) kommen ein weiterer Regel-Knoten und die Umgebungsvariable `AI_LIMIT_SECRET` dazu, siehe `docs/API.md`, Abschnitt „Kostendeckel“.
+
 Datenmodell, Synchronisation und Migration sind in `docs/ARCHITEKTUR.md` beschrieben, die Rezept-Basis in `docs/KLASSIKER.md`, der Testbericht mit den Befunden in `TESTBERICHT.md`.
