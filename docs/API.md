@@ -50,13 +50,35 @@ Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag 
 Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je Minute):
 
 1. Ein zufälliges Geheimnis aus mindestens 32 Zeichen (nur Buchstaben, Ziffern, `-`, `_`) erzeugen und in Vercel als Umgebungsvariable `AI_LIMIT_SECRET` setzen, danach neu deployen. Das Geheimnis gehört nicht ins Repository.
-2. In der Firebase Console unter *Realtime Database → Regeln* diesen Knoten neben den vorhandenen ergänzen:
+2. In der Firebase Console (Projekt `wochenessenplan-3d0e1`) unter *Realtime Database → Regeln* den Knoten `aiUsage` ergänzen. Vollständiger Regelsatz zum Kopieren (die gehärteten Regeln für `recipeImages` und `globalRecipes` aus dem README plus `aiUsage`):
 
 ```json
-"aiUsage": {
-  "$secret": {
-    ".read": "$secret.length >= 32",
-    ".write": "$secret.length >= 32"
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "plans": {
+      "$code": {
+        ".read": "$code.matches(/^[A-Z0-9]{6,16}$/)",
+        ".write": "$code.matches(/^[A-Z0-9]{6,16}$/)"
+      }
+    },
+    "recipeImages": {
+      "$key": {
+        ".read": true,
+        ".write": "$key.matches(/^[A-Z0-9]{6,16}$/)"
+      }
+    },
+    "globalRecipes": {
+      ".read": true,
+      ".write": false
+    },
+    "aiUsage": {
+      "$secret": {
+        ".read": "$secret.length >= 32",
+        ".write": "$secret.length >= 32"
+      }
+    }
   }
 }
 ```

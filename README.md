@@ -40,6 +40,7 @@ Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetzte
 1. Repository bei Vercel importieren (Vite wird erkannt, `api/` wird zur Serverless Function).
 2. Umgebungsvariable `GEMINI_API_KEY` setzen (Key von aistudio.google.com/apikey), neu deployen.
 3. Firebase Realtime Database: die App nutzt das Projekt `wochenessenplan-3d0e1` (URL in `src/fb.js`).
+4. Kostendeckel der KI: Umgebungsvariable `AI_LIMIT_SECRET` setzen und den Regel-Knoten `aiUsage` ergänzen. Der vollständige Regelsatz steht in `docs/API.md`, Abschnitt „Kostendeckel“.
 
 ## Firebase-Regeln und Datenmodell
 
@@ -69,7 +70,5 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
 ```
 
 Unter `plans/<CODE>` liegen `participants`, `hb`, `settings`, `meta`, `picks` (Vormerkungen), `stock` (eigener Vorrat: `items`, `perm`), `shopping` und `recipes`; `weeks` aus Version 2 wird nicht mehr gelesen. `globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
-
-Für den Kostendeckel der KI (Tageszähler unter `aiUsage`) kommen ein weiterer Regel-Knoten und die Umgebungsvariable `AI_LIMIT_SECRET` dazu, siehe `docs/API.md`, Abschnitt „Kostendeckel“.
 
 Datenmodell, Synchronisation und Migration sind in `docs/ARCHITEKTUR.md` beschrieben, die Rezept-Basis in `docs/KLASSIKER.md`, der Testbericht mit den Befunden in `TESTBERICHT.md`.
