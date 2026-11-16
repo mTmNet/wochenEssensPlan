@@ -83,7 +83,7 @@ Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je
 }
 ```
 
-Prüfen mit einem Klick: `https://<Adresse der App>/api/gemini` im Browser öffnen. Die Antwort `{"kostendeckel":{"aktiv":true|false,"grund":"…"}}` sagt, ob gezählt wird, und nennt sonst die Ursache (Variable fehlt oder zu kurz, Regel fehlt, Datenbank nicht erreichbar). Die Abfrage ruft die KI nicht auf.
+Prüfen mit einem Klick: `https://<Adresse der App>/api/gemini` im Browser öffnen. Die Antwort `{"kostendeckel":{"aktiv":true|false,"grund":"…"}}` sagt, ob gezählt wird, und nennt sonst die Ursache (Variable fehlt oder zu kurz, Regel fehlt, Datenbank nicht erreichbar). Die Abfrage ruft die KI nicht auf. Das Feld `region` nennt den Standort, an dem die Function läuft; `vercel.json` legt ihn auf Frankfurt (`fra1`) fest, damit Fotos und Texte auf dem Weg zur KI nicht über einen Server außerhalb der EU laufen.
 
 Außerdem: nach einer KI-Anfrage steht in der Firebase Console unter `aiUsage/<64 Zeichen>/<heutiges Datum>/total` eine Zahl. Steht dort nichts, meldet das Vercel-Log „Kostendeckel: Zählerspeicher nicht nutzbar“ (Regel fehlt).
 
