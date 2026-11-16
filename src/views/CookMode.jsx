@@ -67,7 +67,7 @@ export default function CookMode({state,api}){
             </button>
             {showIngs&&(
               <div style={{padding:"0 20px 12px",display:"flex",flexWrap:"wrap",gap:"6px"}}>
-                {ings.map((ing,i)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; const col=!st||st.basic?"":st.p>=0.6?C.ok:st.p>=STOCK_MIN?C.accent:"rgba(255,255,255,0.35)"; return <span key={i} style={{fontSize:"13px",color:"rgba(255,255,255,0.85)",background:"rgba(255,255,255,0.08)",padding:"6px 10px",borderRadius:"3px",borderLeft:col?"3px solid "+col:"none"}}>{ing}{st&&!st.basic&&st.p<STOCK_MIN?<span style={{color:"rgba(255,255,255,0.45)"}}> · fehlt</span>:null}</span>; })}
+                {ings.map((ing,i)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; const col=!st||st.basic?"":st.p>=0.6?C.ok:st.p>=STOCK_MIN?C.accent:C.err; return <span key={i} style={{fontSize:"13px",color:"rgba(255,255,255,0.85)",background:"rgba(255,255,255,0.08)",padding:"6px 10px",borderRadius:"3px",borderLeft:col?"3px solid "+col:"none"}}>{ing}{st&&!st.basic&&st.p<STOCK_MIN?<span style={{color:C.err,fontWeight:"700"}}> · fehlt?</span>:null}</span>; })}
               </div>
             )}
           </div>
