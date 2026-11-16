@@ -562,20 +562,20 @@ export default function App() {
       if(mode==="dish"){
         // Fertiges Gericht: bekanntes Gericht benennen -> KI-Vorschlag, als solcher gekennzeichnet
         const messages=[{role:"user",content:[imgPart,{type:"text",text:"Welches bekannte Gericht ist auf dem Bild zu sehen? Nenne den gebräuchlichen Namen, die Herkunft und ein typisches Rezept dazu. Antworte ausschließlich mit dem JSON-Objekt."}]}];
-        const parsed=parseJsonBlock(await callAI({mode:"suggest",system:buildSuggestPrompt(),messages}));
+        const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"suggest",system:buildSuggestPrompt(),messages}));
         setExtracted(suggestionFromAnswer(parsed,{}));
       }else{
         const messages=mode==="photo"
           ? [{role:"user",content:[imgPart,{type:"text",text:"Schreibe das Rezept auf diesem Bild wörtlich ab. Antworte ausschließlich mit dem JSON-Objekt, kein anderer Text."}]}]
           : [{role:"user",content:"Schreibe dieses Rezept ab:\n\n"+a.text}];
-        const parsed=parseJsonBlock(await callAI({mode:"extract",system:buildExtractPrompt(),messages}));
+        const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildExtractPrompt(),messages}));
         if(!parsed.name) throw new Error("Kein Rezeptname erkannt");
         if(!Array.isArray(parsed.ingredients)||parsed.ingredients.length===0) throw new Error("Keine Zutaten erkannt");
         let stepsGenerated=parsed.stepsGenerated===true;
         // Fehlen die Schritte ganz, einmal nachgenerieren lassen - und als ergaenzt kennzeichnen
         if(!Array.isArray(parsed.steps)||parsed.steps.length===0){
           const stepSystem="Erstelle eine detaillierte Schritt-für-Schritt-Kochanleitung. Antworte NUR mit JSON-Array ohne Markdown: [\"Schritt 1\",\"Schritt 2\"]";
-          const stepRaw=await callAI({mode:"extract",system:stepSystem,messages:[{role:"user",content:"Rezept: "+parsed.name+"\nZutaten: "+parsed.ingredients.join(", ")}]});
+          const stepRaw=await callAI({code:codeRef.current,mode:"extract",system:stepSystem,messages:[{role:"user",content:"Rezept: "+parsed.name+"\nZutaten: "+parsed.ingredients.join(", ")}]});
           let steps; try{ steps=parseJsonBlock(stepRaw,"array"); }catch(e){ steps=["Zubereitung laut Rezept."]; }
           parsed.steps=steps; stepsGenerated=true;
         }
@@ -722,7 +722,7 @@ export default function App() {
   const scanPantry=async(image)=>{
     if(!image||!image.base64) throw new Error("Kein Bild");
     const messages=[{role:"user",content:[{type:"image",source:{type:"base64",media_type:image.mimeType||"image/jpeg",data:image.base64}},{type:"text",text:"Welche Lebensmittel sind auf diesem Foto zu sehen? Antworte ausschließlich mit dem JSON-Objekt."}]}];
-    const parsed=parseJsonBlock(await callAI({mode:"extract",system:buildPantryPrompt(STOCK_GROUPS),messages}));
+    const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildPantryPrompt(STOCK_GROUPS),messages}));
     const items=Array.isArray(parsed)?parsed:(parsed&&Array.isArray(parsed.items)?parsed.items:[]);
     const seen=new Set();
     return items.map(it=>({name:String((it&&(it.name||it.Name))||"").trim(),sub:(it&&(it.gruppe||it.sub))||""})).filter(it=>it.name&&!seen.has(it.name.toLowerCase())&&seen.add(it.name.toLowerCase()))
@@ -774,7 +774,7 @@ export default function App() {
       if(wishes.length) user+="\nWünsche: "+wishes.join(" ")+"\n";
       const names=Object.keys(recipes).slice(0,80).map(k=>recName(recipes[k],k));
       if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";
-      const parsed=parseJsonBlock(await callAI({mode:"suggest",system:buildSuggestPrompt(),messages:[{role:"user",content:user}]}));
+      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"suggest",system:buildSuggestPrompt(),messages:[{role:"user",content:user}]}));
       setExtracted(suggestionFromAnswer(parsed,{cuisine:o.cuisine,tags}));
       setImportErr("");setView("recipes");
       setTimeout(()=>{ const el=document.getElementById("ki-vorschlag"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },60);
@@ -988,7 +988,7 @@ export default function App() {
     setAliasBusy(true); setAliasErr("");
     try{
       const user="Bezeichnungen:\n"+list.map(n=>"- "+n).join("\n")+"\n\nAntworte für jede Bezeichnung genau einmal, \"roh\" exakt wie oben.";
-      const parsed=parseJsonBlock(await callAI({mode:"extract",system:buildAliasPrompt(vocab.slice(0,400).map(v=>v.name)),messages:[{role:"user",content:user}]}));
+      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildAliasPrompt(vocab.slice(0,400).map(v=>v.name)),messages:[{role:"user",content:user}]}));
       const map=parseAliasAnswer(parsed,list,vocab);
       writeAliases(map,"ki");
       const n=Object.keys(map).length;

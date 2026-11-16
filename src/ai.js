@@ -2,10 +2,11 @@
 // mode "extract" = Rezept abschreiben (kaum Kreativitaet), "suggest" = bekanntes Gericht vorschlagen.
 import { CATS, CUISINE_LIST } from "./data.js";
 
-export const callAI = async ({mode, system, messages}) => {
+// code = Plan-Code, nur für den Tageszähler des Kostendeckels auf dem Server (api/_limit.js)
+export const callAI = async ({mode, system, messages, code}) => {
   const r = await fetch("/api/gemini", {
     method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({mode:mode==="suggest"?"suggest":"extract", system, messages}),
+    body:JSON.stringify({mode:mode==="suggest"?"suggest":"extract", system, messages, code:code||undefined}),
   });
   if(!r.ok) {
     const errText = await r.text();

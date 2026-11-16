@@ -1,11 +1,15 @@
 // Vercel-Function: leitet KI-Anfragen weiter, der Schlüssel bleibt auf dem Server
 import { pickGeneration, originAllowed, makeRateLimiter, toGeminiContents, readErrorText } from "./_shared.js";
+import { checkAndCount, limitsFrom, cleanCode, limitMessage } from "./_limit.js";
 
 const MAX_BODY = 6 * 1024 * 1024; // 6 MB
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 // Drossel lebt je Instanz (kalter Start setzt sie zurück), nicht global
 const allow = makeRateLimiter({ max: 20, windowMs: 60000 });
+
+// Kostendeckel: Tageszähler in der eigenen Datenbank (siehe _limit.js). Aktiv, sobald AI_LIMIT_SECRET gesetzt ist.
+const LIMIT_DB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -42,6 +46,17 @@ export default async function handler(req, res) {
   const { system, messages, mode } = payload;
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "Es fehlen Nachrichten (messages)." });
+  }
+
+  // Tagesgrenzen über alle Instanzen: insgesamt, je IP, je Plan-Code (später je Nutzer-ID)
+  const limit = await checkAndCount({
+    dbUrl: process.env.AI_LIMIT_DB_URL || LIMIT_DB,
+    secret: process.env.AI_LIMIT_SECRET,
+    limits: limitsFrom(process.env),
+    subjects: [{ kind: "ip", id: clientIp(req) }, { kind: "code", id: cleanCode(payload.code) }],
+  });
+  if (!limit.ok) {
+    return res.status(429).json({ error: limitMessage(limit.reason) });
   }
 
   const body = {

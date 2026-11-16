@@ -40,6 +40,7 @@ Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetzte
 1. Repository bei Vercel importieren (Vite wird erkannt, `api/` wird zur Serverless Function).
 2. Umgebungsvariable `GEMINI_API_KEY` setzen (Key von aistudio.google.com/apikey), neu deployen.
 3. Firebase Realtime Database: die App nutzt das Projekt `wochenessenplan-3d0e1` (URL in `src/fb.js`).
+4. Kostendeckel der KI: Umgebungsvariable `AI_LIMIT_SECRET` setzen und den Regel-Knoten `aiUsage` ergänzen. Der vollständige Regelsatz steht in `docs/API.md`, Abschnitt „Kostendeckel“.
 
 ## Firebase-Regeln und Datenmodell
 
