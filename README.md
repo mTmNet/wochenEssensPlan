@@ -57,8 +57,10 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
       }
     },
     "recipeImages": {
-      ".read": true,
-      ".write": true
+      "$key": {
+        ".read": true,
+        ".write": "$key.matches(/^[A-Z0-9]{6,16}$/)"
+      }
     },
     "globalRecipes": {
       ".read": true,
@@ -67,6 +69,8 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
   }
 }
 ```
+
+`recipeImages` hat bewusst keine Leseregel an der Wurzel: Die Liste der Schlüssel (und damit die Plan-Codes) lässt sich nicht abrufen. Ein Unterknoten ist nur lesbar, wenn man seinen Schlüssel kennt, also den Plan-Code oder (Altbestand) den Rezeptnamen. Geschrieben wird nur unter einem Plan-Code. `globalRecipes` (Altbestand) wird nur noch für die Migration gelesen und nie geschrieben.
 
 Unter `plans/<CODE>` liegen `participants`, `hb`, `settings`, `meta`, `picks` (Vormerkungen), `stock` (eigener Vorrat: `items`, `perm`), `shopping` und `recipes`; `weeks` aus Version 2 wird nicht mehr gelesen. `globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
 

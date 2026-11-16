@@ -205,13 +205,17 @@ export default function App() {
   useEffect(()=>()=>{clearInterval(syncTimer.current);clearTimeout(toastTimer.current);},[]);
 
   // Alte Bilder (recipeImages/<Name>) einzeln nach recipeImages/<CODE>/<key> kopieren; liefert {imgs, ok}
-  const copyOldImages = async(code,recipesObj,existing)=>{
-    const rootImgs=await fbGet("recipeImages");
-    if(rootImgs===undefined) return {imgs:{},ok:false};
+  // Die Wurzel recipeImages ist per Regel nicht lesbar (sonst liessen sich alle Plan-Codes auflisten). Jedes alte Bild
+  // wird deshalb einzeln ueber seinen Rezeptnamen geholt; die Namen stehen in globalRecipes (names, sonst hier geladen).
+  const copyOldImages = async(code,recipesObj,existing,names)=>{
+    if(!names){ const gr=await fbGet("globalRecipes"); if(gr===undefined) return {imgs:{},ok:false}; names=Object.keys(asObj(gr)); }
     const imgs={}; let ok=true;
-    for(const name of Object.keys(asObj(rootImgs))){
-      const v=rootImgs[name], k=recKey(name);
-      if(typeof v!=="string"||!v.startsWith("data:")||!recipesObj[k]||(existing&&existing[k])) continue;
+    for(const name of names){
+      const k=recKey(name);
+      if(!recipesObj[k]||(existing&&existing[k])) continue;
+      const v=await fbGet("recipeImages/"+encodeURIComponent(name));
+      if(v===undefined){ ok=false; continue; }
+      if(typeof v!=="string"||!v.startsWith("data:")) continue;
       if(await fbPatch("recipeImages/"+code,{[k]:v})) imgs[k]=v; else ok=false;
     }
     return {imgs,ok};
@@ -234,7 +238,7 @@ export default function App() {
       recipesNew={};
       Object.keys(asObj(gr)).forEach(name=>{ const k=recKey(name); if(k&&gr[name]&&typeof gr[name]==="object") recipesNew[k]=normalizeRecipe(k,gr[name],now); });
       if(Object.keys(recipesNew).length) patch.recipes=recipesNew;
-      const r=await copyOldImages(code,recipesNew); imgs=r.imgs; imgsOk=r.ok;
+      const r=await copyOldImages(code,recipesNew,null,Object.keys(asObj(gr))); imgs=r.imgs; imgsOk=r.ok;
     }
     const meta={createdAt:pd.updatedAt||now,updatedAt:now,picksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now};
     if(imgsOk) meta.imagesMigrated=true;
