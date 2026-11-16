@@ -10,7 +10,7 @@ import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed } from "./logic/shopping.js";
-import { shopCat, ingKey } from "./logic/ingredients.js";
+import { shopCat, ingKey, parseIng } from "./logic/ingredients.js";
 import { exportCookbook, cookbookFileName, parseCookbook, planImport } from "./logic/cookbook.js";
 import { CLASSICS } from "./classics.js";
 import Join from "./views/Join.jsx";
@@ -387,15 +387,25 @@ export default function App() {
   // SHOPPING - Objekt <id> -> Posten; jede Aenderung schreibt nur ihren Pfad
   const household=Math.max(2,participants.length);                   // Haushaltsgroesse fuer die Mengen (Bauplan Abschnitt 9)
   // Zutaten eines Rezepts (skaliert auf servings) auf die Liste; opts.slot merkt die Plan-Zelle ("+"-Sperre im Plan)
+  // opts.onlyMissing: nur Zutaten, die laut Vorrat nicht da sind (p < 0,6) und kein Grundvorrat; liefert die Anzahl der Posten (0 = nichts)
   const addRecipeToShopping=(dishKey,servings,opts)=>{
     const rec=recipes[dishKey];
-    if(!rec||!rec.ingredients||!rec.ingredients.length)return false;
-    const ings=scaledIngredients(rec,servings>0?servings:household);
+    if(!rec||!rec.ingredients||!rec.ingredients.length)return 0;
+    let ings=scaledIngredients(rec,servings>0?servings:household);
+    if(opts&&opts.onlyMissing) ings=ings.filter(ing=>{ const st=ingStatus(ing,stock); return st&&!st.basic&&st.p<0.6; });
+    if(!ings.length) return 0;
     const {next,patch}=addIngredients(shoppingRef.current,ings,{src:"manuell",slot:(opts&&opts.slot)||""});
-    if(!Object.keys(patch).length)return false;
+    if(!Object.keys(patch).length)return 0;
     setShopping(next);
     writePlan(patch,"shopping");
-    return true;
+    return ings.length;
+  };
+  // "Ist da" aus der Zutatenliste eines Rezepts: Zutat als Handeintrag von heute in den Vorrat (Name ohne Menge, Klammern und Zusatz)
+  const markIngredientPresent=(ing)=>{
+    const name=parseIng(String(ing||"")).name.replace(/\([^)]*\)/g," ").split(",")[0].replace(/\s+/g," ").trim();
+    if(!name) return false;
+    addStockItems([{name,src:"hand"}]);
+    return name;
   };
   // Einkaufsliste aus dem Vorgemerkten: ZUSAMMENFUEHREN statt ersetzen
   const buildShoppingFromPicks=()=>{
@@ -1045,7 +1055,7 @@ export default function App() {
     // Vorgemerkt
     addPick,removePick,movePick,cookedToday,startCooking,
     // Einkauf
-    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,forceBuy,shareShopping,
+    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
     openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
     // KI

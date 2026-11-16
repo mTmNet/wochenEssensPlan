@@ -26,7 +26,7 @@ const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255
 export default function RecipeDetail({state,api}){
   const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast,stock}=state;
   const {setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,rateRecipe,noteRecipe,closeRecipe,uploadImage,resetImage,setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit,
-         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,cookedToday,registerBackHandler,showToast}=api;
+         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,markIngredientPresent,cookedToday,registerBackHandler,showToast}=api;
   const imgFileRef=useRef(null), dishPhotoRef=useRef(null);
   const name=recName(curRec,detailRecipe);
   // Portionen-Stepper: skaliert nur die Anzeige, das Rezept bleibt bei seinen servings
@@ -46,10 +46,15 @@ export default function RecipeDetail({state,api}){
     await addPick(detailRecipe,day);
     showToast("„"+name+"“ für "+dayLabel(day,today).toLowerCase()+" vorgemerkt.");
   };
-  const toShopping=()=>{
-    if(addRecipeToShopping(detailRecipe,portions)){ setShopDone(true); showToast("Zutaten für "+portions+" Portionen auf der Einkaufsliste."); setTimeout(()=>setShopDone(false),2500); }
-    else showToast("Keine Zutaten zum Hinzufügen.");
+  // Status je Zutat (da / vielleicht / fehlt); Grundvorrat ohne Markierung
+  const statusOf=(ing)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; if(!st||st.basic) return null; return st.p>=0.6?{t:"da",c:C.ok,p:st.p}:st.p>=STOCK_MIN?{t:"vielleicht · "+Math.round(st.p*100)+" %",c:C.accent,p:st.p}:{t:"fehlt",c:C.muted,p:st.p}; };
+  const missingCount=ings.filter(ing=>{ const t=statusOf(ing); return t&&t.t!=="da"; }).length;
+  const toShopping=(onlyMissing)=>{
+    const n=addRecipeToShopping(detailRecipe,portions,{onlyMissing});
+    if(n){ setShopDone(true); showToast((onlyMissing?n+" fehlende Zutat"+(n===1?"":"en"):"Alle Zutaten")+" für "+portions+" Portionen auf der Einkaufsliste."); setTimeout(()=>setShopDone(false),2500); }
+    else showToast(onlyMissing?"Nichts fehlt, alles ist da.":"Keine Zutaten zum Hinzufügen.");
   };
+  const isPresent=(ing)=>{ const n=markIngredientPresent(ing); if(n) showToast("„"+n+"“ ist im Vorrat."); };
   return(
       <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF}}>
         <Toast text={toast} />
@@ -88,10 +93,15 @@ export default function RecipeDetail({state,api}){
           {!editMode?(
             <div>
               {/* AKTIONEN */}
-              <div style={{display:"flex",gap:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
-                {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 140px",letterSpacing:"2px"}}>KOCHMODUS</button>}
-                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 140px",color:C.accent}}>VORMERKEN</button>
-                <button onClick={toShopping} style={{...btn("ghost"),flex:"1 1 140px",color:shopDone?C.ok:C.accent}}>{shopDone?"✓ AUF DER LISTE":"AUF DIE EINKAUFSLISTE"}</button>
+              <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
+                {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 0",letterSpacing:"2px"}}>KOCHMODUS</button>}
+                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 0",color:C.accent}}>VORMERKEN</button>
+              </div>
+              {/* Einkaufsliste: geteilter Knopf - alles oder nur, was laut Vorrat fehlt */}
+              <div role="group" aria-label="Auf die Einkaufsliste" style={{display:"flex",marginBottom:"8px",border:"1px solid "+(shopDone?C.ok:C.border)}}>
+                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),flex:"1 1 0",border:"none",color:shopDone?C.ok:C.accent,padding:"11px 8px"}}>{shopDone?"✓ AUF DER LISTE":"ALLES AUF DIE LISTE"}</button>
+                <div style={{width:"1px",background:shopDone?C.ok:C.border,flexShrink:0}} />
+                <button onClick={()=>toShopping(true)} disabled={!stock||!stock.length} title={!stock||!stock.length?"Ohne Vorrat ist unbekannt, was fehlt":""} style={{...btn("ghost"),flex:"1 1 0",border:"none",color:C.accent,padding:"11px 8px",opacity:!stock||!stock.length?0.45:1}}>NUR FEHLENDES{stock&&stock.length?" ("+missingCount+")":""}</button>
               </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
                 <button onClick={()=>startEdit(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.text}}>BEARBEITEN</button>
@@ -125,16 +135,17 @@ export default function RecipeDetail({state,api}){
                 </div>
                 {factor!==1&&<div style={{fontSize:"11px",color:C.muted,marginBottom:"6px"}}>Mengen umgerechnet von {base} auf {portions} Portionen.</div>}
                 {ings.map((ing,i)=>{
-                  const st=stock&&stock.length?ingStatus(ing,stock):null;
-                  const tag=!st||st.basic?null:st.p>=0.6?{t:"da",c:C.ok}:st.p>=STOCK_MIN?{t:"vielleicht · "+Math.round(st.p*100)+" %",c:C.accent}:{t:"fehlt",c:C.muted};
+                  const tag=statusOf(ing);
                   return(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:i<ings.length-1?"1px solid "+C.border:"none"}}>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"5px 0",minHeight:"44px",borderBottom:i<ings.length-1?"1px solid "+C.border:"none"}}>
                     <div style={{width:"4px",height:"4px",borderRadius:"50%",background:tag?tag.c:C.accent,flexShrink:0}} />
                     <span style={{fontSize:"14px",color:C.text,flex:1,minWidth:0}}>{scaleIng(ing,factor)}</span>
                     {tag&&<span data-stock={tag.t.split(" ")[0]} style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",color:tag.c,flexShrink:0}}>{tag.t}</span>}
+                    {tag&&tag.t!=="da"&&<button onClick={()=>isPresent(ing)} aria-label={scaleIng(ing,factor)+": ist da"} title="Ist doch da – in den Vorrat" style={{...iconBtn,color:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
                   </div>
                   );
                 })}
+                {stock&&stock.length>0&&ings.some(ing=>{ const t=statusOf(ing); return t&&t.t!=="da"; })&&<div style={{fontSize:"11px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}>✓ = ist doch da, kommt in den Vorrat. Grundvorrat wie Salz und Öl zählt immer als da.</div>}
                 {household!==base&&portions===base&&<button onClick={()=>setPortions(household)} style={{...btn("ghost"),marginTop:"10px",padding:"8px 12px",letterSpacing:"0.5px"}}>Auf {household} Personen umrechnen</button>}
               </div>
               {steps.length>0&&(

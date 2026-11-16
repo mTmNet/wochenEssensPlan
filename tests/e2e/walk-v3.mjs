@@ -293,6 +293,18 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(await page.isVisible('button:has-text("VORMERKEN")') && !(await page.isVisible('text=ZUM WOCHENPLAN')), 'Rezeptdetail: Vormerken statt Zum Wochenplan');
   const tags = await page.locator('span[data-stock]').evaluateAll(els=>els.map(e=>e.getAttribute('data-stock')));
   check(tags.includes('da') && tags.includes('fehlt') && (await page.locator('span[data-stock="da"]').count())>=2, 'Rezeptdetail: Zutaten mit "da" / "fehlt" nach Vorrat', tags);
+  // "Nur Fehlendes" auf die Einkaufsliste, dann "Ist da" aus dem Rezept: erste fehlende Zutat in den Vorrat
+  const missingBefore = await page.locator('button[aria-label$=": ist da"]').count();
+  const shopBefore = Object.keys(plan().shopping||{}).length;
+  await page.click('button:has-text("NUR FEHLENDES")'); await page.waitForTimeout(500);
+  const shopAfter = Object.keys(plan().shopping||{}).length;
+  check(missingBefore>0 && shopAfter-shopBefore===missingBefore, 'Rezeptdetail: "Nur Fehlendes" legt genau die fehlenden Zutaten auf die Einkaufsliste', {shopBefore, shopAfter, missingBefore});
+  const firstMissing = await page.locator('button[aria-label$=": ist da"]').first().getAttribute('aria-label');
+  const itemsBefore = Object.keys(plan().stock.items).length;
+  await page.locator('button[aria-label$=": ist da"]').first().click(); await page.waitForTimeout(500);
+  const missingAfter = await page.locator('button[aria-label$=": ist da"]').count();
+  check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("NUR FEHLENDES ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
+  check(await page.isVisible('button:has-text("ALLES AUF DIE LISTE")') || await page.isVisible('button:has-text("✓ AUF DER LISTE")'), 'Rezeptdetail: geteilter Knopf "Alles auf die Liste | Nur Fehlendes"');
   await page.click('button:has-text("VORMERKEN")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).some(p=>p.key==='Pasta Carbonara'), 'Rezeptdetail: Vormerken schreibt picks');
