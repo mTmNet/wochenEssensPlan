@@ -1,6 +1,6 @@
 // Vercel-Function: leitet KI-Anfragen weiter, der Schlüssel bleibt auf dem Server
 import { pickGeneration, originAllowed, makeRateLimiter, toGeminiContents, readErrorText } from "./_shared.js";
-import { checkAndCount, limitsFrom, cleanCode, limitMessage } from "./_limit.js";
+import { checkAndCount, limitStatus, limitsFrom, cleanCode, limitMessage } from "./_limit.js";
 
 const MAX_BODY = 6 * 1024 * 1024; // 6 MB
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -20,6 +20,13 @@ const clientIp = (req) => {
 };
 
 export default async function handler(req, res) {
+  // Prüfseite für den Betreiber: /api/gemini im Browser öffnen zeigt, ob der Kostendeckel zählt (ruft die KI nicht auf)
+  if (req.method === "GET") {
+    if (!allow(clientIp(req))) return res.status(429).json({ error: "Zu viele Anfragen, bitte eine Minute warten." });
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ kostendeckel: await limitStatus({ dbUrl: process.env.AI_LIMIT_DB_URL || LIMIT_DB, secret: process.env.AI_LIMIT_SECRET }) });
+  }
+
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Nur POST erlaubt." });

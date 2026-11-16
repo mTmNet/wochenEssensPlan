@@ -95,6 +95,27 @@ async function cleanup(root, today, fetchImpl) {
   } catch { /* Aufräumen ist nicht wichtig */ }
 }
 
+// PRÜFUNG für den Betreiber (GET auf die Function): sagt in einem Satz, ob der Deckel zählt, und wenn nicht, warum.
+// Schreibt dazu einen Probezähler (prüft Regel und Server-Inkrement) und liest ihn zurück. Gibt weder Geheimnis noch Zählerstände preis.
+export async function limitStatus({ dbUrl, secret, fetchImpl = fetch, now = Date.now } = {}) {
+  if (!secret) return { aktiv: false, grund: "AI_LIMIT_SECRET ist in dieser Version nicht gesetzt. In Vercel für Production eintragen und danach neu deployen." };
+  if (!validSecret(secret)) return { aktiv: false, grund: "AI_LIMIT_SECRET ist gesetzt, aber ungültig: erlaubt sind 32 bis 128 Zeichen aus Buchstaben, Ziffern, - und _ (keine Leerzeichen, keine Sonderzeichen)." };
+  if (!dbUrl) return { aktiv: false, grund: "Keine Datenbank-Adresse für die Zähler." };
+  const probe = String(dbUrl).replace(/\/+$/, "") + "/aiUsage/" + secret + "/" + dayKey(now()) + "/probe.json";
+  try {
+    const w = await fetchImpl(probe, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ".sv": { increment: 1 } }), ...withTimeout(3000) });
+    if (w.status === 401 || w.status === 403) return { aktiv: false, grund: "Die Datenbank lehnt das Schreiben ab (" + w.status + "). Der Regel-Knoten aiUsage fehlt oder ist nicht veröffentlicht." };
+    if (!w.ok) return { aktiv: false, grund: "Die Datenbank antwortet beim Schreiben mit Fehler " + w.status + "." };
+    const r = await fetchImpl(probe, withTimeout(3000));
+    if (!r.ok) return { aktiv: false, grund: "Die Datenbank antwortet beim Lesen mit Fehler " + r.status + "." };
+    const v = await r.json();
+    if (typeof v !== "number") return { aktiv: false, grund: "Der Probezähler wurde geschrieben, ist aber keine Zahl." };
+    return { aktiv: true, grund: "Der Zählerspeicher ist erreichbar und zählt. In der Firebase Console steht der Probezähler unter aiUsage/<Geheimnis>/" + dayKey(now()) + "/probe." };
+  } catch (e) {
+    return { aktiv: false, grund: "Die Datenbank ist nicht erreichbar: " + (e?.message || e) };
+  }
+}
+
 // Deutsche Meldung zur ausgelösten Grenze; `manual` ist der Hinweis, was stattdessen geht
 export function limitMessage(reason, manual = "") {
   const tail = manual ? " " + manual : "";
