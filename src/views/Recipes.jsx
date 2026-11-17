@@ -245,12 +245,12 @@ export default function Recipes({state,api}){
               const ings=(rec&&rec.ingredients)||[];
               const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · "),cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
               return(
-                <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",minHeight:"56px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF,borderRadius:"6px"}}>
+                <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"6px 12px",minHeight:"48px",marginBottom:"4px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF,borderRadius:"6px"}}>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:"15px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}{rec.rating?<span style={{color:C.star,fontSize:"13px",marginLeft:"8px"}}>{"★".repeat(rec.rating)}</span>:null}</div>
+                    <div style={{fontSize:"15px",fontFamily:SER,color:C.text}}>{dn(name)}{rec.rating?<span style={{color:C.star,fontSize:"13px",marginLeft:"8px"}}>{"★".repeat(rec.rating)}</span>:null}</div>
                     <div style={{fontSize:"13px",color:C.muted}}>{sub}</div>
                   </div>
-                  <span style={{color:C.subtle,fontSize:"16px"}} aria-hidden="true">›</span>
+                  <span style={{color:C.accent,fontSize:"16px"}} aria-hidden="true">›</span>
                 </button>
               );
             })}
@@ -261,9 +261,9 @@ export default function Recipes({state,api}){
                 <div style={{fontSize:"12px",fontWeight:"700",color:C.accent,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px dashed "+C.border}}>Rezept-Basis · {classicList.length} noch nicht im Kochbuch</div>
                 {classicList.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 4px"}}>Kein Gericht der Rezept-Basis passt zur Suche – oder alle passenden sind schon im Kochbuch.</div>}
                 {classicList.map(c=>(
-                  <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,padding:"9px 14px",minHeight:"56px",marginBottom:"5px"}}>
+                  <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,borderRadius:"6px",padding:"5px 6px 5px 12px",minHeight:"48px",marginBottom:"4px"}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:"15px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{c.name}</div>
+                      <div style={{fontSize:"15px",fontFamily:SER,color:C.text}}>{c.name}</div>
                       <div style={{fontSize:"13px",color:C.muted}}>{[c.category,c.cuisine,c.origin,c.minutes?c.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
                     </div>
                     <button onClick={()=>doAdopt(c)} disabled={adopting===c.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0,borderRadius:"6px"}}>{adopting===c.name?"…":"Übernehmen"}</button>

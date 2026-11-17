@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { C, SF, SER, column } from "../theme.js";
+import { C, SF, SER, RB, column } from "../theme.js";
 import { recName, stepMinutes } from "../logic/recipes.js";
 import { ingStatus, STOCK_MIN } from "../logic/stock.js";
 import Toast from "../components/Toast.jsx";
@@ -50,42 +50,42 @@ export default function CookMode({state,api}){
   const minutesHere=stepMinutes(steps[cookStep]);
   const startTimer=(m)=>setTimers(ts=>[...ts,{id:Date.now()+Math.random(),step:cookStep,total:m*60,end:Date.now()+m*60000,label:fmtMin(m)+" (Schritt "+(cookStep+1)+")",done:false}]);
   const removeTimer=(id)=>setTimers(ts=>ts.filter(t=>t.id!==id));
-  const navBtn={flex:1,padding:"14px",minHeight:"48px",border:"none",fontSize:"13px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF};
+  const navBtn={flex:1,padding:"13px",minHeight:"48px",border:"none",borderRadius:RB,fontSize:"15px",fontWeight:"700",cursor:"pointer",fontFamily:SF};
   return(
-      <div data-theme="dark" style={{minHeight:"100vh",background:C.dark,fontFamily:SF,display:"flex",flexDirection:"column"}}>
+      <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF,display:"flex",flexDirection:"column"}}>
         <Toast text={toast} />
         <div style={{...column,display:"flex",flexDirection:"column",flex:1}}>
-          <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:"12px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-            <button onClick={()=>setCookMode(false)} style={{background:"rgba(255,255,255,0.07)",border:"none",color:"rgba(255,255,255,0.7)",padding:"10px 14px",minHeight:"40px",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF}}>Zurück</button>
-            <div style={{flex:1,fontFamily:SER,color:"#fff",fontSize:"18px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recName(curRec,detailRecipe)}</div>
-            <div style={{color:C.accent,fontSize:"12px",fontWeight:"700",letterSpacing:"1px"}}>{cookStep+1} / {steps.length}</div>
+          <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:"12px",background:C.head,borderBottom:"1px solid "+C.border}}>
+            <button onClick={()=>setCookMode(false)} style={{background:C.white,border:"1px solid "+C.border,borderRadius:RB,color:C.accent,padding:"8px 14px",minHeight:"40px",fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>Zurück</button>
+            <div style={{flex:1,fontFamily:SER,color:C.text,fontSize:"18px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recName(curRec,detailRecipe)}</div>
+            <div style={{color:C.muted,fontSize:"13px",fontWeight:"700",letterSpacing:"1px"}}>{cookStep+1} / {steps.length}</div>
           </div>
           {/* ZUTATENLEISTE (einklappbar) */}
-          <div style={{borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-            <button onClick={()=>setShowIngs(v=>!v)} aria-expanded={showIngs} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"10px 20px",minHeight:"40px",background:"none",border:"none",color:"rgba(255,255,255,0.7)",fontSize:"11px",fontWeight:"700",letterSpacing:"2px",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
-              <span style={{flex:1}}>ZUTATEN ({ings.length})</span><span style={{fontSize:"14px"}}>{showIngs?"▴":"▾"}</span>
+          <div style={{borderBottom:"1px solid "+C.border}}>
+            <button onClick={()=>setShowIngs(v=>!v)} aria-expanded={showIngs} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"10px 20px",minHeight:"40px",background:"none",border:"none",color:C.accent,fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
+              <span style={{flex:1}}>Zutaten ({ings.length})</span><span style={{fontSize:"14px"}}>{showIngs?"▴":"▾"}</span>
             </button>
             {showIngs&&(
               <div style={{padding:"0 20px 12px",display:"flex",flexWrap:"wrap",gap:"6px"}}>
-                {ings.map((ing,i)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; const col=!st||st.basic?"":st.p>=0.6?C.ok:st.p>=STOCK_MIN?C.accent:C.err; return <span key={i} style={{fontSize:"13px",color:"rgba(255,255,255,0.85)",background:"rgba(255,255,255,0.08)",padding:"6px 10px",borderRadius:"3px",borderLeft:col?"3px solid "+col:"none"}}>{ing}{st&&!st.basic&&st.p<STOCK_MIN?<span style={{color:C.err,fontWeight:"700"}}> · fehlt?</span>:null}</span>; })}
+                {ings.map((ing,i)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; const col=!st||st.basic?"":st.p>=0.6?C.ok:st.p>=STOCK_MIN?C.accent:C.err; return <span key={i} style={{fontSize:"14px",color:C.text,background:C.white,border:"1px solid "+C.border,padding:"6px 10px",borderRadius:RB,boxShadow:col?"inset 4px 0 0 "+col:"none"}}>{ing}{st&&!st.basic&&st.p<STOCK_MIN?<span style={{color:C.err,fontWeight:"700"}}> · fehlt?</span>:null}</span>; })}
               </div>
             )}
           </div>
           <div style={{display:"flex",gap:"4px",padding:"0 24px",marginTop:"16px"}}>
             {steps.map((_,i)=>(
               <button key={i} onClick={()=>setCookStep(i)} aria-label={"Schritt "+(i+1)} style={{height:"12px",flex:1,padding:0,border:"none",background:"transparent",cursor:"pointer"}}>
-                <div style={{height:"2px",background:i<=cookStep?C.accent:"rgba(255,255,255,0.15)",transition:"background 0.3s"}} />
+                <div style={{height:"3px",borderRadius:"2px",background:i<=cookStep?C.accent:C.border,transition:"background 0.3s"}} />
               </button>
             ))}
           </div>
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"36px 28px"}}>
-            <div style={{fontSize:"64px",fontFamily:SER,color:C.accent,marginBottom:"24px",lineHeight:1}}>{cookStep+1}</div>
-            <div style={{fontSize:"22px",color:"rgba(255,255,255,0.92)",fontFamily:SER,textAlign:"center",lineHeight:"1.7",maxWidth:"420px"}}>{steps[cookStep]}</div>
+            <div style={{fontSize:"64px",fontFamily:SER,color:C.muted,marginBottom:"24px",lineHeight:1}}>{cookStep+1}</div>
+            <div style={{fontSize:"22px",color:C.text,fontFamily:SER,textAlign:"center",lineHeight:"1.7",maxWidth:"420px"}}>{steps[cookStep]}</div>
             {/* TIMER-KNOEPFE fuer erkannte Zeitangaben */}
             {minutesHere.length>0&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:"8px",marginTop:"24px",justifyContent:"center"}}>
                 {minutesHere.map(m=>(
-                  <button key={m} onClick={()=>startTimer(m)} style={{padding:"10px 14px",minHeight:"40px",border:"1px solid "+C.accent,background:"rgba(212,144,74,0.12)",color:C.accent,fontSize:"12px",fontWeight:"700",letterSpacing:"1px",cursor:"pointer",fontFamily:SF}}>⏱ {fmtMin(m)} starten</button>
+                  <button key={m} onClick={()=>startTimer(m)} style={{padding:"10px 14px",minHeight:"40px",border:"1px solid "+C.abgBorder,borderRadius:RB,background:C.abg,color:C.accent,fontSize:"14px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>⏱ {fmtMin(m)} starten</button>
                 ))}
               </div>
             )}
@@ -96,17 +96,17 @@ export default function CookMode({state,api}){
               {timers.map(t=>{
                 const left=(t.end-Date.now())/1000;
                 return(
-                  <div key={t.id} role="timer" style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",background:t.done?"rgba(76,175,125,0.18)":"rgba(255,255,255,0.06)",border:"1px solid "+(t.done?C.ok:"rgba(255,255,255,0.12)")}}>
-                    <span style={{fontSize:"20px",fontWeight:"700",color:t.done?C.ok:"#fff",fontVariantNumeric:"tabular-nums",minWidth:"64px"}}>{t.done?"Fertig":fmtTimer(left)}</span>
-                    <span style={{flex:1,fontSize:"12px",color:"rgba(255,255,255,0.7)"}}>{t.label}</span>
-                    <button onClick={()=>removeTimer(t.id)} aria-label="Timer entfernen" style={{minWidth:"40px",minHeight:"40px",background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:"20px",cursor:"pointer"}}>×</button>
+                  <div key={t.id} role="timer" style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",background:t.done?C.okBg:C.white,border:"1px solid "+(t.done?C.okBorder:C.border),borderRadius:RB}}>
+                    <span style={{fontSize:"20px",fontWeight:"700",color:t.done?C.ok:C.text,fontVariantNumeric:"tabular-nums",minWidth:"64px"}}>{t.done?"Fertig":fmtTimer(left)}</span>
+                    <span style={{flex:1,fontSize:"13px",color:C.muted}}>{t.label}</span>
+                    <button onClick={()=>removeTimer(t.id)} aria-label="Timer entfernen" style={{minWidth:"40px",minHeight:"40px",background:"none",border:"none",color:C.accent,fontSize:"20px",cursor:"pointer"}}>×</button>
                   </div>
                 );
               })}
             </div>
           )}
-          <div style={{padding:"20px",display:"flex",gap:"12px"}}>
-            <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} disabled={cookStep===0} style={{...navBtn,background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.75)",cursor:cookStep===0?"default":"pointer"}}>Zurück</button>
+          <div style={{padding:"16px",display:"flex",gap:"10px"}}>
+            <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} disabled={cookStep===0} style={{...navBtn,background:C.white,border:"1px solid "+C.border,color:cookStep===0?C.subtle:C.accent,cursor:cookStep===0?"default":"pointer"}}>Zurück</button>
             {cookStep<steps.length-1
               ?<button onClick={()=>setCookStep(s=>s+1)} style={{...navBtn,flex:2,background:C.accent,color:C.onAccent,fontWeight:"700"}}>Weiter</button>
               :<button onClick={finishCook} style={{...navBtn,flex:2,background:C.ok,color:C.onAccent,fontWeight:"700"}}>Fertig</button>
