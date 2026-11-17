@@ -109,7 +109,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
         <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"8px"}}>Noch keine Punkte im Graph.</div>
         <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"16px"}}>Der Graph zeigt, was wahrscheinlich da ist – als Wolken je Gruppe. Fotografiere die Speisekammer oder trag in der Liste etwas ein.</div>
         <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-          <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"1.5px"}}>📷 SPEISEKAMMER FOTOGRAFIEREN</button>
+          <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px"}}>📷 SPEISEKAMMER FOTOGRAFIEREN</button>
           <button onClick={onList} style={btn("ghost")}>ZUR LISTE</button>
         </div>
       </div>
@@ -191,10 +191,10 @@ export default function VorratGraph({state,api,onPhoto,onList}){
       {/* Steuerung */}
       <div style={{position:"absolute",top:"8px",right:"8px",display:"flex",flexDirection:"column",gap:"4px"}}>
         {[["+","Vergrößern",()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1.3)],["−","Verkleinern",()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1/1.3)],["⊡","Einpassen",()=>setTf({x:0,y:0,k:1})],...(manualCount>0?[["↺","Anordnung zurücksetzen",()=>resetStockLayout()]]:[])].map(([t,a,f])=>(
-          <button key={a} onClick={f} aria-label={a} title={a} style={{width:"36px",height:"36px",background:"rgba(42,42,50,0.9)",border:"1px solid "+C.border,color:C.text,fontSize:"18px",cursor:"pointer",fontFamily:SF,padding:0}}>{t}</button>
+          <button key={a} onClick={f} aria-label={a} title={a} style={{width:"36px",height:"36px",background:"rgba(42,42,50,0.9)",border:"1px solid "+C.border,color:C.text,fontSize:"18px",cursor:"pointer",fontFamily:SF,padding:0,borderRadius:"6px"}}>{t}</button>
         ))}
       </div>
-      <div style={{position:"absolute",left:"10px",bottom:"8px",fontSize:"10px",color:C.subtle,letterSpacing:"0.5px",pointerEvents:"none"}}>groß und hell = wahrscheinlich da · Ring = Dauervorrat · roter Bogen = kippt bald · Stück = Gruppe · Punkte lassen sich im Stück verschieben</div>
+      <div style={{position:"absolute",left:"10px",bottom:"8px",fontSize:"12px",color:C.subtle,letterSpacing:"0.5px",pointerEvents:"none"}}>groß und hell = wahrscheinlich da · Ring = Dauervorrat · roter Bogen = kippt bald · Stück = Gruppe · Punkte lassen sich im Stück verschieben</div>
     </div>
 
     {/* LEISTE: Rezept oder Auswahl */}
@@ -203,29 +203,29 @@ export default function VorratGraph({state,api,onPhoto,onList}){
         <>
           <div style={{flex:"1 1 160px",minWidth:0}}>
             <div style={{fontFamily:SER,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recipe.name}</div>
-            <div style={{fontSize:"12px",color:C.muted}}>{covText}{links.missing.length?" · fehlt: "+links.missing.map(m=>m.name).join(", "):" · alles da"}{recipe.basis?" · Rezept-Basis":""}</div>
+            <div style={{fontSize:"13px",color:C.muted}}>{covText}{links.missing.length?" · fehlt: "+links.missing.map(m=>m.name).join(", "):" · alles da"}{recipe.basis?" · Rezept-Basis":""}</div>
           </div>
           <div style={{display:"flex",gap:"6px",flexShrink:0}}>
-            <button onClick={()=>open(recipe)} disabled={busy===recipe.key} style={{...btn("primary"),padding:"9px 12px"}}>{busy===recipe.key?"…":"ZUM REZEPT"}</button>
-            <button onClick={()=>cook(recipe)} disabled={busy===recipe.key} style={{...btn("dark"),padding:"9px 12px"}}>KOCHMODUS</button>
-            <button onClick={()=>setRecipeKey("")} aria-label="Rezept ausblenden" style={{...btn("ghost"),padding:"9px 12px"}}>×</button>
+            <button onClick={()=>open(recipe)} disabled={busy===recipe.key} style={{...btn("primary"),padding:"9px 12px",borderRadius:"6px"}}>{busy===recipe.key?"…":"ZUM REZEPT"}</button>
+            <button onClick={()=>cook(recipe)} disabled={busy===recipe.key} style={{...btn("dark"),padding:"9px 12px",borderRadius:"6px"}}>KOCHMODUS</button>
+            <button onClick={()=>setRecipeKey("")} aria-label="Rezept ausblenden" style={{...btn("ghost"),padding:"9px 12px",borderRadius:"6px"}}>×</button>
           </div>
         </>
       ):selected.size?(
         <>
           <div style={{flex:"1 1 160px",minWidth:0}}>
             <div style={{fontSize:"15px",color:C.text}}><b>{selected.size} ausgewählt</b></div>
-            <div style={{fontSize:"12px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selNames.join(", ")}</div>
+            <div style={{fontSize:"13px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selNames.join(", ")}</div>
           </div>
           <div style={{display:"flex",gap:"6px",flexShrink:0}}>
-            <button onClick={cookFrom} disabled={aiBusy} style={{...btn("primary"),padding:"9px 12px",background:aiBusy?C.subtle:C.accent}}>{aiBusy?"KI SUCHT…":"DARAUS KOCHEN (KI)"}</button>
-            <button onClick={()=>setSelected(new Set())} aria-label="Auswahl aufheben" style={{...btn("ghost"),padding:"9px 12px"}}>×</button>
+            <button onClick={cookFrom} disabled={aiBusy} style={{...btn("primary"),padding:"9px 12px",background:aiBusy?C.subtle:C.accent,borderRadius:"6px"}}>{aiBusy?"KI SUCHT…":"DARAUS KOCHEN (KI)"}</button>
+            <button onClick={()=>setSelected(new Set())} aria-label="Auswahl aufheben" style={{...btn("ghost"),padding:"9px 12px",borderRadius:"6px"}}>×</button>
           </div>
         </>
       ):(
-        <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt der Graph seine Zutaten. Gruppenname antippen klappt die Wolke zu.</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt der Graph seine Zutaten. Gruppenname antippen klappt die Wolke zu.</div>
       )}
-      {aiErr&&!recipe&&selected.size>0&&<div style={{flexBasis:"100%",fontSize:"12px",color:C.err}}>{aiErr}</div>}
+      {aiErr&&!recipe&&selected.size>0&&<div style={{flexBasis:"100%",fontSize:"13px",color:C.err}}>{aiErr}</div>}
     </div>
 
     {/* REZEPTE ZUR AUSWAHL / NACH ABDECKUNG */}
@@ -236,7 +236,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
         {ranked.slice(0,16).map(e=>{
           const on=e.key===recipeKey;
           const meta=selected.size?e.hits+" von "+e.of:Math.round(e.cov*100)+" %";
-          return <button key={e.key} onClick={()=>pickRecipe(e.key)} aria-pressed={on} style={{...chip(on),flexShrink:0,padding:"8px 11px",fontSize:"12px",fontWeight:on?"700":"400",color:on?C.accent:C.text,display:"flex",gap:"6px",alignItems:"center"}}><span>{short(e.name,24)}</span><span style={{color:on?C.accent:C.muted,fontSize:"11px"}}>{meta}</span></button>;
+          return <button key={e.key} onClick={()=>pickRecipe(e.key)} aria-pressed={on} style={{...chip(on),flexShrink:0,padding:"8px 11px",fontSize:"13px",fontWeight:on?"700":"400",color:on?C.accent:C.text,display:"flex",gap:"6px",alignItems:"center"}}><span>{short(e.name,24)}</span><span style={{color:on?C.accent:C.muted,fontSize:"13px"}}>{meta}</span></button>;
         })}
       </div>
     </div>
