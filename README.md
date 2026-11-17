@@ -41,6 +41,7 @@ Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetzte
 2. Umgebungsvariable `GEMINI_API_KEY` setzen (Key von aistudio.google.com/apikey), neu deployen.
 3. Firebase Realtime Database: die App nutzt das Projekt `wochenessenplan-3d0e1` (URL in `src/fb.js`).
 4. Kostendeckel der KI: Umgebungsvariable `AI_LIMIT_SECRET` setzen und den Regel-Knoten `aiUsage` ergänzen. Der vollständige Regelsatz steht in `docs/API.md`, Abschnitt „Kostendeckel“.
+5. Anonyme Anmeldung (vorbereitet, noch ohne Wirkung auf die Regeln): In der Firebase Console unter *Authentication → Anmeldemethode* „Anonym“ aktivieren und den Web-API-Schlüssel des Projekts (*Projekteinstellungen → Allgemein*) in Vercel als Umgebungsvariable `VITE_FB_API_KEY` setzen, danach neu deployen. Der Schlüssel ist öffentlich (er steht in der ausgelieferten App) und kein Geheimnis; er gehört trotzdem nicht ins Repository. Fehlt die Variable, ist die Anmeldung aus und die App läuft wie bisher.
 
 ## Firebase-Regeln und Datenmodell
 
