@@ -110,6 +110,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.waitForSelector('text=Plan starten', {timeout:15000});
   await page.fill('input[placeholder="z.B. Anna"]', 'Claude');
   const code = (await page.textContent('span[style*="letter-spacing: 6px"]')).trim();
+  await shot('00-einstieg');
   await page.click('text=Plan starten');
   await page.waitForSelector(IN_APP, {timeout:10000});
   await page.waitForTimeout(600);
@@ -197,6 +198,12 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("Wurde heute gekocht")'); await page.waitForTimeout(600);
   check(await page.isVisible('text=Wie war'), 'Gekocht: Bewertungsdialog');
   await page.click('button:has-text("Überspringen")'); await page.waitForTimeout(300);
+  // Kochmodus: Schritt, Zutatenleiste, zurueck zum Rezept
+  await page.click('button:text-is("Kochmodus")'); await page.waitForTimeout(400);
+  await page.click('button:has-text("Zutaten (")'); await page.waitForTimeout(200);
+  check(await page.isVisible('button:text-is("Weiter")') && await page.isVisible('text=1 / '), 'Kochmodus: erster Schritt mit Zutatenleiste und Weiter');
+  await shot('03c-kochmodus');
+  await page.click('button:text-is("Zurück")'); await page.waitForTimeout(300);
   const cookedRec = plan().recipes['Pasta Bolognese'];
   check(Array.isArray(cookedRec.cooked)&&cookedRec.cooked.includes(T) && Object.values(plan().picks).every(p=>p.day!==T), 'Gekocht: Kochdatum heute gespeichert, Vormerkung fuer heute entfernt', cookedRec.cooked);
   check(await page.isVisible('button:has-text("✓ Heute gekocht")'), 'Rezept: Knopf zeigt "Heute gekocht"');
