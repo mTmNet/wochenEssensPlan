@@ -41,6 +41,24 @@ export const fbPatch = async (p,d) => {
   try { const r=await fetchA(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }
 };
 
+// MITGLIEDSCHAFT - jedes angemeldete Gerät trägt sich unter members/<CODE>/<Nutzer-ID> ein (Vorname und Tag des Beitritts).
+// Der Eintrag liegt neben dem Plan, nicht darin. Künftige Regeln lassen den Plan nur noch für eingetragene Mitglieder zu.
+// Ohne Anmeldung oder solange die Regeln den Knoten nicht kennen, passiert nichts (false).
+export const ensureMember = async (code, name) => {
+  if(!auth.enabled || !(await auth.token()) || !auth.uid()) return false;
+  const p="members/"+code+"/"+auth.uid();
+  const nm=String(name||"").trim().slice(0,40);
+  const cur=await fbGet(p);
+  if(cur===undefined) return false;
+  if(cur && typeof cur==="object" && cur.since) return cur.name===nm ? true : fbPatch(p,{name:nm});
+  return fbPut(p,{name:nm,since:new Date().toISOString().slice(0,10)});
+};
+// Eigenen Eintrag wieder entfernen (z. B. nach einem Tippfehler im Code)
+export const dropMember = async (code) => {
+  if(!auth.enabled || !auth.uid()) return false;
+  return fbDelete("members/"+code+"/"+auth.uid());
+};
+
 // PLAN-CODES: 10 Zeichen ohne verwechselbare O/0/I/1, Eingabe 6 bis 16 Zeichen (alte 6-stellige Codes bleiben gueltig)
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[A-Z0-9]{6,16}$/;

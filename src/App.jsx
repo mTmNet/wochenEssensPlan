@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
-import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete } from "./fb.js";
+import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem } from "./logic/stock.js";
@@ -265,7 +265,9 @@ export default function App() {
     if(joinBusy) return false;
     setJoinBusy(true);setJoinErr("");setJoinOffer("");setNameHint(false);
     const fail=(msg,offer)=>{ setJoinErr(msg); setJoinOffer(offer||""); setJoinBusy(false); if(o.restore) setScreen("join"); return false; };
-    const pd=await fbGet("plans/"+c);
+    // Erst lesen; lehnt die Datenbank ab (Regeln nur für Mitglieder), als Mitglied eintragen und noch einmal lesen
+    let pd=await fbGet("plans/"+c), joinedNow=false;
+    if(pd===undefined && await ensureMember(c,nm)){ joinedNow=true; pd=await fbGet("plans/"+c); }
     if(pd===undefined) return fail(ERR_NET);
     let data=pd, imgs;
     if(!pd||!pd.meta){
@@ -279,6 +281,7 @@ export default function App() {
               meta:{createdAt:now,updatedAt:now,picksUpdatedAt:now,shoppingUpdatedAt:now,recipesUpdatedAt:now,peopleUpdatedAt:now,imagesMigrated:true}};
         if(!(await fbPatch("plans/"+c,data))) return fail(ERR_NET);
       }else{
+        if(joinedNow) dropMember(c);                             // Tippfehler im Code: eigenen Eintrag wieder entfernen
         return fail("Kein Plan mit diesem Code.",o.restore?"":c);
       }
     }
@@ -302,6 +305,7 @@ export default function App() {
     cleanupServer(data.recipes,data.shopping);
     setActiveCode(c);codeRef.current=c;setUserName(nm);setScreen("app");startPolling(c);
     setJoinBusy(false);
+    if(!joinedNow) ensureMember(c,nm);                           // im Hintergrund: Eintrag anlegen oder Namen nachziehen
     try{ localStorage.setItem(SESSION_KEY,JSON.stringify({code:c,name:nm})); }catch(e){}
     return true;
   };
@@ -347,6 +351,7 @@ export default function App() {
     const ok=await fbDelete("plans/"+code);
     if(!ok){ window.alert("Löschen fehlgeschlagen – keine Verbindung zur Datenbank. Bitte später erneut versuchen."); return false; }
     await fbDelete("recipeImages/"+code);   // Fotos; schlaegt das fehl, bleiben nur Bilddaten ohne Bezug zurueck
+    await fbDelete("members/"+code);        // Mitgliederliste zuletzt: bis hierher braucht das Loeschen die Mitgliedschaft
     resetSession();
     window.alert("Alle Daten des Plans wurden gelöscht.");
     return true;
