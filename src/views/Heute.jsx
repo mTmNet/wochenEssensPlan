@@ -14,7 +14,7 @@ export default function Heute({state,api}){
   const {stock,hbLink,hbBook,recipes,images,classics,picks,today,aiBusy,aiErr,household}=state;
   const {openRecipe,startCooking,setView,suggestRecipe,adoptClassic,removePick}=api;
   const [filters,setFilters]=useState({quick:false,kids:false});
-  const [round,setRound]=useState(0);            // "Andere": blaettert durch die Rangliste (Hauptkachel und Alternativen wechseln)
+  const [round,setRound]=useState(0);            // "Neue Vorschlaege": blaettert durch die Rangliste (Hauptkachel und Alternativen wechseln)
   const [selected,setSelected]=useState("");     // angetippte Alternative wird zur Hauptkachel
   const [more,setMore]=useState(false);
   const [aiOpen,setAiOpen]=useState(false);
@@ -30,7 +30,7 @@ export default function Heute({state,api}){
     return [...own,...base];
   },[recipes,classics]);
   const ranked=useMemo(()=>rankSuggestions(pool,stock,{filters,today}),[pool,stock,filters,today]);
-  // Fenster: "Andere" springt um vier weiter (rundum); eine angetippte Alternative steht oben, die uebrigen folgen in Rangfolge
+  // Fenster: "Neue Vorschlaege" springt um vier weiter (rundum); eine angetippte Alternative steht oben, die uebrigen folgen in Rangfolge
   const start=ranked.length?(round*4)%ranked.length:0;
   const order=[...ranked.slice(start),...ranked.slice(0,start)];
   const sel=selected?order.find(s=>s.key===selected):null;
@@ -77,7 +77,7 @@ export default function Heute({state,api}){
     {/* FILTER + ANDERE VORSCHLAEGE */}
     <div style={{display:"flex",gap:"6px",marginBottom:"12px",alignItems:"center"}}>
       {TAGS.map(t=>{ const f=t.id==="schnell"?"quick":"kids"; return <button key={t.id} onClick={()=>toggle(f)} aria-pressed={filters[f]} style={chip(filters[f])}>{filters[f]?"✓ ":""}{t.label}</button>; })}
-      <button onClick={another} title="Andere Vorschläge" style={{...chip(false),marginLeft:"auto",color:C.accent}}>↻ Andere</button>
+      <button onClick={another} title="Andere Vorschläge zeigen" style={{...chip(false),marginLeft:"auto",color:C.accent}}>↻ Neue Vorschläge</button>
     </div>
 
     {/* BESTER VORSCHLAG */}
@@ -86,13 +86,15 @@ export default function Heute({state,api}){
         Nichts passt zu den Filtern. Nimm einen Filter weg oder lass dir von der KI ein bekanntes Gericht nennen.
       </div>
     ):(
-      <div style={{background:C.white,border:"1px solid "+C.accent,marginBottom:"10px"}}>
+      <div key={top.key} style={{background:C.white,border:"1px solid "+C.accent,marginBottom:"10px",animation:"heuteEin 0.45s ease-out"}}>
+        {/* kurzes Einblenden bei jedem Wechsel der Hauptkachel, damit sichtbar ist, dass sich oben etwas getan hat */}
+        <style>{"@keyframes heuteEin{from{opacity:0.25}to{opacity:1}}"}</style>
         <div onClick={()=>open(top)} role="button" style={{cursor:"pointer"}}>
           <DishImage name={nameOf(top)} rec={top.rec} img={images[top.key]} height={images[top.key]?190:96} minimal />
         </div>
         <div style={{padding:"14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
-            <div style={{...label,marginBottom:0}}>{top.basis?"Aus der Rezept-Basis":"Vorschlag"}</div>
+            <div style={{...label,marginBottom:0}}>{sel?(top.basis?"Deine Auswahl · aus der Rezept-Basis":"Deine Auswahl"):(top.basis?"Aus der Rezept-Basis":"Vorschlag")}</div>
             {top.rec.rating>0&&<span style={{color:C.star,fontSize:"12px"}}>{"★".repeat(top.rec.rating)}</span>}
           </div>
           <div onClick={()=>open(top)} role="button" style={{fontFamily:SER,fontSize:"24px",color:C.text,lineHeight:1.2,marginBottom:"4px",cursor:"pointer"}}>{nameOf(top)}</div>
