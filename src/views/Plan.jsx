@@ -29,7 +29,7 @@ export default function Plan({state,api}){
             <button key={k} onClick={()=>setChosen({key:k,name:recName(recipes[k],k)})} style={{width:"100%",display:"block",textAlign:"left",padding:"11px 12px",minHeight:"44px",background:"none",border:"none",borderTop:i?"1px solid "+C.border:"none",color:C.text,fontSize:"15px",fontFamily:SER,cursor:"pointer"}}>{recName(recipes[k],k)}</button>
           ))}
         </div>
-        <button onClick={()=>setAdding(false)} style={{...btn("ghost"),width:"100%",marginTop:"10px",borderRadius:"6px"}}>ABBRECHEN</button>
+        <button onClick={()=>setAdding(false)} style={{...btn("ghost"),width:"100%",marginTop:"10px",borderRadius:"6px"}}>Abbrechen</button>
       </Modal>
     )}
     <div style={{display:"flex",alignItems:"flex-end",gap:"8px",margin:"4px 2px 12px"}}>
@@ -37,7 +37,7 @@ export default function Plan({state,api}){
         <div style={{fontFamily:SER,fontSize:"26px",color:C.text,lineHeight:1.15}}>Vorgemerkt</div>
         <div style={{fontSize:"13px",color:C.muted,marginTop:"3px"}}>Was in den nächsten Tagen gekocht werden soll. Gekochtes verschwindet, sobald es im Rezept als „heute gekocht“ steht.</div>
       </div>
-      <button onClick={()=>{setQ("");setAdding(true);}} style={{...btn("primary"),letterSpacing:"0.5px",flexShrink:0,borderRadius:"6px"}}>+ VORMERKEN</button>
+      <button onClick={()=>{setQ("");setAdding(true);}} style={{...btn("primary"),letterSpacing:"0.5px",flexShrink:0,borderRadius:"6px"}}>+ Vormerken</button>
     </div>
 
     {picks.length===0&&(
@@ -58,7 +58,7 @@ export default function Plan({state,api}){
                   <div style={{fontFamily:SER,fontSize:"17px",color:rec?C.text:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recName(rec,p.key)}</div>
                   <div style={{fontSize:"13px",color:C.muted}}>{rec?[rec.minutes>0?rec.minutes+" Min.":"",rec.cuisine].filter(Boolean).join(" · "):"Rezept nicht mehr im Kochbuch"}</div>
                 </button>
-                {g.day!==today&&<button onClick={()=>movePick(p.id,today)} title="Auf heute legen" style={{...btn("ghost"),padding:"8px 9px",color:C.accent,flexShrink:0,borderRadius:"6px"}}>HEUTE</button>}
+                {g.day!==today&&<button onClick={()=>movePick(p.id,today)} title="Auf heute legen" style={{...btn("ghost"),padding:"8px 9px",color:C.accent,flexShrink:0,borderRadius:"6px"}}>Heute</button>}
                 <button onClick={()=>removePick(p.id)} aria-label="Entfernen" style={iconBtn}>×</button>
               </div>
             );
@@ -69,7 +69,7 @@ export default function Plan({state,api}){
 
     {picks.length>0&&(
       <div style={{marginTop:"6px"}}>
-        <button onClick={buildShoppingFromPicks} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"0.5px",borderRadius:"6px"}}>EINKAUFSLISTE AUS DEM VORGEMERKTEN{unchecked>0?" ("+unchecked+" offen)":""}</button>
+        <button onClick={buildShoppingFromPicks} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"0.5px",borderRadius:"6px"}}>Einkaufsliste aus dem Vorgemerkten{unchecked>0?" ("+unchecked+" offen)":""}</button>
         <div style={{fontSize:"13px",color:C.muted,textAlign:"center",marginTop:"8px",lineHeight:"1.5"}}>Führt die Zutaten aller vorgemerkten Gerichte mit der bestehenden Liste zusammen – Handeinträge und Haken bleiben.</div>
       </div>
     )}

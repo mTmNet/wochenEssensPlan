@@ -17,8 +17,8 @@ export default function PickDay({name,today,onConfirm,onClose,registerBackHandle
       </div>
       <div style={{fontSize:"13px",color:C.subtle,lineHeight:"1.5",marginBottom:"12px"}}>Vorgemerktes erscheint in „Heute“ am gewählten Tag und im Reiter „Vorgemerkt“. Die Einkaufsliste lässt sich daraus erzeugen.</div>
       <div style={{display:"flex",gap:"8px"}}>
-        <button onClick={()=>onConfirm(day)} style={{...btn("primary"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>VORMERKEN</button>
-        <button onClick={onClose} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ABBRECHEN</button>
+        <button onClick={()=>onConfirm(day)} style={{...btn("primary"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>Vormerken</button>
+        <button onClick={onClose} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Abbrechen</button>
       </div>
     </Modal>
   );

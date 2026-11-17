@@ -56,7 +56,7 @@ export default function CookMode({state,api}){
         <Toast text={toast} />
         <div style={{...column,display:"flex",flexDirection:"column",flex:1}}>
           <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:"12px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-            <button onClick={()=>setCookMode(false)} style={{background:"rgba(255,255,255,0.07)",border:"none",color:"rgba(255,255,255,0.7)",padding:"10px 14px",minHeight:"40px",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF}}>ZURÜCK</button>
+            <button onClick={()=>setCookMode(false)} style={{background:"rgba(255,255,255,0.07)",border:"none",color:"rgba(255,255,255,0.7)",padding:"10px 14px",minHeight:"40px",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF}}>Zurück</button>
             <div style={{flex:1,fontFamily:SER,color:"#fff",fontSize:"18px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recName(curRec,detailRecipe)}</div>
             <div style={{color:C.accent,fontSize:"12px",fontWeight:"700",letterSpacing:"1px"}}>{cookStep+1} / {steps.length}</div>
           </div>
@@ -106,10 +106,10 @@ export default function CookMode({state,api}){
             </div>
           )}
           <div style={{padding:"20px",display:"flex",gap:"12px"}}>
-            <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} disabled={cookStep===0} style={{...navBtn,background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.75)",cursor:cookStep===0?"default":"pointer"}}>ZURÜCK</button>
+            <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} disabled={cookStep===0} style={{...navBtn,background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.75)",cursor:cookStep===0?"default":"pointer"}}>Zurück</button>
             {cookStep<steps.length-1
-              ?<button onClick={()=>setCookStep(s=>s+1)} style={{...navBtn,flex:2,background:C.accent,color:C.onAccent,fontWeight:"700"}}>WEITER</button>
-              :<button onClick={finishCook} style={{...navBtn,flex:2,background:C.ok,color:C.onAccent,fontWeight:"700"}}>FERTIG</button>
+              ?<button onClick={()=>setCookStep(s=>s+1)} style={{...navBtn,flex:2,background:C.accent,color:C.onAccent,fontWeight:"700"}}>Weiter</button>
+              :<button onClick={finishCook} style={{...navBtn,flex:2,background:C.ok,color:C.onAccent,fontWeight:"700"}}>Fertig</button>
             }
           </div>
         </div>

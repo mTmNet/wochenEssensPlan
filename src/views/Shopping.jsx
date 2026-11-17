@@ -41,7 +41,7 @@ export default function Shopping({state,api}){
               <div style={{textAlign:"center",padding:"48px 24px",color:C.muted}}>
                 <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"10px"}}>Die Einkaufsliste ist leer.</div>
                 <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Trag oben etwas ein, erzeuge die Liste aus dem Vorgemerkten oder füge an einem Rezept „Auf die Einkaufsliste“ die Zutaten hinzu.</div>
-                <button onClick={()=>setView("plan")} style={btn("dark")}>ZUM VORGEMERKTEN</button>
+                <button onClick={()=>setView("plan")} style={btn("dark")}>Zum Vorgemerkten</button>
               </div>
             ):(
               <div>
@@ -56,7 +56,7 @@ export default function Shopping({state,api}){
                       <div style={{height:"100%",width:(total?(total-unchecked)/total*100:0)+"%",background:C.ok,transition:"width 0.4s"}} />
                     </div>
                   </div>
-                  <button onClick={shareShopping} aria-label="Einkaufsliste teilen" style={{...btn("ghost"),color:C.accent,padding:"9px 12px",borderRadius:"6px"}}>TEILEN</button>
+                  <button onClick={shareShopping} aria-label="Einkaufsliste teilen" style={{...btn("ghost"),color:C.accent,padding:"9px 12px",borderRadius:"6px"}}>Teilen</button>
                 </div>
 
                 {/* Abteilungen */}
@@ -79,7 +79,7 @@ export default function Shopping({state,api}){
                         {shopLikely.map((item,gi)=>row(item,gi,shopLikely.length,(
                           <>
                             <span style={{fontSize:"13px",color:C.ok,flexShrink:0}}>{Math.round(item.stockP*100)} %</span>
-                            <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>KAUFEN</button>
+                            <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>Kaufen</button>
                           </>
                         )))}
                       </div>
@@ -95,14 +95,14 @@ export default function Shopping({state,api}){
                       <div style={{background:C.white,border:"1px solid "+C.border}}>
                         <div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Grundvorrat ({BASIC_LABEL}) zählt nicht im Fortschritt. Fehlt etwas, holt „Kaufen“ es in die Liste.</div>
                         {shopBasics.map((item,gi)=>row(item,gi,shopBasics.length,(
-                          <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>KAUFEN</button>
+                          <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>Kaufen</button>
                         )))}
                       </div>
                     )}
                   </div>
                 )}
                 {!hbLink&&<div style={{fontSize:"13px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“). Was laut Vorrat noch da ist, wandert in einen eigenen Block.</div>}
-                <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px",borderRadius:"6px"}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
+                <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px",borderRadius:"6px"}}>Einkaufsliste komplett löschen</button>
               </div>
             )}
           </div>

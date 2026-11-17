@@ -109,8 +109,8 @@ export default function VorratGraph({state,api,onPhoto,onList}){
         <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"8px"}}>Noch keine Punkte im Graph.</div>
         <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"16px"}}>Der Graph zeigt, was wahrscheinlich da ist – als Wolken je Gruppe. Fotografiere die Speisekammer oder trag in der Liste etwas ein.</div>
         <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-          <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px"}}>📷 SPEISEKAMMER FOTOGRAFIEREN</button>
-          <button onClick={onList} style={btn("ghost")}>ZUR LISTE</button>
+          <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px"}}>📷 Speisekammer fotografieren</button>
+          <button onClick={onList} style={btn("ghost")}>Zur Liste</button>
         </div>
       </div>
     );
@@ -206,8 +206,8 @@ export default function VorratGraph({state,api,onPhoto,onList}){
             <div style={{fontSize:"13px",color:C.muted}}>{covText}{links.missing.length?" · fehlt: "+links.missing.map(m=>m.name).join(", "):" · alles da"}{recipe.basis?" · Rezept-Basis":""}</div>
           </div>
           <div style={{display:"flex",gap:"6px",flexShrink:0}}>
-            <button onClick={()=>open(recipe)} disabled={busy===recipe.key} style={{...btn("primary"),padding:"9px 12px",borderRadius:"6px"}}>{busy===recipe.key?"…":"ZUM REZEPT"}</button>
-            <button onClick={()=>cook(recipe)} disabled={busy===recipe.key} style={{...btn("dark"),padding:"9px 12px",borderRadius:"6px"}}>KOCHMODUS</button>
+            <button onClick={()=>open(recipe)} disabled={busy===recipe.key} style={{...btn("primary"),padding:"9px 12px",borderRadius:"6px"}}>{busy===recipe.key?"…":"Zum Rezept"}</button>
+            <button onClick={()=>cook(recipe)} disabled={busy===recipe.key} style={{...btn("dark"),padding:"9px 12px",borderRadius:"6px"}}>Kochmodus</button>
             <button onClick={()=>setRecipeKey("")} aria-label="Rezept ausblenden" style={{...btn("ghost"),padding:"9px 12px",borderRadius:"6px"}}>×</button>
           </div>
         </>
@@ -218,7 +218,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
             <div style={{fontSize:"13px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selNames.join(", ")}</div>
           </div>
           <div style={{display:"flex",gap:"6px",flexShrink:0}}>
-            <button onClick={cookFrom} disabled={aiBusy} style={{...btn("primary"),padding:"9px 12px",background:aiBusy?C.subtle:C.accent,borderRadius:"6px"}}>{aiBusy?"KI SUCHT…":"DARAUS KOCHEN (KI)"}</button>
+            <button onClick={cookFrom} disabled={aiBusy} style={{...btn("primary"),padding:"9px 12px",background:aiBusy?C.subtle:C.accent,borderRadius:"6px"}}>{aiBusy?"KI sucht…":"Daraus kochen (KI)"}</button>
             <button onClick={()=>setSelected(new Set())} aria-label="Auswahl aufheben" style={{...btn("ghost"),padding:"9px 12px",borderRadius:"6px"}}>×</button>
           </div>
         </>

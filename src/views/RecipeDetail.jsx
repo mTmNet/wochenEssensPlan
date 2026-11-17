@@ -65,10 +65,10 @@ export default function RecipeDetail({state,api}){
             <Stars value={ratingDraft} onRate={setRatingDraft} size={32} />
             <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" aria-label="Notiz" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field,borderRadius:"6px"}} />
             <input ref={dishPhotoRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
-            <button onClick={()=>dishPhotoRef.current&&dishPhotoRef.current.click()} style={{...btn("ghost"),width:"100%",marginTop:"10px",color:C.accent,borderRadius:"6px"}}>{images[detailRecipe]?"FOTO VOM GERICHT ERSETZEN":"FOTO VOM GERICHT"}</button>
+            <button onClick={()=>dishPhotoRef.current&&dishPhotoRef.current.click()} style={{...btn("ghost"),width:"100%",marginTop:"10px",color:C.accent,borderRadius:"6px"}}>{images[detailRecipe]?"Foto vom Gericht ersetzen":"Foto vom Gericht"}</button>
             <div style={{display:"flex",gap:"8px",marginTop:"14px"}}>
-              <button onClick={saveRating} style={{...btn("ok"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>SPEICHERN</button>
-              <button onClick={()=>setRateAfterCook(false)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ÜBERSPRINGEN</button>
+              <button onClick={saveRating} style={{...btn("ok"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>Speichern</button>
+              <button onClick={()=>setRateAfterCook(false)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Überspringen</button>
             </div>
           </Modal>
         )}
@@ -78,12 +78,12 @@ export default function RecipeDetail({state,api}){
         <div data-theme="dark">
         <DishImage name={name} rec={curRec} img={images[detailRecipe]} height={260} dim compact>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.shade+")"}} />
-          <button onClick={closeRecipe} style={{...headBtn,position:"absolute",top:12,left:12,borderRadius:"6px"}}>ZURÜCK</button>
+          <button onClick={closeRecipe} style={{...headBtn,position:"absolute",top:12,left:12,borderRadius:"6px"}}>Zurück</button>
           {/* Eigenes Bild hochladen / Standard wiederherstellen */}
           <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none",borderRadius:"6px"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
           <div style={{position:"absolute",top:12,right:12,display:"flex",gap:"6px"}}>
-            <button onClick={()=>imgFileRef.current&&imgFileRef.current.click()} style={headBtn}>{images[detailRecipe]?"BILD ÄNDERN":"FOTO HINZUFÜGEN"}</button>
-            {images[detailRecipe]&&<button onClick={()=>resetImage(detailRecipe)} style={{...headBtn,color:"rgba(255,255,255,0.65)",borderRadius:"6px"}}>STANDARD</button>}
+            <button onClick={()=>imgFileRef.current&&imgFileRef.current.click()} style={headBtn}>{images[detailRecipe]?"Bild ändern":"Foto hinzufügen"}</button>
+            {images[detailRecipe]&&<button onClick={()=>resetImage(detailRecipe)} style={{...headBtn,color:"rgba(255,255,255,0.65)",borderRadius:"6px"}}>Standard</button>}
           </div>
           <div style={{position:"absolute",bottom:20,left:20,right:20}}>
             <div style={{color:C.accent,fontSize:"12px",fontWeight:"600",letterSpacing:"0.5px",marginBottom:"6px",lineHeight:"1.5"}}>{metaLine}</div>
@@ -98,18 +98,18 @@ export default function RecipeDetail({state,api}){
             <div>
               {/* AKTIONEN */}
               <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
-                {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 0",letterSpacing:"0.5px",borderRadius:"6px"}}>KOCHMODUS</button>}
-                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 0",color:C.accent,borderRadius:"6px"}}>VORMERKEN</button>
+                {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 0",letterSpacing:"0.5px",borderRadius:"6px"}}>Kochmodus</button>}
+                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 0",color:C.accent,borderRadius:"6px"}}>Vormerken</button>
               </div>
               {/* Einkaufsliste: geteilter Knopf - alles oder nur, was laut Vorrat fehlt */}
               <div role="group" aria-label="Auf die Einkaufsliste" style={{display:"flex",flexDirection:"column",marginBottom:"8px",border:"1px solid "+(shopDone?C.ok:C.border)}}>
-                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),border:"none",color:shopDone?C.ok:C.accent,padding:"11px 8px",borderRadius:"6px"}}>{shopDone?"✓ AUF DER LISTE":"ALLES AUF DIE LISTE"}</button>
+                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),border:"none",color:shopDone?C.ok:C.accent,padding:"11px 8px",borderRadius:"6px"}}>{shopDone?"✓ Auf der Liste":"Alles auf die Liste"}</button>
                 <div style={{height:"1px",background:shopDone?C.ok:C.border,flexShrink:0}} />
-                <button onClick={()=>toShopping(true)} disabled={!stock||!stock.length} title={!stock||!stock.length?"Ohne Vorrat ist unbekannt, was fehlt":""} style={{...btn("ghost"),border:"none",color:C.err,padding:"11px 8px",opacity:!stock||!stock.length?0.45:1,borderRadius:"6px"}}>NUR FEHLENDES AUF DIE LISTE{stock&&stock.length?" ("+missingCount+")":""}</button>
+                <button onClick={()=>toShopping(true)} disabled={!stock||!stock.length} title={!stock||!stock.length?"Ohne Vorrat ist unbekannt, was fehlt":""} style={{...btn("ghost"),border:"none",color:C.err,padding:"11px 8px",opacity:!stock||!stock.length?0.45:1,borderRadius:"6px"}}>Nur Fehlendes auf die Liste{stock&&stock.length?" ("+missingCount+")":""}</button>
               </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
-                <button onClick={()=>startEdit(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.text,borderRadius:"6px"}}>BEARBEITEN</button>
-                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>ALS PDF</button>
+                <button onClick={()=>startEdit(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.text,borderRadius:"6px"}}>Bearbeiten</button>
+                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>Als PDF</button>
               </div>
               {curRec.description&&(
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
@@ -123,7 +123,7 @@ export default function RecipeDetail({state,api}){
                 <div style={cardTitle}>Bewertung & Notizen</div>
                 <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
                   <Stars value={curRec.rating||0} onRate={r=>rateRecipe(detailRecipe,r)} />
-                  <button onClick={()=>cookedToday(detailRecipe)} disabled={cooked.includes(today)} style={{...btn("ghost"),marginLeft:"auto",padding:"8px 12px",color:cooked.includes(today)?C.ok:C.accent,borderColor:cooked.includes(today)?C.ok:C.border,borderRadius:"6px"}}>{cooked.includes(today)?"✓ HEUTE GEKOCHT":"WURDE HEUTE GEKOCHT"}</button>
+                  <button onClick={()=>cookedToday(detailRecipe)} disabled={cooked.includes(today)} style={{...btn("ghost"),marginLeft:"auto",padding:"8px 12px",color:cooked.includes(today)?C.ok:C.accent,borderColor:cooked.includes(today)?C.ok:C.border,borderRadius:"6px"}}>{cooked.includes(today)?"✓ Heute gekocht":"Wurde heute gekocht"}</button>
                 </div>
                 <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))noteRecipe(detailRecipe,noteDraft);}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" aria-label="Notizen" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field,borderRadius:"6px"}} />
               </div>
@@ -169,11 +169,11 @@ export default function RecipeDetail({state,api}){
                 <div style={{fontSize:"14px",color:C.text}}>{cookedLabel(curRec)}</div>
                 {cooked.length>0&&<div style={{fontSize:"13px",color:C.muted,marginTop:"6px"}}>{cooked.slice(-6).reverse().map(fmtDate).join(" · ")}{cooked.length>6?" · …":""}</div>}
               </div>
-              <button onClick={()=>deleteRecipe(detailRecipe)} style={{...btn("danger"),width:"100%",borderRadius:"6px"}}>REZEPT LÖSCHEN</button>
+              <button onClick={()=>deleteRecipe(detailRecipe)} style={{...btn("danger"),width:"100%",borderRadius:"6px"}}>Rezept löschen</button>
             </div>
           ):(
             <div>
-              <div style={cardTitle}>REZEPT BEARBEITEN</div>
+              <div style={cardTitle}>REZEPT Bearbeiten</div>
               <div style={{marginBottom:"10px"}}>
                 <label style={lbl}>Name</label>
                 <input value={editData.name} onChange={e=>setEditData(d=>({...d,name:e.target.value}))} aria-label="Name" style={{...inp,fontSize:"15px",fontFamily:SER}} />
@@ -248,8 +248,8 @@ export default function RecipeDetail({state,api}){
                 <button onClick={()=>setEditData(d=>({...d,steps:[...d.steps,""]}))} style={{...btn("ghost"),marginTop:"8px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>+ Schritt</button>
               </div>
               <div style={{display:"flex",gap:"8px"}}>
-                <button onClick={saveEdit} style={{...btn("dark"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>SPEICHERN</button>
-                <button onClick={cancelEdit} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ABBRECHEN</button>
+                <button onClick={saveEdit} style={{...btn("dark"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>Speichern</button>
+                <button onClick={cancelEdit} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Abbrechen</button>
               </div>
             </div>
           )}

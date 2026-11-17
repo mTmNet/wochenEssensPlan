@@ -107,10 +107,10 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const T = iso(today);
 
   await page.goto('http://127.0.0.1:5173/');
-  await page.waitForSelector('text=PLAN STARTEN', {timeout:15000});
+  await page.waitForSelector('text=Plan starten', {timeout:15000});
   await page.fill('input[placeholder="z.B. Anna"]', 'Claude');
   const code = (await page.textContent('span[style*="letter-spacing: 6px"]')).trim();
-  await page.click('text=PLAN STARTEN');
+  await page.click('text=Plan starten');
   await page.waitForSelector(IN_APP, {timeout:10000});
   await page.waitForTimeout(600);
   const plan = ()=>db.wochen.plans[code];
@@ -118,13 +118,13 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const tabs = await page.locator('div[style*="border-bottom"] button[aria-current], div[style*="overflow-x: auto"] button').allTextContents();
   check(tabs.join('|').includes('Heute')&&tabs.join('|').includes('Vorrat')&&!tabs.join('|').includes('Woche')&&!tabs.join('|').includes('Plan'), 'Reiter: Heute · Vorrat · Rezepte · Einkauf, kein Woche, Plan versteckt', tabs);
   // HEUTE mit leerem Kochbuch: Vorschlaege aus der Rezept-Basis
-  check(await page.isVisible('text=Was kochen wir heute?') && await page.isVisible('text=Aus der Rezept-Basis') && await page.isVisible('button:has-text("ZUM REZEPT")') && !(await page.isVisible('button:has-text("VORMERKEN")')), 'Heute: leeres Kochbuch -> bester Vorschlag aus der Rezept-Basis mit Zum Rezept/Kochmodus, kein Vormerken');
+  check(await page.isVisible('text=Was kochen wir heute?') && await page.isVisible('text=Aus der Rezept-Basis') && await page.isVisible('button:has-text("Zum Rezept")') && !(await page.isVisible('button:has-text("Vormerken")')), 'Heute: leeres Kochbuch -> bester Vorschlag aus der Rezept-Basis mit Zum Rezept/Kochmodus, kein Vormerken');
   check(await page.isVisible('text=Vorrat füllen'), 'Heute: Vorrat-Zeile laedt zum Fuellen ein (Einkaeufe abhaken oder Haushaltsbuch)');
   await shot('01-heute-leer');
   // REZEPTE: Meine/Alle, Startrezepte
   await page.click(IN_APP); await page.waitForTimeout(300);
   check(await page.isVisible('button:has-text("Alle (mit Rezept-Basis)")') && await page.isVisible('text=Rezept-Basis ·'), 'Rezepte: leeres Kochbuch zeigt "Alle" mit Rezept-Basis');
-  await page.click('text=STARTREZEPTE ÜBERNEHMEN');
+  await page.click('text=Startrezepte übernehmen');
   await page.waitForSelector('button:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
   check(Object.keys(plan().recipes||{}).length===14, 'Startrezepte liegen unter plans/<CODE>/recipes');
   check(!(await page.isVisible('text=Rezept-Basis ·')), 'Rezepte: mit Kochbuch zeigt "Meine" ohne Rezept-Basis');
@@ -139,7 +139,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("Neue Vorschläge")'); await page.waitForTimeout(200);
   const topAfter = await heroName();
   check(topAfter!==topName, 'Heute: "Neue Vorschläge" wechselt auch die Hauptkachel', {topName, topAfter});
-  const altName = (await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().textContent()).replace('BASIS','').trim();
+  const altName = (await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().textContent()).replace('Basis','').trim();
   await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().click(); await page.waitForTimeout(200);
   check((await heroName())===altName, 'Heute: angetippte Alternative wird Hauptkachel', {altName, hero: await heroName()});
   await page.click('button:has-text("Schnell")'); await page.waitForTimeout(200);
@@ -149,25 +149,25 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // PLAN (versteckt): ueber das Menue, Vormerken fuer heute und demnaechst, Einkaufsliste erzeugen
   await page.click('button[aria-label="Menü"]'); await page.click('text=Plan · Vorgemerkt'); await page.waitForTimeout(300);
   check(await page.isVisible('text=Noch nichts vorgemerkt'), 'Plan: leer, ueber das Menue erreichbar');
-  await page.click('button:has-text("+ VORMERKEN")'); await page.waitForTimeout(300);
+  await page.click('button:has-text("+ Vormerken")'); await page.waitForTimeout(300);
   await page.fill('input[placeholder="Rezept suchen…"]', 'Bolognese');
   await page.click('button:has-text("Pasta Bolognese")'); await page.waitForTimeout(200);
-  await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
+  await page.click('div[role="dialog"] button:text-is("Vormerken")'); await page.waitForTimeout(500);
   const pk = Object.values(plan().picks||{});
   check(pk.length===1 && pk[0].day===T && pk[0].key==='Pasta Bolognese', 'Vormerken: picks/<id> mit heutigem Tag geschrieben', pk);
   check(await page.isVisible('button:text-is("Plan (1)")'), 'Reiter Plan (1) erscheint');
-  await page.click('button:has-text("+ VORMERKEN")'); await page.waitForTimeout(300);
+  await page.click('button:has-text("+ Vormerken")'); await page.waitForTimeout(300);
   await page.fill('input[placeholder="Rezept suchen…"]', 'Risotto');
   await page.click('button:has-text("Risotto")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Demnächst")');
-  await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
+  await page.click('div[role="dialog"] button:text-is("Vormerken")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).length===2 && Object.values(plan().picks).some(p=>p.key==='Risotto'&&p.day===''), 'Vorgemerkt: Risotto fuer demnaechst ueber die Suche');
   await shot('03b-plan');
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(300);
   check(await page.isVisible('text=Für heute vorgemerkt') && await page.isVisible('text=Pasta Bolognese'), 'Heute: Block "Fuer heute vorgemerkt"');
   await page.click('button:text-is("Plan (2)")'); await page.waitForTimeout(300);
   check(await page.isVisible('text=Demnächst'), 'Vorgemerkt: Gruppe Demnaechst sichtbar');
-  await page.click('button:has-text("EINKAUFSLISTE AUS DEM VORGEMERKTEN")'); await page.waitForTimeout(600);
+  await page.click('button:has-text("Einkaufsliste aus dem Vorgemerkten")'); await page.waitForTimeout(600);
   const shop = Object.values(plan().shopping||{});
   check(shop.length>3 && shop.every(i=>i.src==='plan'), 'Einkauf: Liste aus dem Vorgemerkten erzeugt', shop.length);
   check(await page.isVisible('text=Erledigt'), 'Einkauf: Ansicht offen');
@@ -193,19 +193,19 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // "WURDE HEUTE GEKOCHT" im Rezept: Kochdatum, Vormerkung weg, Bewertungsdialog
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(300);
   await page.locator('text=Pasta Bolognese').first().click(); await page.waitForTimeout(500);
-  check(await page.isVisible('button:has-text("WURDE HEUTE GEKOCHT")'), 'Rezept: Knopf "Wurde heute gekocht" neben der Bewertung');
-  await page.click('button:has-text("WURDE HEUTE GEKOCHT")'); await page.waitForTimeout(600);
+  check(await page.isVisible('button:has-text("Wurde heute gekocht")'), 'Rezept: Knopf "Wurde heute gekocht" neben der Bewertung');
+  await page.click('button:has-text("Wurde heute gekocht")'); await page.waitForTimeout(600);
   check(await page.isVisible('text=Wie war'), 'Gekocht: Bewertungsdialog');
-  await page.click('button:has-text("ÜBERSPRINGEN")'); await page.waitForTimeout(300);
+  await page.click('button:has-text("Überspringen")'); await page.waitForTimeout(300);
   const cookedRec = plan().recipes['Pasta Bolognese'];
   check(Array.isArray(cookedRec.cooked)&&cookedRec.cooked.includes(T) && Object.values(plan().picks).every(p=>p.day!==T), 'Gekocht: Kochdatum heute gespeichert, Vormerkung fuer heute entfernt', cookedRec.cooked);
-  check(await page.isVisible('button:has-text("✓ HEUTE GEKOCHT")'), 'Rezept: Knopf zeigt "Heute gekocht"');
-  await page.click('text=ZURÜCK'); await page.waitForTimeout(300);
+  check(await page.isVisible('button:has-text("✓ Heute gekocht")'), 'Rezept: Knopf zeigt "Heute gekocht"');
+  await page.click('text=Zurück'); await page.waitForTimeout(300);
   check(!(await page.isVisible('text=Für heute vorgemerkt')), 'Heute: Block fuer heute ist weg');
   // VORRAT: Haushaltsbuch verbinden, Liste, x
   await page.click('button:text-is("Vorrat")'); await page.waitForTimeout(300);
   await page.fill('input[placeholder="BUCH-CODE"]', 'FAMILIE1');
-  await page.click('button:has-text("VERBINDEN")'); await page.waitForTimeout(800);
+  await page.click('button:has-text("Verbinden")'); await page.waitForTimeout(800);
   check(plan().hb?.code==='FAMILIE1' && await page.isVisible('text=Wahrscheinlich da ('), 'Vorrat: Haushaltsbuch verbunden, Liste sichtbar');
   // NAMEN NORMIEREN: Regeln sofort (Rinderhack 500g -> Hackfleisch, Paprika rot 3er -> Paprika), Rest per KI (ein Aufruf), gespeichert unter stock/alias
   await page.waitForTimeout(1500);
@@ -215,13 +215,13 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // Hand-Korrektur: "Lachsfilet" (Regel) -> "Lachs", gilt fuer die Rohbezeichnung "Lachsfilet TK"
   await page.click('button[aria-label="Lachsfilet: Name zuordnen"]'); await page.waitForTimeout(200);
   await page.fill('div[role="dialog"] input[aria-label="Zutatenname"]', 'Lachs');
-  await page.click('div[role="dialog"] button:text-is("SPEICHERN")'); await page.waitForTimeout(500);
+  await page.click('div[role="dialog"] button:text-is("Speichern")'); await page.waitForTimeout(500);
   const alias2 = plan().stock?.alias||{};
   await openRow('Lachs');
   check(alias2.lachsfilet?.name==='Lachs' && alias2.lachsfilet.src==='hand' && (await page.locator('button[aria-label="Lachs: Name zuordnen"]').count())===1 && await page.isVisible('text=aus: Lachsfilet TK'), 'Vorrat: Hand-Zuordnung Lachsfilet -> Lachs unter stock/alias (src hand), Zeile heisst Lachs', alias2);
   // Kein Lebensmittel: Zeile verschwindet, unten "wieder einblenden" bringt sie zurueck
   await page.click('button[aria-label="Honig: Name zuordnen"]'); await page.waitForTimeout(200);
-  await page.click('div[role="dialog"] button:text-is("KEIN LEBENSMITTEL")'); await page.waitForTimeout(500);
+  await page.click('div[role="dialog"] button:text-is("Kein Lebensmittel")'); await page.waitForTimeout(500);
   check((await page.locator('button[aria-label="Honig: Name zuordnen"]').count())===0 && plan().stock.alias.honig?.name==='' && plan().stock.alias.honig.raw==='Honig' && await page.isVisible('button[aria-label="Honig wieder einblenden"]'), 'Vorrat: "Kein Lebensmittel" blendet Honig aus, unten steht es zum Wiedereinblenden');
   await page.click('button[aria-label="Honig wieder einblenden"]'); await page.waitForTimeout(500);
   check((await page.locator('button[aria-label="Honig: Name zuordnen"]').count())===1 && !plan().stock.alias.honig, 'Vorrat: Wieder einblenden loescht die Zuordnung, Honig ist zurueck');
@@ -241,18 +241,18 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await openRow('Zwiebeln');
   check(await page.isVisible('text=Haushaltsbuch + Hand') && await page.isVisible('text=aus: Zwiebeln 1kg'), 'Vorrat: Zwiebeln (Hand) verschmilzt mit "Zwiebeln 1kg" aus dem Haushaltsbuch: beide Quellen, Herkunft in der Zeile');
   await page.click('button[aria-label="Spaghetti: weitere Aktionen"]'); await page.waitForTimeout(200);
-  check(await page.isVisible('button:text-is("EINSORTIEREN")') && await page.isVisible('button:text-is("KEIN LEBENSMITTEL")'), 'Vorrat: Menue "⋯" zeigt Einsortieren, Kein Lebensmittel, Dauervorrat');
-  await page.click('button:text-is("★ DAUERVORRAT")'); await page.waitForTimeout(500);
+  check(await page.isVisible('button:text-is("Einsortieren")') && await page.isVisible('button:text-is("Kein Lebensmittel")'), 'Vorrat: Menue "⋯" zeigt Einsortieren, Kein Lebensmittel, Dauervorrat');
+  await page.click('button:text-is("★ Dauervorrat")'); await page.waitForTimeout(500);
   const perm = plan().stock?.perm||{};
   check(Object.keys(perm).length===1 && perm[Object.keys(perm)[0]].name==='Spaghetti' && await page.isVisible('text=Dauervorrat (1)'), 'Vorrat: Pin schreibt stock/perm, Block Dauervorrat erscheint', perm);
   // Foto: kleines PNG, KI simuliert
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVQIW2P8z8DwnwEIGAEQ4AHu0b8t1AAAAABJRU5ErkJggg==','base64');
   await page.setInputFiles('input[type="file"]', {name:'speisekammer.png', mimeType:'image/png', buffer:png});
-  await page.waitForSelector('button:has-text("ÜBERNEHMEN")', {timeout:15000});
+  await page.waitForSelector('button:has-text("Übernehmen")', {timeout:15000});
   check((await page.locator('input[type="checkbox"]').count())===4 && (await page.inputValue('input[aria-label="Name für Rote Linsen"]'))==='Rote Linsen', 'Foto: 4 erkannte Lebensmittel zur Pruefung, Namen editierbar');
   await page.locator('input[aria-label="Spülmittel übernehmen"]').uncheck();
   await page.fill('input[aria-label="Name für Kichererbsen"]', 'Kichererbsen Dose');
-  await page.click('button:has-text("3 ÜBERNEHMEN")'); await page.waitForTimeout(600);
+  await page.click('button:has-text("3 Übernehmen")'); await page.waitForTimeout(600);
   const own2 = Object.values(plan().stock?.items||{});
   check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
   await openRow('Linsen');
@@ -281,7 +281,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button[aria-pressed="false"]:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
   const edges = await page.locator(G+' line[data-edge="present"]').count();
   const center = await page.locator(G+' g[data-testid="graph-center"]').textContent();
-  check(edges>=2 && /fehlt: Knoblauch/.test(center) && /Pasta Bolognese/.test(center) && await page.isVisible('button:has-text("ZUM REZEPT")') && await page.isVisible('text=/\\d+ von \\d+ Zutaten da/'), 'Graph: Rezept im Mittelkreis mit Kanten zu vorhandenen Zutaten, Fehlendes im Kreis, Leiste mit Zum Rezept', {edges, center});
+  check(edges>=2 && /fehlt: Knoblauch/.test(center) && /Pasta Bolognese/.test(center) && await page.isVisible('button:has-text("Zum Rezept")') && await page.isVisible('text=/\\d+ von \\d+ Zutaten da/'), 'Graph: Rezept im Mittelkreis mit Kanten zu vorhandenen Zutaten, Fehlendes im Kreis, Leiste mit Zum Rezept', {edges, center});
   await shot('05b-graph-rezept');
   await page.click('button[aria-label="Rezept ausblenden"]'); await page.waitForTimeout(200);
   check((await page.locator(G+' line[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
@@ -322,7 +322,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // REZEPTDETAIL: Vormerken-Knopf
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
-  check(await page.isVisible('button:has-text("VORMERKEN")') && !(await page.isVisible('text=ZUM WOCHENPLAN')), 'Rezeptdetail: Vormerken statt Zum Wochenplan');
+  check(await page.isVisible('button:has-text("Vormerken")') && !(await page.isVisible('text=ZUM WOCHENPLAN')), 'Rezeptdetail: Vormerken statt Zum Wochenplan');
   await shot('06b-rezeptdetail');
   const tags = await page.locator('span[data-stock]').evaluateAll(els=>els.map(e=>e.getAttribute('data-stock')));
   check(tags.includes('da') && tags.includes('fehlt') && (await page.locator('span[data-stock="da"]').count())>=2 && (await page.locator('span[data-stock="fehlt"]').first().textContent())==='fehlt?', 'Rezeptdetail: Zutaten mit "da" / "fehlt?" nach Vorrat', tags);
@@ -336,15 +336,15 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const itemsBefore = Object.keys(plan().stock.items).length;
   await page.locator('button[aria-label$=": ist da"]').first().click(); await page.waitForTimeout(500);
   const missingAfter = await page.locator('button[aria-label$=": ist da"]').count();
-  check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("NUR FEHLENDES AUF DIE LISTE ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
-  check(await page.isVisible('button:has-text("ALLES AUF DIE LISTE")') || await page.isVisible('button:has-text("✓ AUF DER LISTE")'), 'Rezeptdetail: geteilter Knopf "Alles auf die Liste | Nur Fehlendes"');
-  await page.click('button:has-text("VORMERKEN")'); await page.waitForTimeout(200);
-  await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("VORMERKEN")'); await page.waitForTimeout(500);
+  check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("Nur Fehlendes auf die Liste ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
+  check(await page.isVisible('button:has-text("Alles auf die Liste")') || await page.isVisible('button:has-text("✓ Auf der Liste")'), 'Rezeptdetail: geteilter Knopf "Alles auf die Liste | Nur Fehlendes"');
+  await page.click('button:has-text("Vormerken")'); await page.waitForTimeout(200);
+  await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("Vormerken")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).some(p=>p.key==='Pasta Carbonara'), 'Rezeptdetail: Vormerken schreibt picks');
   // KOCHBUCH ALS DATEI (Stufe 4): sichern (Download), laden mit Vorschau, ersetzen / ueberspringen, Fotos
   await page.goBack().catch(()=>{}); await page.waitForTimeout(200);
-  if(!(await page.isVisible('button:has-text("SICHERN (.JSON)")'))){ await page.click(IN_APP); await page.waitForTimeout(300); }
-  const [dl] = await Promise.all([ page.waitForEvent('download', {timeout:15000}), page.click('button:has-text("SICHERN (.JSON)")') ]);
+  if(!(await page.isVisible('button:has-text("Sichern (.json)")'))){ await page.click(IN_APP); await page.waitForTimeout(300); }
+  const [dl] = await Promise.all([ page.waitForEvent('download', {timeout:15000}), page.click('button:has-text("Sichern (.json)")') ]);
   const dlPath = await dl.path();
   const exported = JSON.parse(fs.readFileSync(dlPath,'utf8'));
   const recCount = Object.keys(plan().recipes).length;
@@ -359,19 +359,19 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const dlg = await page.locator('div[role="dialog"]').textContent();
   check(/2 Rezepte/.test(dlg) && /1 neu/.test(dlg) && /1 schon im Kochbuch/.test(dlg) && /1 Foto/.test(dlg) && /\b1\.11\.2026/.test(dlg), 'Kochbuch laden: Vorschau mit Anzahl, neu, vorhanden, Foto, Datum', dlg.slice(0,200));
   await page.check('div[role="dialog"] input[value="replace"]');
-  await page.click('div[role="dialog"] button:text-is("IMPORTIEREN")'); await page.waitForTimeout(800);
+  await page.click('div[role="dialog"] button:text-is("Importieren")'); await page.waitForTimeout(800);
   const impRec = plan().recipes['Importiertes Testgericht'], bolo = plan().recipes['Pasta Bolognese'];
   check(!!impRec && impRec.steps[0]==='Testen.' && bolo.rating===2 && bolo.notes==='Import-Test' && bolo.steps[0]==='Importierte Fassung.' && Object.keys(plan().recipes).length===recCount+1, 'Kochbuch laden (ersetzen): neues Rezept da, Pasta Bolognese ersetzt', {impRec:!!impRec, rating:bolo.rating});
   check(String(db.wochen.recipeImages?.[code]?.['Importiertes Testgericht']||'').startsWith('data:image/png;base64,'), 'Kochbuch laden: Foto unter recipeImages/<CODE>/<key>');
   check(await page.isVisible('text=Importiertes Testgericht') && !(await page.isVisible('div[role="dialog"]')), 'Kochbuch laden: Dialog zu, Rezept in der Liste');
   await page.setInputFiles('input[accept="application/json,.json"]', {name:'kochbuch.json', mimeType:'application/json', buffer:Buffer.from(importFile,'utf8')});
   await page.waitForSelector('div[role="dialog"]', {timeout:5000});
-  await page.click('div[role="dialog"] button:text-is("IMPORTIEREN")'); await page.waitForTimeout(500);
+  await page.click('div[role="dialog"] button:text-is("Importieren")'); await page.waitForTimeout(500);
   check(Object.keys(plan().recipes).length===recCount+1 && plan().recipes['Pasta Bolognese'].rating===2 && !(await page.isVisible('div[role="dialog"]')), 'Kochbuch laden (behalten): nichts ueberschrieben');
   await page.setInputFiles('input[accept="application/json,.json"]', {name:'kaputt.json', mimeType:'application/json', buffer:Buffer.from('{"hallo":1}','utf8')});
   await page.waitForSelector('div[role="dialog"]', {timeout:5000});
   check(/keine Rezepte/.test(await page.locator('div[role="dialog"]').textContent()), 'Kochbuch laden: unbrauchbare Datei zeigt Fehler');
-  await page.click('div[role="dialog"] button:text-is("SCHLIESSEN")'); await page.waitForTimeout(200);
+  await page.click('div[role="dialog"] button:text-is("Schließen")'); await page.waitForTimeout(200);
   // Menue: Datenschutz, Vorgemerkt
   await page.click('button[aria-label="Menü"]'); await page.waitForTimeout(200);
   const menu = (await page.locator('div[role="menu"]').textContent());
@@ -385,8 +385,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(t0[0]===SCHEME && t0[1]===null && t1[0]==='dark' && t1[1]==='dark' && t2[0]==='light' && t2[1]==='light' && t3[0]===SCHEME && t3[1]===null, 'Menue: Design System/Hell/Dunkel schaltet um und wird gemerkt', {t0,t1,t2,t3});
   check(menu.includes('Vorgemerkt')&&menu.includes('Datenschutz')&&!menu.includes('Symbolbilder')&&!menu.includes('Haushaltsbuch'), 'Menue: Vorgemerkt, Datenschutz, keine KI-Symbolbilder', menu);
   await page.click('text=Datenschutz & Daten'); await page.waitForTimeout(200);
-  check(await page.isVisible('button:has-text("PLAN ENDGÜLTIG LÖSCHEN")'), 'Datenschutz-Modal offen');
-  await page.click('button:has-text("SCHLIESSEN")');
+  check(await page.isVisible('button:has-text("Plan endgültig löschen")'), 'Datenschutz-Modal offen');
+  await page.click('button:has-text("Schließen")');
   // Desktop-Blick
   const dctx = await browser.newContext({ viewport:{width:1280,height:900}, locale:'de-DE', colorScheme:SCHEME });
   await dctx.route(/wochenessenplan-3d0e1-default-rtdb/, mockFb(db.wochen));
@@ -394,10 +394,10 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await dctx.route(/fonts\.(googleapis|gstatic)\.com/, route=>route.abort());
   const dp = await dctx.newPage();
   await dp.goto('http://127.0.0.1:5173/');
-  await dp.waitForSelector('text=PLAN STARTEN');
+  await dp.waitForSelector('text=Plan starten');
   await dp.fill('input[placeholder="z.B. Anna"]', 'Mero');
   await dp.fill('input[placeholder="CODE"]', code);
-  await dp.click('button:has-text("BEITRETEN")');
+  await dp.click('button:has-text("Beitreten")');
   await dp.waitForSelector(IN_APP); await dp.waitForTimeout(800);
   check(await dp.isVisible('text=Was kochen wir heute?'), 'Desktop: Beitritt und Heute');
   await dp.screenshot({path:`${OUT}/v3-07-desktop-heute.png`, fullPage:false});
