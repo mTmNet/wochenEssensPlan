@@ -14,7 +14,7 @@ import Modal from "../components/Modal.jsx";
 // Dauervorrat (Pin) verblasst nie; x entfernt eigene Positionen bzw. streicht Haushaltsbuch-Positionen; lernendes Verblassen je Produkt.
 const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
 const SRC_LABEL={hb:"Haushaltsbuch",foto:"Foto",hand:"Hand",einkauf:"Einkauf",perm:"Dauervorrat"};
-const sel={...input,width:"118px",flexShrink:0,padding:"8px 6px",minHeight:"40px",fontSize:"13px"};
+const sel={...input,width:"118px",flexShrink:0,padding:"6px",fontSize:"13px"};
 // Umschalter Liste / Graph wird je Geraet gemerkt (reine Bequemlichkeit, kein Plan-Zustand)
 const MODE_KEY="wp.vorratMode";
 const loadMode=()=>{ try{ return localStorage.getItem(MODE_KEY)==="graph"?"graph":"list"; }catch(e){ return "list"; } };
@@ -52,7 +52,7 @@ export default function Vorrat({state,api}){
     }catch(err){ const m=(err&&err.message)||"Unbekannter Fehler"; setScan({busy:false,err:kiErrText(m)||("Fehler: "+m),items:[]}); }
   };
   const takeScan=()=>{ const list=scan.items.filter(it=>it.on&&it.name.trim()); if(!list.length){ setScan(null); return; } addStockItems(list.map(it=>({name:it.name.trim(),sub:it.sub,src:"foto"}))); const basics=list.filter(it=>isBasicText(it.name)).length; showToast(list.length+" Lebensmittel aus dem Foto übernommen."+(basics?" "+basics+" davon Grundvorrat (immer da).":"")); setScan(null); };
-  const tile={...btn("ghost"),minHeight:"44px",padding:"10px 6px",fontSize:"12px",letterSpacing:"1px",whiteSpace:"nowrap"};
+  const tile={...btn("ghost"),minHeight:"40px",padding:"8px 6px",fontSize:"13px",whiteSpace:"nowrap"};
   const row=(s,i)=>{
     const d=s.last?daysSince(s.last):null;
     const when=s.permanent?"immer da":d===null?"":d===0?"heute":d===1?"gestern":"vor "+d+" Tagen";
@@ -78,7 +78,7 @@ export default function Vorrat({state,api}){
       </div>
       {open&&(
         <div style={{display:"flex",gap:"6px",flexWrap:"wrap",padding:"0 14px 10px"}}>
-          <button onClick={()=>{ setMenu(""); setRename({item:s,value:s.unsorted?"":s.name}); }} style={{...mBtn,color:C.accent}}>EINSORTIEREN</button>
+          <button onClick={()=>{ setMenu(""); setRename({item:s,value:s.unsorted?"":s.name}); }} style={{...mBtn,color:C.accent,borderRadius:"6px"}}>EINSORTIEREN</button>
           <button onClick={()=>{ setMenu(""); setAlias(raws,""); showToast("„"+s.name+"“ als „kein Lebensmittel“ ausgeblendet."); }} style={mBtn}>KEIN LEBENSMITTEL</button>
           <button onClick={()=>{ setMenu(""); setPermanent(s,!s.permanent); showToast(s.permanent?"„"+s.name+"“ ist kein Dauervorrat mehr.":"„"+s.name+"“ ist jetzt Dauervorrat."); }} style={mBtn}>{s.permanent?"DAUERVORRAT AUFHEBEN":"★ DAUERVORRAT"}</button>
         </div>
@@ -88,22 +88,22 @@ export default function Vorrat({state,api}){
   };
   const scanBox=scan&&!scan.busy?(
         <div style={{border:"1px solid "+C.accent,marginTop:"4px"}}>
-          <div style={{padding:"8px 12px",fontSize:"12px",color:C.muted,borderBottom:"1px solid "+C.border,lineHeight:"1.5"}}>{scan.err||"Erkannt auf dem Foto – Namen und Gruppe anpassen, Haken weg, was nicht stimmt."}</div>
+          <div style={{padding:"8px 12px",fontSize:"13px",color:C.muted,borderBottom:"1px solid "+C.border,lineHeight:"1.5"}}>{scan.err||"Erkannt auf dem Foto – Namen und Gruppe anpassen, Haken weg, was nicht stimmt."}</div>
           {scan.items.map((it,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"6px 12px",borderBottom:"1px solid "+C.border,minHeight:"44px"}}>
-              <input type="checkbox" checked={it.on} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,on:e.target.checked}:x)}))} aria-label={it.name+" übernehmen"} style={{width:"20px",height:"20px",accentColor:C.accent}} />
+              <input type="checkbox" checked={it.on} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,on:e.target.checked}:x)}))} aria-label={it.name+" übernehmen"} style={{width:"20px",height:"20px",accentColor:C.accent,borderRadius:"6px"}} />
               <div style={{flex:1,minWidth:0}}>
-                <input value={it.name} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,name:e.target.value}:x)}))} aria-label={"Name für "+it.name} style={{width:"100%",boxSizing:"border-box",background:"transparent",border:"none",borderBottom:"1px dashed "+C.border,padding:"6px 0",fontSize:"15px",color:it.on?C.text:C.subtle,fontFamily:SF,outline:"none"}} />
-                {isBasicText(it.name)&&<div style={{fontSize:"11px",color:C.subtle,marginTop:"2px"}}>Grundvorrat, zählt immer als da, steht nicht in der Liste</div>}
+                <input value={it.name} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,name:e.target.value}:x)}))} aria-label={"Name für "+it.name} style={{width:"100%",boxSizing:"border-box",background:"transparent",border:"none",borderBottom:"1px dashed "+C.border,padding:"6px 0",fontSize:"15px",color:it.on?C.text:C.subtle,fontFamily:SF,outline:"none",borderRadius:"6px"}} />
+                {isBasicText(it.name)&&<div style={{fontSize:"13px",color:C.subtle,marginTop:"2px"}}>Grundvorrat, zählt immer als da, steht nicht in der Liste</div>}
               </div>
-              <select value={it.sub} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,sub:e.target.value}:x)}))} aria-label={"Gruppe für "+it.name} style={{...sel,padding:"6px 8px",minHeight:"34px",fontSize:"12px"}}>
+              <select value={it.sub} onChange={e=>setScan(sc=>({...sc,items:sc.items.map((x,j)=>j===i?{...x,sub:e.target.value}:x)}))} aria-label={"Gruppe für "+it.name} style={{...sel,padding:"6px 8px",minHeight:"34px",fontSize:"13px",borderRadius:"6px"}}>
                 {STOCK_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
               </select>
             </div>
           ))}
           <div style={{display:"flex",gap:"6px",padding:"8px 12px"}}>
-            {scan.items.length>0&&<button onClick={takeScan} style={{...btn("primary"),flex:2,letterSpacing:"1.5px"}}>{scan.items.filter(x=>x.on).length} ÜBERNEHMEN</button>}
-            <button onClick={()=>setScan(null)} style={{...btn("ghost"),flex:1}}>VERWERFEN</button>
+            {scan.items.length>0&&<button onClick={takeScan} style={{...btn("primary"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>{scan.items.filter(x=>x.on).length} ÜBERNEHMEN</button>}
+            <button onClick={()=>setScan(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>VERWERFEN</button>
           </div>
         </div>
   ):null;
@@ -122,7 +122,7 @@ export default function Vorrat({state,api}){
     </div>
 
     {/* GRAPH (Umschalter) - Foto und Scan-Pruefung bleiben erreichbar */}
-    {mode==="graph"&&<input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={onFile} />}
+    {mode==="graph"&&<input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={onFile} />}
     {mode==="graph"&&scan&&(
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"12px"}}>
         <div style={label}>Speisekammer-Foto</div>
@@ -140,13 +140,13 @@ export default function Vorrat({state,api}){
           <option value="">{name.trim()?"auto: "+guessGroup(name):"Gruppe (auto)"}</option>
           {STOCK_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
         </select>
-        <button onClick={doAdd} disabled={!name.trim()} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",opacity:name.trim()?1:0.5}}>+</button>
+        <button onClick={doAdd} disabled={!name.trim()} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",opacity:name.trim()?1:0.5,borderRadius:"6px"}}>+</button>
       </div>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={onFile} />
-      {!scan&&<button onClick={()=>fileRef.current&&fileRef.current.click()} style={{...btn("ghost"),width:"100%",color:C.accent,letterSpacing:"1.5px"}}>📷 SPEISEKAMMER FOTOGRAFIEREN</button>}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={onFile} />
+      {!scan&&<button onClick={()=>fileRef.current&&fileRef.current.click()} style={{...btn("ghost"),width:"100%",color:C.accent,letterSpacing:"0.5px",borderRadius:"6px"}}>📷 SPEISEKAMMER FOTOGRAFIEREN</button>}
       {scan&&scan.busy&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 0"}}>Die KI schaut sich das Foto an…</div>}
       {scan&&!scan.busy&&scanBox}
-      <div style={{fontSize:"11px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}>Das Foto geht nur zur Erkennung an die KI und wird nicht gespeichert. Erkannte Lebensmittel gelten ab heute als gekauft.</div>
+      <div style={{fontSize:"13px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}>Das Foto geht nur zur Erkennung an die KI und wird nicht gespeichert. Erkannte Lebensmittel gelten ab heute als gekauft.</div>
     </div>}
 
     {/* HAUSHALTSBUCH */}
@@ -155,23 +155,23 @@ export default function Vorrat({state,api}){
         <div style={label}>Haushaltsbuch verbinden</div>
         <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Mit dem Code eures Haushaltsbuchs kommen die Lebensmittel-Einkäufe automatisch in den Vorrat. Es wird nur gelesen, nie etwas geändert. Ohne Haushaltsbuch füllt sich der Vorrat aus der Einkaufsliste: Abgehaktes gilt als gekauft.</div>
         <div style={{display:"flex",gap:"6px"}}>
-          <input value={hbInput} onChange={e=>setHbInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter")doConnect();}} placeholder="BUCH-CODE" aria-label="Buch-Code" style={{...input,flex:1,width:"auto",letterSpacing:"2px"}} />
-          <button onClick={doConnect} disabled={hbLoading||!hbInput.trim()} style={{...btn("primary"),letterSpacing:"2px",opacity:hbLoading||!hbInput.trim()?0.5:1}}>{hbLoading?"…":"VERBINDEN"}</button>
+          <input value={hbInput} onChange={e=>setHbInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter")doConnect();}} placeholder="BUCH-CODE" aria-label="Buch-Code" style={{...input,flex:1,width:"auto",letterSpacing:"0.5px"}} />
+          <button onClick={doConnect} disabled={hbLoading||!hbInput.trim()} style={{...btn("primary"),letterSpacing:"0.5px",opacity:hbLoading||!hbInput.trim()?0.5:1,borderRadius:"6px"}}>{hbLoading?"…":"VERBINDEN"}</button>
         </div>
-        {hbErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{hbErr}</div>}
+        {hbErr&&<div style={{marginTop:"8px",fontSize:"13px",color:C.err}}>{hbErr}</div>}
       </div>
     ):(
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"12px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
         <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hbErr?C.err:hbBook?C.ok:C.subtle,flexShrink:0}} />
         <div style={{flex:"1 1 160px",minWidth:0}}>
-          <div style={{fontSize:"15px",color:C.text}}>Haushaltsbuch <b style={{letterSpacing:"2px"}}>{hbLink.code}</b></div>
+          <div style={{fontSize:"15px",color:C.text}}>Haushaltsbuch <b style={{letterSpacing:"0.5px"}}>{hbLink.code}</b></div>
           <div style={{fontSize:"13px",color:hbErr?C.err:C.muted}}>{hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+(learnedCount?" · Verblassen gelernt für "+learnedCount+(learnedCount===1?" Produkt":" Produkte"):"")):"verbunden"}</div>
-          {aliasBusy&&<div style={{fontSize:"12px",color:C.accent}}>KI ordnet Produktnamen zu…</div>}
-          {!aliasBusy&&aliasErr&&<div style={{fontSize:"12px",color:C.err}}>{aliasErr}</div>}
-          {!aliasBusy&&!aliasErr&&unmapped.length>0&&<div style={{fontSize:"12px",color:C.muted,display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{unmapped.length===1?"1 Name ungeklärt":unmapped.length+" Namen ungeklärt"}</span><button onClick={()=>mapNamesAI(unmapped)} style={{background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"6px 4px",fontFamily:SF,fontWeight:"700",letterSpacing:"1px"}}>MIT KI ZUORDNEN</button></div>}
+          {aliasBusy&&<div style={{fontSize:"13px",color:C.accent}}>KI ordnet Produktnamen zu…</div>}
+          {!aliasBusy&&aliasErr&&<div style={{fontSize:"13px",color:C.err}}>{aliasErr}</div>}
+          {!aliasBusy&&!aliasErr&&unmapped.length>0&&<div style={{fontSize:"13px",color:C.muted,display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{unmapped.length===1?"1 Name ungeklärt":unmapped.length+" Namen ungeklärt"}</span><button onClick={()=>mapNamesAI(unmapped)} style={{background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"6px 4px",fontFamily:SF,fontWeight:"700",letterSpacing:"1px"}}>MIT KI ZUORDNEN</button></div>}
         </div>
         <div style={{display:"flex",gap:"6px"}}>
-          <button onClick={()=>reloadHb()} disabled={hbLoading} style={{...tile,color:C.accent,opacity:hbLoading?0.5:1}}>↻</button>
+          <button onClick={()=>reloadHb()} disabled={hbLoading} style={{...tile,color:C.accent,opacity:hbLoading?0.5:1,borderRadius:"6px"}}>↻</button>
           <button onClick={disconnectHb} style={tile}>TRENNEN</button>
         </div>
       </div>
@@ -194,7 +194,7 @@ export default function Vorrat({state,api}){
         <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
         <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. × heißt „aufgebraucht“. Unter ⋯ stehen „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position gestrichen.":goneCount+" Positionen gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
-        {hidden.length>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>Als „kein Lebensmittel“ ausgeblendet:</span>{hidden.map(h=>(<button key={h.key} onClick={()=>{ clearAlias([],[h.key]); showToast("„"+h.label+"“ wieder eingeblendet."); }} aria-label={h.label+" wieder einblenden"} style={{background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"12px",cursor:"pointer",padding:"5px 8px",fontFamily:SF}}>{h.label} ×</button>))}</div>}
+        {hidden.length>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>Als „kein Lebensmittel“ ausgeblendet:</span>{hidden.map(h=>(<button key={h.key} onClick={()=>{ clearAlias([],[h.key]); showToast("„"+h.label+"“ wieder eingeblendet."); }} aria-label={h.label+" wieder einblenden"} style={{background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"13px",cursor:"pointer",padding:"5px 8px",fontFamily:SF,borderRadius:"6px"}}>{h.label} ×</button>))}</div>}
         <div style={{marginTop:"6px"}}>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
       </div>
     </div>}
@@ -209,12 +209,12 @@ export default function Vorrat({state,api}){
         <input value={rename.value} onChange={e=>setRename(r=>({...r,value:e.target.value}))} list="vokabular" placeholder="Zutatenname, z. B. Tomaten" aria-label="Zutatenname" autoFocus style={{...input,marginBottom:"10px"}} />
         <datalist id="vokabular">{(vocab||[]).slice(0,300).map(v=><option key={v.key} value={v.name} />)}</datalist>
         <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-          <button onClick={()=>{ const n=rename.value.trim(); if(!n) return; setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],n); showToast("Zugeordnet: "+n); setRename(null); }} disabled={!rename.value.trim()} style={{...btn("primary"),flex:"1 1 120px",opacity:rename.value.trim()?1:0.5}}>SPEICHERN</button>
-          <button onClick={()=>{ setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],""); showToast("Als „kein Lebensmittel“ ausgeblendet."); setRename(null); }} style={{...btn("ghost"),flex:"1 1 120px"}}>KEIN LEBENSMITTEL</button>
+          <button onClick={()=>{ const n=rename.value.trim(); if(!n) return; setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],n); showToast("Zugeordnet: "+n); setRename(null); }} disabled={!rename.value.trim()} style={{...btn("primary"),flex:"1 1 120px",opacity:rename.value.trim()?1:0.5,borderRadius:"6px"}}>SPEICHERN</button>
+          <button onClick={()=>{ setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],""); showToast("Als „kein Lebensmittel“ ausgeblendet."); setRename(null); }} style={{...btn("ghost"),flex:"1 1 120px",borderRadius:"6px"}}>KEIN LEBENSMITTEL</button>
         </div>
         <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
-          <button onClick={()=>{ clearAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name]); setRename(null); }} style={{...btn("ghost"),flex:1}}>ZURÜCKSETZEN</button>
-          <button onClick={()=>setRename(null)} style={{...btn("ghost"),flex:1}}>ABBRECHEN</button>
+          <button onClick={()=>{ clearAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name]); setRename(null); }} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ZURÜCKSETZEN</button>
+          <button onClick={()=>setRename(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ABBRECHEN</button>
         </div>
       </Modal>
     )}

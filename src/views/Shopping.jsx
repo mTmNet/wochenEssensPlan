@@ -12,7 +12,7 @@ export default function Shopping({state,api}){
   const total=shopMain.length;
   const addCustom=()=>{ if(customItem.trim()){ addShopItem(customItem); setCustomItem(""); } };
   const header=(label,count,open,toggle)=>(
-    <button onClick={toggle} aria-expanded={open} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"10px 14px",minHeight:"44px",background:C.bg,border:"1px solid "+C.border,borderBottom:open?"none":"1px solid "+C.border,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"2px",textTransform:"uppercase",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
+    <button onClick={toggle} aria-expanded={open} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"10px 14px",minHeight:"44px",background:C.bg,border:"1px solid "+C.border,borderBottom:open?"none":"1px solid "+C.border,color:C.accent,fontSize:"12px",fontWeight:"700",letterSpacing:"0.5px",textTransform:"uppercase",cursor:"pointer",fontFamily:SF,textAlign:"left",borderRadius:"6px"}}>
       <span style={{flex:1}}>{label} ({count})</span><span style={{fontSize:"14px"}}>{open?"▴":"▾"}</span>
     </button>
   );
@@ -22,7 +22,7 @@ export default function Shopping({state,api}){
         {item.checked&&<span style={{color:C.onAccent,fontSize:"15px",fontWeight:"800"}}>✓</span>}
       </button>
       {editShopId===item.id
-        ?<input autoFocus value={editShopText} onChange={e=>setEditShopText(e.target.value)} onBlur={saveShopEdit} onKeyDown={e=>{if(e.key==="Enter")saveShopEdit();if(e.key==="Escape"){setEditShopId(null);setEditShopText("");}}} aria-label="Posten bearbeiten" style={{flex:1,fontSize:"14px",color:C.text,background:C.field,border:"1px solid "+C.accent,padding:"6px 8px",outline:"none",fontFamily:SF,minWidth:0}} />
+        ?<input autoFocus value={editShopText} onChange={e=>setEditShopText(e.target.value)} onBlur={saveShopEdit} onKeyDown={e=>{if(e.key==="Enter")saveShopEdit();if(e.key==="Escape"){setEditShopId(null);setEditShopText("");}}} aria-label="Posten bearbeiten" style={{flex:1,fontSize:"14px",color:C.text,background:C.field,border:"1px solid "+C.accent,padding:"6px 8px",outline:"none",fontFamily:SF,minWidth:0,borderRadius:"6px"}} />
         :<span onClick={()=>{setEditShopId(item.id);setEditShopText(item.text);}} title="Tippen zum Bearbeiten" style={{flex:1,fontSize:"14px",color:item.checked?C.muted:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",cursor:"pointer",minWidth:0,padding:"8px 0"}}>{item.text}</span>
       }
       {extra}
@@ -34,7 +34,7 @@ export default function Shopping({state,api}){
             {/* EINGABE OBEN */}
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"9px",display:"flex",gap:"8px",marginBottom:"10px"}}>
               <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." aria-label="Produkt hinzufügen" style={{...input,flex:1,width:"auto"}} />
-              <button onClick={addCustom} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px"}}>+</button>
+              <button onClick={addCustom} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",borderRadius:"6px"}}>+</button>
             </div>
 
             {total===0&&shopLikely.length===0&&shopBasics.length===0?(
@@ -49,20 +49,20 @@ export default function Shopping({state,api}){
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"10px 14px",marginBottom:"10px",display:"flex",alignItems:"center",gap:"12px"}}>
                   <div style={{flex:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:"7px"}}>
-                      <span style={{fontSize:"11px",color:C.muted,letterSpacing:"0.5px",textTransform:"uppercase"}}>Erledigt</span>
-                      <span style={{fontSize:"11px",fontWeight:"700",color:C.ok}}>{total-unchecked} / {total}</span>
+                      <span style={{fontSize:"12px",color:C.muted,letterSpacing:"0.5px",textTransform:"uppercase"}}>Erledigt</span>
+                      <span style={{fontSize:"13px",fontWeight:"700",color:C.ok}}>{total-unchecked} / {total}</span>
                     </div>
                     <div style={{background:C.border,height:"2px"}}>
                       <div style={{height:"100%",width:(total?(total-unchecked)/total*100:0)+"%",background:C.ok,transition:"width 0.4s"}} />
                     </div>
                   </div>
-                  <button onClick={shareShopping} aria-label="Einkaufsliste teilen" style={{...btn("ghost"),color:C.accent,padding:"9px 12px"}}>TEILEN</button>
+                  <button onClick={shareShopping} aria-label="Einkaufsliste teilen" style={{...btn("ghost"),color:C.accent,padding:"9px 12px",borderRadius:"6px"}}>TEILEN</button>
                 </div>
 
                 {/* Abteilungen */}
                 {shopGroups.map(group=>(
                   <div key={group.cat} style={{marginBottom:"10px"}}>
-                    <div style={{fontSize:"11px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",padding:"8px 14px",background:C.bg,border:"1px solid "+C.border,borderBottom:"none"}}>{group.cat}</div>
+                    <div style={{fontSize:"12px",fontWeight:"700",color:C.accent,letterSpacing:"0.5px",textTransform:"uppercase",padding:"8px 14px",background:C.bg,border:"1px solid "+C.border,borderBottom:"none"}}>{group.cat}</div>
                     <div style={{background:C.white,border:"1px solid "+C.border}}>
                       {group.items.map((item,gi)=>row(item,gi,group.items.length,null))}
                     </div>
@@ -75,11 +75,11 @@ export default function Shopping({state,api}){
                     {header("Wahrscheinlich da",shopLikely.length,showLikely,()=>setShowLikely(v=>!v))}
                     {showLikely&&(
                       <div style={{background:C.white,border:"1px solid "+C.border}}>
-                        <div style={{padding:"8px 14px",fontSize:"12px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Vorrat vermutlich noch da. Ein Tipp auf „Kaufen“ holt den Posten in die Liste.</div>
+                        <div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Vorrat vermutlich noch da. Ein Tipp auf „Kaufen“ holt den Posten in die Liste.</div>
                         {shopLikely.map((item,gi)=>row(item,gi,shopLikely.length,(
                           <>
-                            <span style={{fontSize:"11px",color:C.ok,flexShrink:0}}>{Math.round(item.stockP*100)} %</span>
-                            <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px"}}>KAUFEN</button>
+                            <span style={{fontSize:"13px",color:C.ok,flexShrink:0}}>{Math.round(item.stockP*100)} %</span>
+                            <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>KAUFEN</button>
                           </>
                         )))}
                       </div>
@@ -93,16 +93,16 @@ export default function Shopping({state,api}){
                     {header("Vorrat prüfen",shopBasics.length,showBasics,()=>setShowBasics(v=>!v))}
                     {showBasics&&(
                       <div style={{background:C.white,border:"1px solid "+C.border}}>
-                        <div style={{padding:"8px 14px",fontSize:"12px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Grundvorrat ({BASIC_LABEL}) zählt nicht im Fortschritt. Fehlt etwas, holt „Kaufen“ es in die Liste.</div>
+                        <div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Grundvorrat ({BASIC_LABEL}) zählt nicht im Fortschritt. Fehlt etwas, holt „Kaufen“ es in die Liste.</div>
                         {shopBasics.map((item,gi)=>row(item,gi,shopBasics.length,(
-                          <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px"}}>KAUFEN</button>
+                          <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>KAUFEN</button>
                         )))}
                       </div>
                     )}
                   </div>
                 )}
-                {!hbLink&&<div style={{fontSize:"11px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“). Was laut Vorrat noch da ist, wandert in einen eigenen Block.</div>}
-                <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px"}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
+                {!hbLink&&<div style={{fontSize:"13px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“). Was laut Vorrat noch da ist, wandert in einen eigenen Block.</div>}
+                <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px",borderRadius:"6px"}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
               </div>
             )}
           </div>

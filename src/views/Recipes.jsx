@@ -77,7 +77,7 @@ export default function Recipes({state,api}){
             {/* Importmodus */}
             <div style={{display:"flex",marginBottom:"12px",border:"1px solid "+C.border,background:C.white}}>
               {[{id:"text",label:"TEXT"},{id:"photo",label:"FOTO"}].map(m=>(
-                <button key={m.id} onClick={()=>{setImportMode(m.id);setExtracted(null);setImportErr("");}} aria-pressed={importMode===m.id} style={{flex:1,padding:"11px",minHeight:"44px",background:importMode===m.id?C.strong:C.white,color:importMode===m.id?C.onStrong:C.muted,fontWeight:"700",fontSize:"11px",letterSpacing:"2px",cursor:"pointer",border:"none",fontFamily:SF}}>
+                <button key={m.id} onClick={()=>{setImportMode(m.id);setExtracted(null);setImportErr("");}} aria-pressed={importMode===m.id} style={{flex:1,padding:"11px",minHeight:"44px",background:importMode===m.id?C.strong:C.white,color:importMode===m.id?C.onStrong:C.muted,fontWeight:"700",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",border:"none",fontFamily:SF,borderRadius:"6px"}}>
                   {m.label}
                 </button>
               ))}
@@ -85,9 +85,9 @@ export default function Recipes({state,api}){
 
             {/* Importbereich */}
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"12px"}}>
-              <div style={{fontSize:"11px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"10px"}}>{importMode==="text"?"REZEPTTEXT EINFÜGEN":"REZEPTFOTO HOCHLADEN"}</div>
+              <div style={{fontSize:"12px",fontWeight:"700",color:C.muted,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"10px"}}>{importMode==="text"?"REZEPTTEXT EINFÜGEN":"REZEPTFOTO HOCHLADEN"}</div>
               {importMode==="text"
-                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Zutaten und Schritte werden wörtlich übernommen; fehlt die Anleitung, wird sie ergänzt und als ergänzt gekennzeichnet." aria-label="Rezepttext" style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field}} />
+                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Zutaten und Schritte werden wörtlich übernommen; fehlt die Anleitung, wird sie ergänzt und als ergänzt gekennzeichnet." aria-label="Rezepttext" style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field,borderRadius:"6px"}} />
                 :(
                   <div>
                     {/* Zwei Fotomodi: Rezeptseite abschreiben oder fertiges Gericht erkennen lassen */}
@@ -95,18 +95,18 @@ export default function Recipes({state,api}){
                       <button onClick={()=>{setPhotoMode("page");setExtracted(null);}} aria-pressed={photoMode==="page"} style={{...chip(photoMode==="page"),flex:1}}>Rezeptseite / Screenshot</button>
                       <button onClick={()=>{setPhotoMode("dish");setExtracted(null);}} aria-pressed={photoMode==="dish"} style={{...chip(photoMode==="dish"),flex:1}}>Fertiges Gericht</button>
                     </div>
-                    <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>{photoMode==="page"?"Die KI schreibt das Rezept von der Seite wörtlich ab.":"Die KI benennt das bekannte Gericht auf dem Foto und liefert ein typisches Rezept – gespeichert als KI-Vorschlag."}</div>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:"none"}} aria-label="Foto auswählen" />
-                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:img?"12px":"28px 16px",minHeight:"48px",border:"1px dashed "+C.border,background:C.field,cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
+                    <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>{photoMode==="page"?"Die KI schreibt das Rezept von der Seite wörtlich ab.":"Die KI benennt das bekannte Gericht auf dem Foto und liefert ein typisches Rezept – gespeichert als KI-Vorschlag."}</div>
+                    <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:"none",borderRadius:"6px"}} aria-label="Foto auswählen" />
+                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:img?"12px":"28px 16px",minHeight:"48px",border:"1px dashed "+C.border,background:C.field,cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF,borderRadius:"6px"}}>
                       {img?<img src={img.previewUrl} alt="Rezept" style={{maxHeight:"140px",maxWidth:"100%",objectFit:"contain"}} />:<span style={{fontSize:"14px"}}>{photoMode==="page"?"Foto auswählen (Kochbuchseite, Screenshot)":"Foto des Gerichts auswählen"}</span>}
                     </button>
-                    {img&&<button onClick={clearImg} style={{marginTop:"6px",background:"none",border:"none",color:C.err,cursor:"pointer",fontSize:"12px",fontFamily:SF,minHeight:"40px",padding:"8px 4px"}}>Bild entfernen</button>}
-                    {imgErr&&<div style={{marginTop:"8px",fontSize:"12px",color:C.err}}>{imgErr}</div>}
+                    {img&&<button onClick={clearImg} style={{marginTop:"6px",background:"none",border:"none",color:C.err,cursor:"pointer",fontSize:"13px",fontFamily:SF,minHeight:"40px",padding:"8px 4px"}}>Bild entfernen</button>}
+                    {imgErr&&<div style={{marginTop:"8px",fontSize:"13px",color:C.err}}>{imgErr}</div>}
                   </div>
                 )
               }
-              {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:C.errBg,border:"1px solid "+C.errBorder,color:C.err,fontSize:"12px"}}>{importErr}</div>}
-              <button disabled={!canExtract} onClick={doExtract} style={{...btn("dark"),width:"100%",marginTop:"10px",padding:"12px",letterSpacing:"2px",background:extracting?C.subtle:C.strong,cursor:canExtract?"pointer":"default",opacity:canExtract?1:0.4}}>
+              {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:C.errBg,border:"1px solid "+C.errBorder,color:C.err,fontSize:"13px"}}>{importErr}</div>}
+              <button disabled={!canExtract} onClick={doExtract} style={{...btn("primary"),width:"100%",marginTop:"10px",padding:"12px",letterSpacing:"0.5px",background:extracting?C.subtle:C.accent,cursor:canExtract?"pointer":"default",opacity:canExtract?1:0.4,borderRadius:"6px"}}>
                 {extracting?(importMode==="photo"&&photoMode==="dish"?"KI ERKENNT DAS GERICHT…":"KI LIEST DAS REZEPT…"):(importMode==="photo"&&photoMode==="dish"?"GERICHT ERKENNEN":"REZEPT MIT KI EXTRAHIEREN")}
               </button>
             </div>
@@ -114,9 +114,9 @@ export default function Recipes({state,api}){
             {/* Ergebnis */}
             {extracted&&(
               <div id="ki-vorschlag" style={{background:C.white,border:"1px solid "+C.accent,padding:"14px",marginBottom:"12px"}}>
-                <div style={{fontSize:"11px",color:C.accent,fontWeight:"700",letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"6px"}}>{extracted.ai?(extracted.freeCombo?"VORSCHLAG DER KI · FREIE KOMBINATION":"VORSCHLAG DER KI · BEKANNTES GERICHT"):"ERKANNTES REZEPT"}</div>
+                <div style={{fontSize:"12px",color:C.accent,fontWeight:"700",letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"6px"}}>{extracted.ai?(extracted.freeCombo?"VORSCHLAG DER KI · FREIE KOMBINATION":"VORSCHLAG DER KI · BEKANNTES GERICHT"):"ERKANNTES REZEPT"}</div>
                 {extracted.ai&&(
-                  <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5",marginBottom:"8px"}}>
+                  <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"8px"}}>
                     {extracted.freeCombo
                       ? <div style={{color:C.accent}}>Die KI hat keine Herkunft oder keinen gebräuchlichen Namen genannt – das ist kein Klassiker, sondern eine freie Kombination. Bitte prüfen.</div>
                       : <div>{extracted.bekanntAls&&extracted.bekanntAls!==extracted.name?"Bekannt als „"+extracted.bekanntAls+"“ · ":""}Herkunft: {extracted.origin}</div>}
@@ -124,8 +124,8 @@ export default function Recipes({state,api}){
                     {extracted.fehlt.length>0&&<div><span style={{color:C.accent}}>fehlt evtl.</span>: {extracted.fehlt.join(", ")}</div>}
                   </div>
                 )}
-                {extracted.stepsGenerated&&<div style={{fontSize:"12px",color:C.accent,lineHeight:"1.5",marginBottom:"8px"}}>Anleitung fehlte in der Vorlage und wurde von der KI ergänzt, bitte prüfen.</div>}
-                <input value={extracted.name} onChange={e=>setExtracted(r=>({...r,name:e.target.value}))} aria-label="Rezeptname" style={{fontSize:"20px",fontFamily:SER,color:C.text,border:"none",background:"transparent",outline:"none",width:"100%",padding:"4px 0 10px",borderBottom:"1px solid "+C.border,marginBottom:"10px"}} />
+                {extracted.stepsGenerated&&<div style={{fontSize:"13px",color:C.accent,lineHeight:"1.5",marginBottom:"8px"}}>Anleitung fehlte in der Vorlage und wurde von der KI ergänzt, bitte prüfen.</div>}
+                <input value={extracted.name} onChange={e=>setExtracted(r=>({...r,name:e.target.value}))} aria-label="Rezeptname" style={{fontSize:"20px",fontFamily:SER,color:C.text,border:"none",background:"transparent",outline:"none",width:"100%",padding:"4px 0 10px",borderBottom:"1px solid "+C.border,marginBottom:"10px",borderRadius:"6px"}} />
                 <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
                   <div style={{flex:1}}>
                     <label style={lbl}>Kategorie</label>
@@ -168,39 +168,39 @@ export default function Recipes({state,api}){
                 </div>
                 <div style={{marginBottom:"10px"}}>
                   <label style={lbl}>Beschreibung</label>
-                  <textarea value={extracted.description||""} onChange={e=>setExtracted(r=>({...r,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white}} />
+                  <textarea value={extracted.description||""} onChange={e=>setExtracted(r=>({...r,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white,borderRadius:"6px"}} />
                 </div>
-                <div style={{fontSize:"11px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"4px"}}>Zutaten</div>
+                <div style={{fontSize:"12px",fontWeight:"700",color:C.muted,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"4px"}}>Zutaten</div>
                 {(extracted.ingredients||[]).map((ing,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"2px 0",borderBottom:i<(extracted.ingredients||[]).length-1?"1px solid "+C.border:"none"}}>
                     <div style={{width:"4px",height:"4px",borderRadius:"50%",background:C.accent,flexShrink:0}} />
-                    <input value={ing} onChange={e=>setExtracted(r=>{const a=[].concat(r.ingredients);a[i]=e.target.value;return {...r,ingredients:a};})} aria-label={"Zutat "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,padding:"10px 0",minWidth:0}} />
+                    <input value={ing} onChange={e=>setExtracted(r=>{const a=[].concat(r.ingredients);a[i]=e.target.value;return {...r,ingredients:a};})} aria-label={"Zutat "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,padding:"10px 0",minWidth:0,borderRadius:"6px"}} />
                     <button onClick={()=>setExtracted(r=>({...r,ingredients:r.ingredients.filter((_,j)=>j!==i)}))} aria-label="Zutat entfernen" style={iconBtn}>×</button>
                   </div>
                 ))}
-                <button onClick={()=>setExtracted(r=>({...r,ingredients:(r.ingredients||[]).concat([""])}))} style={{...btn("ghost"),marginTop:"6px",padding:"8px 12px",letterSpacing:"0.5px"}}>+ Zutat</button>
-                <div style={{fontSize:"11px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",margin:"14px 0 4px"}}>Schritte</div>
+                <button onClick={()=>setExtracted(r=>({...r,ingredients:(r.ingredients||[]).concat([""])}))} style={{...btn("ghost"),marginTop:"6px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>+ Zutat</button>
+                <div style={{fontSize:"12px",fontWeight:"700",color:C.muted,letterSpacing:"0.5px",textTransform:"uppercase",margin:"14px 0 4px"}}>Schritte</div>
                 {(extracted.steps||[]).map((step,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"7px",padding:"5px 0",borderBottom:i<(extracted.steps||[]).length-1?"1px solid "+C.border:"none"}}>
-                    <span style={{color:C.accent,fontSize:"11px",fontWeight:"700",minWidth:"16px",paddingTop:"10px"}}>{i+1}.</span>
-                    <textarea value={step} onChange={e=>setExtracted(r=>{const a=[].concat(r.steps);a[i]=e.target.value;return {...r,steps:a};})} aria-label={"Schritt "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,resize:"none",lineHeight:"1.5",minHeight:"40px",padding:"8px 0"}} />
+                    <span style={{color:C.accent,fontSize:"13px",fontWeight:"700",minWidth:"16px",paddingTop:"10px"}}>{i+1}.</span>
+                    <textarea value={step} onChange={e=>setExtracted(r=>{const a=[].concat(r.steps);a[i]=e.target.value;return {...r,steps:a};})} aria-label={"Schritt "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,resize:"none",lineHeight:"1.5",minHeight:"40px",padding:"8px 0",borderRadius:"6px"}} />
                     <button onClick={()=>setExtracted(r=>({...r,steps:r.steps.filter((_,j)=>j!==i)}))} aria-label="Schritt entfernen" style={iconBtn}>×</button>
                   </div>
                 ))}
-                <button onClick={()=>setExtracted(r=>({...r,steps:(r.steps||[]).concat([""])}))} style={{...btn("ghost"),marginTop:"6px",padding:"8px 12px",letterSpacing:"0.5px"}}>+ Schritt</button>
+                <button onClick={()=>setExtracted(r=>({...r,steps:(r.steps||[]).concat([""])}))} style={{...btn("ghost"),marginTop:"6px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>+ Schritt</button>
                 {/* Speichern; bei vorhandenem Namen: ersetzen (Bewertung, Notizen, Kochhistorie bleiben) oder als Kopie */}
                 {existsName?(
                   <div style={{marginTop:"14px",padding:"10px 12px",border:"1px solid "+C.accent,background:C.abg}}>
-                    <div style={{fontSize:"12px",color:C.text,lineHeight:"1.5",marginBottom:"8px"}}>Ein Rezept „{recName(recipes[recKey(String(extracted.name).trim())],recKey(String(extracted.name).trim()))}“ gibt es schon. Ersetzen behält Bewertung, Notizen und Kochhistorie; die Kopie bekommt den Zusatz „(Kopie)“.</div>
+                    <div style={{fontSize:"13px",color:C.text,lineHeight:"1.5",marginBottom:"8px"}}>Ein Rezept „{recName(recipes[recKey(String(extracted.name).trim())],recKey(String(extracted.name).trim()))}“ gibt es schon. Ersetzen behält Bewertung, Notizen und Kochhistorie; die Kopie bekommt den Zusatz „(Kopie)“.</div>
                     <div style={{display:"flex",gap:"8px"}}>
-                      <button onClick={()=>doSave({replace:true})} style={{...btn("dark"),flex:1}}>{savedMsg?"GESPEICHERT":"ERSETZEN"}</button>
-                      <button onClick={()=>doSave({copy:true})} style={{...btn("ghost"),flex:1}}>ALS KOPIE SPEICHERN</button>
+                      <button onClick={()=>doSave({replace:true})} style={{...btn("dark"),flex:1,borderRadius:"6px"}}>{savedMsg?"GESPEICHERT":"ERSETZEN"}</button>
+                      <button onClick={()=>doSave({copy:true})} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ALS KOPIE SPEICHERN</button>
                     </div>
                   </div>
                 ):(
-                  <button onClick={()=>doSave({})} style={{...btn("dark"),width:"100%",marginTop:"14px",padding:"12px",letterSpacing:"2px",background:savedMsg?C.ok:C.strong,transition:"background 0.3s"}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
+                  <button onClick={()=>doSave({})} style={{...btn("primary"),width:"100%",marginTop:"14px",padding:"12px",letterSpacing:"0.5px",background:savedMsg?C.ok:C.accent,transition:"background 0.3s",borderRadius:"6px"}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
                 )}
-                {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{...btn("ghost"),width:"100%",marginTop:"6px",letterSpacing:"2px"}}>VERWERFEN</button>}
+                {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{...btn("ghost"),width:"100%",marginTop:"6px",letterSpacing:"0.5px",borderRadius:"6px"}}>VERWERFEN</button>}
               </div>
             )}
 
@@ -208,7 +208,7 @@ export default function Recipes({state,api}){
             {total===0&&!extracted&&(
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"12px",textAlign:"center"}}>
                 <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"12px"}}>Noch keine Rezepte in diesem Plan. Übernimm unten Gerichte aus der Rezept-Basis, importiere oben ein eigenes Rezept oder hol dir die Startrezepte als Grundstock.</div>
-                <button onClick={adoptStarters} style={{...btn("primary"),letterSpacing:"2px",padding:"12px 20px"}}>STARTREZEPTE ÜBERNEHMEN</button>
+                <button onClick={adoptStarters} style={{...btn("primary"),letterSpacing:"0.5px",padding:"12px 20px",borderRadius:"6px"}}>STARTREZEPTE ÜBERNEHMEN</button>
               </div>
             )}
 
@@ -221,7 +221,7 @@ export default function Recipes({state,api}){
             {/* Meine / Alle (Rezept-Basis dazu) */}
             <div style={{display:"flex",marginBottom:"10px",border:"1px solid "+C.border}}>
               {[{id:"mine",label:"Meine ("+total+")"},{id:"all",label:"Alle (mit Rezept-Basis)"}].map(o=>{ const on=showAll===(o.id==="all"); return (
-                <button key={o.id} onClick={()=>setScope(o.id)} aria-pressed={on} style={{flex:1,padding:"10px",minHeight:"40px",border:"none",background:on?C.abg:C.white,color:on?C.accent:C.muted,fontSize:"12px",fontWeight:on?"700":"400",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF}}>{o.label}</button>
+                <button key={o.id} onClick={()=>setScope(o.id)} aria-pressed={on} style={{flex:1,padding:"10px",minHeight:"40px",border:"none",background:on?C.abg:C.white,color:on?C.accent:C.muted,fontSize:"12px",fontWeight:on?"700":"400",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,borderRadius:"6px"}}>{o.label}</button>
               ); })}
             </div>
             {/* Rubrik-Filter */}
@@ -232,7 +232,7 @@ export default function Recipes({state,api}){
             </div>
             {/* Sortierung + Klassiker-Schalter */}
             <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
-              <span style={{fontSize:"11px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",marginRight:"2px"}}>Sortieren</span>
+              <span style={{fontSize:"12px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",marginRight:"2px"}}>Sortieren</span>
               {SORTS.map(s=>(
                 <button key={s.id} onClick={()=>setSort(s.id)} aria-pressed={sort===s.id} style={{...chip(sort===s.id),padding:"7px 10px",minHeight:"32px"}}>{s.label}</button>
               ))}
@@ -245,10 +245,10 @@ export default function Recipes({state,api}){
               const ings=(rec&&rec.ingredients)||[];
               const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · "),cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
               return(
-                <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",minHeight:"56px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF}}>
+                <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"11px 14px",minHeight:"56px",marginBottom:"5px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF,borderRadius:"6px"}}>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:"15px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}{rec.rating?<span style={{color:C.star,fontSize:"12px",marginLeft:"8px"}}>{"★".repeat(rec.rating)}</span>:null}</div>
-                    <div style={{fontSize:"11px",color:C.muted}}>{sub}</div>
+                    <div style={{fontSize:"15px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{dn(name)}{rec.rating?<span style={{color:C.star,fontSize:"13px",marginLeft:"8px"}}>{"★".repeat(rec.rating)}</span>:null}</div>
+                    <div style={{fontSize:"13px",color:C.muted}}>{sub}</div>
                   </div>
                   <span style={{color:C.subtle,fontSize:"16px"}} aria-hidden="true">›</span>
                 </button>
@@ -258,15 +258,15 @@ export default function Recipes({state,api}){
             {/* Rezept-Basis (abgesetzt, mit Uebernehmen); bei leerem Kochbuch immer sichtbar */}
             {classicsOn&&(
               <div style={{marginTop:"14px"}}>
-                <div style={{fontSize:"11px",fontWeight:"700",color:C.accent,letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px dashed "+C.border}}>Rezept-Basis · {classicList.length} noch nicht im Kochbuch</div>
+                <div style={{fontSize:"12px",fontWeight:"700",color:C.accent,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px dashed "+C.border}}>Rezept-Basis · {classicList.length} noch nicht im Kochbuch</div>
                 {classicList.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 4px"}}>Kein Gericht der Rezept-Basis passt zur Suche – oder alle passenden sind schon im Kochbuch.</div>}
                 {classicList.map(c=>(
                   <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,padding:"9px 14px",minHeight:"56px",marginBottom:"5px"}}>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:"15px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{c.name}</div>
-                      <div style={{fontSize:"11px",color:C.muted}}>{[c.category,c.cuisine,c.origin,c.minutes?c.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
+                      <div style={{fontSize:"13px",color:C.muted}}>{[c.category,c.cuisine,c.origin,c.minutes?c.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
                     </div>
-                    <button onClick={()=>doAdopt(c)} disabled={adopting===c.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0}}>{adopting===c.name?"…":"ÜBERNEHMEN"}</button>
+                    <button onClick={()=>doAdopt(c)} disabled={adopting===c.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0,borderRadius:"6px"}}>{adopting===c.name?"…":"ÜBERNEHMEN"}</button>
                   </div>
                 ))}
               </div>
@@ -275,8 +275,8 @@ export default function Recipes({state,api}){
             {/* Kochbuch als PDF */}
             {total>0&&(
               <div style={{marginTop:"14px"}}>
-                <button onClick={downloadPDF} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"2px"}}>KOCHBUCH ALS PDF DRUCKEN / SPEICHERN</button>
-                <div style={{fontSize:"11px",color:C.muted,textAlign:"center",marginTop:"8px",lineHeight:"1.5"}}>Ein neues Fenster öffnet sich. Dort „Als PDF speichern“ im Druckdialog wählen.</div>
+                <button onClick={downloadPDF} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"0.5px",borderRadius:"6px"}}>KOCHBUCH ALS PDF DRUCKEN / SPEICHERN</button>
+                <div style={{fontSize:"13px",color:C.muted,textAlign:"center",marginTop:"8px",lineHeight:"1.5"}}>Ein neues Fenster öffnet sich. Dort „Als PDF speichern“ im Druckdialog wählen.</div>
               </div>
             )}
 
@@ -284,10 +284,10 @@ export default function Recipes({state,api}){
             <div style={{marginTop:"14px",background:C.white,border:"1px solid "+C.border,padding:"12px 14px"}}>
               <div style={label}>Kochbuch als Datei</div>
               <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Alle Rezepte mit Bewertung, Notizen, Kochdaten und Fotos in einer Datei. Damit nimmst du dein Kochbuch in einen anderen Plan mit oder hast eine Sicherung.</div>
-              <input ref={cbFileRef} type="file" accept="application/json,.json" style={{display:"none"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(e.target) e.target.value=""; if(f){ setCbMode("skip"); loadCookbookFile(f); } }} />
+              <input ref={cbFileRef} type="file" accept="application/json,.json" style={{display:"none",borderRadius:"6px"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(e.target) e.target.value=""; if(f){ setCbMode("skip"); loadCookbookFile(f); } }} />
               <div style={{display:"flex",gap:"6px"}}>
-                <button onClick={exportCookbookFile} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5}}>SICHERN (.JSON)</button>
-                <button onClick={()=>cbFileRef.current&&cbFileRef.current.click()} style={{...btn("ghost"),flex:1,color:C.accent}}>AUS DATEI LADEN</button>
+                <button onClick={exportCookbookFile} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5,borderRadius:"6px"}}>SICHERN (.JSON)</button>
+                <button onClick={()=>cbFileRef.current&&cbFileRef.current.click()} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>AUS DATEI LADEN</button>
               </div>
             </div>
 
@@ -305,7 +305,7 @@ export default function Recipes({state,api}){
                       <div role="radiogroup" aria-label="Vorhandene Rezepte" style={{display:"grid",gap:"6px",marginBottom:"12px"}}>
                         {[["skip","Vorhandene behalten, nur neue laden"],["replace","Vorhandene durch die Datei ersetzen (Bewertung, Notizen, Kochdaten aus der Datei)"]].map(([m,t])=>(
                           <label key={m} style={{display:"flex",gap:"10px",alignItems:"flex-start",fontSize:"13px",color:cbMode===m?C.text:C.muted,cursor:"pointer",padding:"8px 10px",border:"1px solid "+(cbMode===m?C.accent:C.border)}}>
-                            <input type="radio" name="cbmode" value={m} checked={cbMode===m} onChange={()=>setCbMode(m)} style={{accentColor:C.accent,marginTop:"2px"}} />
+                            <input type="radio" name="cbmode" value={m} checked={cbMode===m} onChange={()=>setCbMode(m)} style={{accentColor:C.accent,marginTop:"2px",borderRadius:"6px"}} />
                             <span>{t}</span>
                           </label>
                         ))}
@@ -314,8 +314,8 @@ export default function Recipes({state,api}){
                   </>
                 )}
                 <div style={{display:"flex",gap:"6px"}}>
-                  {!cookbookImport.err&&<button onClick={()=>confirmCookbookImport(cbMode)} disabled={cookbookImport.busy} style={{...btn("primary"),flex:2,opacity:cookbookImport.busy?0.6:1}}>{cookbookImport.busy?"WIRD GELADEN…":"IMPORTIEREN"}</button>}
-                  <button onClick={cancelCookbookImport} style={{...btn("ghost"),flex:1}}>{cookbookImport.err?"SCHLIESSEN":"ABBRECHEN"}</button>
+                  {!cookbookImport.err&&<button onClick={()=>confirmCookbookImport(cbMode)} disabled={cookbookImport.busy} style={{...btn("primary"),flex:2,opacity:cookbookImport.busy?0.6:1,borderRadius:"6px"}}>{cookbookImport.busy?"WIRD GELADEN…":"IMPORTIEREN"}</button>}
+                  <button onClick={cancelCookbookImport} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>{cookbookImport.err?"SCHLIESSEN":"ABBRECHEN"}</button>
                 </div>
               </Modal>
             )}

@@ -16,10 +16,10 @@ const toggleTag=(set,id)=>set(d=>{ const t=new Set(d.tags||[]); t.has(id)?t.dele
 const tagLabel=(rec)=>TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · ");
 
 const fmtDate = (iso) => { const m=String(iso||"").split("-"); return m.length===3 ? parseInt(m[2],10)+"."+parseInt(m[1],10)+"."+m[0] : iso; };
-const inp = {width:"100%",border:"1px solid "+C.border,padding:"10px 12px",minHeight:"40px",fontSize:"13px",fontFamily:SF,color:C.text,outline:"none",boxSizing:"border-box",background:C.white};
-const stepBtn = {width:"40px",height:"40px",border:"1px solid "+C.border,background:C.bg,color:C.text,fontSize:"20px",lineHeight:1,cursor:"pointer",fontFamily:SF,flexShrink:0};
-const cardTitle = {fontSize:"11px",fontWeight:"700",letterSpacing:"2px",color:C.accent,textTransform:"uppercase",marginBottom:"10px"};
-const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255,255,0.85)",padding:"10px 12px",minHeight:"40px",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF};
+const inp = {width:"100%",border:"1px solid "+C.border,borderRadius:"6px",padding:"8px 12px",minHeight:"36px",fontSize:"14px",fontFamily:SF,color:C.text,outline:"none",boxSizing:"border-box",background:C.white};
+const stepBtn = {width:"36px",height:"36px",border:"1px solid "+C.border,borderRadius:"6px",background:C.bg,color:C.text,fontSize:"20px",lineHeight:1,cursor:"pointer",fontFamily:SF,flexShrink:0};
+const cardTitle = {fontSize:"12px",fontWeight:"700",letterSpacing:"1px",color:C.muted,textTransform:"uppercase",marginBottom:"10px"};
+const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255,255,0.85)",padding:"8px 12px",minHeight:"36px",borderRadius:"6px",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF};
 
 // REZEPTDETAIL - Kopfbild (DishImage), Rubrik/Kueche/Herkunft/Portionen/Zeit, Aktionen (Kochmodus, Zum Wochenplan, Auf die Einkaufsliste,
 // Bearbeiten, Als PDF), Bewertung, Notizen, Zutaten mit Portionen-Stepper, Zubereitung, Kochhistorie, Loeschen; Bearbeiten; Bewertungsdialog mit Foto
@@ -63,12 +63,12 @@ export default function RecipeDetail({state,api}){
         {rateAfterCook&&(
           <Modal title={"Wie war "+name+"?"} micro="Guten Appetit!" onClose={()=>setRateAfterCook(false)}>
             <Stars value={ratingDraft} onRate={setRatingDraft} size={32} />
-            <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" aria-label="Notiz" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field}} />
-            <input ref={dishPhotoRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
-            <button onClick={()=>dishPhotoRef.current&&dishPhotoRef.current.click()} style={{...btn("ghost"),width:"100%",marginTop:"10px",color:C.accent}}>{images[detailRecipe]?"FOTO VOM GERICHT ERSETZEN":"FOTO VOM GERICHT"}</button>
+            <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" aria-label="Notiz" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field,borderRadius:"6px"}} />
+            <input ref={dishPhotoRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
+            <button onClick={()=>dishPhotoRef.current&&dishPhotoRef.current.click()} style={{...btn("ghost"),width:"100%",marginTop:"10px",color:C.accent,borderRadius:"6px"}}>{images[detailRecipe]?"FOTO VOM GERICHT ERSETZEN":"FOTO VOM GERICHT"}</button>
             <div style={{display:"flex",gap:"8px",marginTop:"14px"}}>
-              <button onClick={saveRating} style={{...btn("ok"),flex:2,letterSpacing:"2px"}}>SPEICHERN</button>
-              <button onClick={()=>setRateAfterCook(false)} style={{...btn("ghost"),flex:1}}>ÜBERSPRINGEN</button>
+              <button onClick={saveRating} style={{...btn("ok"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>SPEICHERN</button>
+              <button onClick={()=>setRateAfterCook(false)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ÜBERSPRINGEN</button>
             </div>
           </Modal>
         )}
@@ -78,17 +78,17 @@ export default function RecipeDetail({state,api}){
         <div data-theme="dark">
         <DishImage name={name} rec={curRec} img={images[detailRecipe]} height={260} dim compact>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.shade+")"}} />
-          <button onClick={closeRecipe} style={{...headBtn,position:"absolute",top:12,left:12}}>ZURÜCK</button>
+          <button onClick={closeRecipe} style={{...headBtn,position:"absolute",top:12,left:12,borderRadius:"6px"}}>ZURÜCK</button>
           {/* Eigenes Bild hochladen / Standard wiederherstellen */}
-          <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
+          <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none",borderRadius:"6px"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
           <div style={{position:"absolute",top:12,right:12,display:"flex",gap:"6px"}}>
             <button onClick={()=>imgFileRef.current&&imgFileRef.current.click()} style={headBtn}>{images[detailRecipe]?"BILD ÄNDERN":"FOTO HINZUFÜGEN"}</button>
-            {images[detailRecipe]&&<button onClick={()=>resetImage(detailRecipe)} style={{...headBtn,color:"rgba(255,255,255,0.65)"}}>STANDARD</button>}
+            {images[detailRecipe]&&<button onClick={()=>resetImage(detailRecipe)} style={{...headBtn,color:"rgba(255,255,255,0.65)",borderRadius:"6px"}}>STANDARD</button>}
           </div>
           <div style={{position:"absolute",bottom:20,left:20,right:20}}>
             <div style={{color:C.accent,fontSize:"12px",fontWeight:"600",letterSpacing:"0.5px",marginBottom:"6px",lineHeight:"1.5"}}>{metaLine}</div>
             <div style={{color:"#fff",fontSize:"28px",fontFamily:SER,lineHeight:"1.2"}}>{name}</div>
-            {srcLine&&<div style={{color:"rgba(255,255,255,0.7)",fontSize:"11px",marginTop:"4px"}}>{srcLine}</div>}
+            {srcLine&&<div style={{color:"rgba(255,255,255,0.7)",fontSize:"13px",marginTop:"4px"}}>{srcLine}</div>}
           </div>
         </DishImage>
         </div>
@@ -98,18 +98,18 @@ export default function RecipeDetail({state,api}){
             <div>
               {/* AKTIONEN */}
               <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
-                {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 0",letterSpacing:"2px"}}>KOCHMODUS</button>}
-                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 0",color:C.accent}}>VORMERKEN</button>
+                {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 0",letterSpacing:"0.5px",borderRadius:"6px"}}>KOCHMODUS</button>}
+                <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 0",color:C.accent,borderRadius:"6px"}}>VORMERKEN</button>
               </div>
               {/* Einkaufsliste: geteilter Knopf - alles oder nur, was laut Vorrat fehlt */}
               <div role="group" aria-label="Auf die Einkaufsliste" style={{display:"flex",flexDirection:"column",marginBottom:"8px",border:"1px solid "+(shopDone?C.ok:C.border)}}>
-                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),border:"none",color:shopDone?C.ok:C.accent,padding:"11px 8px"}}>{shopDone?"✓ AUF DER LISTE":"ALLES AUF DIE LISTE"}</button>
+                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),border:"none",color:shopDone?C.ok:C.accent,padding:"11px 8px",borderRadius:"6px"}}>{shopDone?"✓ AUF DER LISTE":"ALLES AUF DIE LISTE"}</button>
                 <div style={{height:"1px",background:shopDone?C.ok:C.border,flexShrink:0}} />
-                <button onClick={()=>toShopping(true)} disabled={!stock||!stock.length} title={!stock||!stock.length?"Ohne Vorrat ist unbekannt, was fehlt":""} style={{...btn("ghost"),border:"none",color:C.err,padding:"11px 8px",opacity:!stock||!stock.length?0.45:1}}>NUR FEHLENDES AUF DIE LISTE{stock&&stock.length?" ("+missingCount+")":""}</button>
+                <button onClick={()=>toShopping(true)} disabled={!stock||!stock.length} title={!stock||!stock.length?"Ohne Vorrat ist unbekannt, was fehlt":""} style={{...btn("ghost"),border:"none",color:C.err,padding:"11px 8px",opacity:!stock||!stock.length?0.45:1,borderRadius:"6px"}}>NUR FEHLENDES AUF DIE LISTE{stock&&stock.length?" ("+missingCount+")":""}</button>
               </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
-                <button onClick={()=>startEdit(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.text}}>BEARBEITEN</button>
-                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.accent}}>ALS PDF</button>
+                <button onClick={()=>startEdit(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.text,borderRadius:"6px"}}>BEARBEITEN</button>
+                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>ALS PDF</button>
               </div>
               {curRec.description&&(
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
@@ -117,15 +117,15 @@ export default function RecipeDetail({state,api}){
                   <div style={{fontSize:"14px",color:C.text,lineHeight:"1.7",fontFamily:SER,fontStyle:"italic"}}>{curRec.description}</div>
                 </div>
               )}
-              {curRec.stepsGenerated&&<div style={{fontSize:"12px",color:C.accent,lineHeight:"1.5",marginBottom:"14px",padding:"0 2px"}}>Die Anleitung fehlte in der Vorlage und wurde von der KI ergänzt – bitte beim ersten Kochen prüfen.</div>}
+              {curRec.stepsGenerated&&<div style={{fontSize:"13px",color:C.accent,lineHeight:"1.5",marginBottom:"14px",padding:"0 2px"}}>Die Anleitung fehlte in der Vorlage und wurde von der KI ergänzt – bitte beim ersten Kochen prüfen.</div>}
               {/* BEWERTUNG & NOTIZEN */}
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={cardTitle}>Bewertung & Notizen</div>
                 <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
                   <Stars value={curRec.rating||0} onRate={r=>rateRecipe(detailRecipe,r)} />
-                  <button onClick={()=>cookedToday(detailRecipe)} disabled={cooked.includes(today)} style={{...btn("ghost"),marginLeft:"auto",padding:"8px 12px",color:cooked.includes(today)?C.ok:C.accent,borderColor:cooked.includes(today)?C.ok:C.border}}>{cooked.includes(today)?"✓ HEUTE GEKOCHT":"WURDE HEUTE GEKOCHT"}</button>
+                  <button onClick={()=>cookedToday(detailRecipe)} disabled={cooked.includes(today)} style={{...btn("ghost"),marginLeft:"auto",padding:"8px 12px",color:cooked.includes(today)?C.ok:C.accent,borderColor:cooked.includes(today)?C.ok:C.border,borderRadius:"6px"}}>{cooked.includes(today)?"✓ HEUTE GEKOCHT":"WURDE HEUTE GEKOCHT"}</button>
                 </div>
-                <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))noteRecipe(detailRecipe,noteDraft);}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" aria-label="Notizen" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field}} />
+                <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))noteRecipe(detailRecipe,noteDraft);}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" aria-label="Notizen" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field,borderRadius:"6px"}} />
               </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"}}>
@@ -133,31 +133,31 @@ export default function RecipeDetail({state,api}){
                   {/* Portionen-Stepper "− 4 +": rechnet die Mengen um */}
                   <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:"2px"}}>
                     <button onClick={()=>setPortions(p=>Math.max(1,p-1))} aria-label="Portion weniger" style={stepBtn}>−</button>
-                    <span style={{minWidth:"92px",textAlign:"center",fontSize:"12px",color:portions===base?C.muted:C.accent,fontWeight:"700"}}>{portions} {portions===1?"Portion":"Portionen"}</span>
+                    <span style={{minWidth:"92px",textAlign:"center",fontSize:"13px",color:portions===base?C.muted:C.accent,fontWeight:"700"}}>{portions} {portions===1?"Portion":"Portionen"}</span>
                     <button onClick={()=>setPortions(p=>Math.min(24,p+1))} aria-label="Portion mehr" style={stepBtn}>+</button>
                   </div>
                 </div>
-                {factor!==1&&<div style={{fontSize:"11px",color:C.muted,marginBottom:"6px"}}>Mengen umgerechnet von {base} auf {portions} Portionen.</div>}
+                {factor!==1&&<div style={{fontSize:"13px",color:C.muted,marginBottom:"6px"}}>Mengen umgerechnet von {base} auf {portions} Portionen.</div>}
                 {ings.map((ing,i)=>{
                   const tag=statusOf(ing);
                   return(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"5px 0",minHeight:"44px",borderBottom:i<ings.length-1?"1px solid "+C.border:"none"}}>
                     <div style={{width:"4px",height:"4px",borderRadius:"50%",background:tag?tag.c:C.accent,flexShrink:0}} />
                     <span style={{fontSize:"14px",color:C.text,flex:1,minWidth:0}}>{scaleIng(ing,factor)}</span>
-                    {tag&&<span data-stock={tag.k} style={{fontSize:"11px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",color:tag.c,flexShrink:0}}>{tag.t}</span>}
+                    {tag&&<span data-stock={tag.k} style={{fontSize:"12px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",color:tag.c,flexShrink:0}}>{tag.t}</span>}
                     {tag&&tag.k!=="da"&&<button onClick={()=>isPresent(ing)} aria-label={scaleIng(ing,factor)+": ist da"} title="Ist doch da – in den Vorrat" style={{...iconBtn,color:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
                   </div>
                   );
                 })}
-                {stock&&stock.length>0&&ings.some(ing=>{ const t=statusOf(ing); return t&&t.k!=="da"; })&&<div style={{fontSize:"11px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}><span style={{color:C.err,fontWeight:"700"}}>fehlt?</span> = laut Vorrat vermutlich nicht da. ✓ = ist doch da, kommt in den Vorrat. Grundvorrat wie Salz und Öl zählt immer als da.</div>}
-                {household!==base&&portions===base&&<button onClick={()=>setPortions(household)} style={{...btn("ghost"),marginTop:"10px",padding:"8px 12px",letterSpacing:"0.5px"}}>Auf {household} Personen umrechnen</button>}
+                {stock&&stock.length>0&&ings.some(ing=>{ const t=statusOf(ing); return t&&t.k!=="da"; })&&<div style={{fontSize:"13px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}><span style={{color:C.err,fontWeight:"700"}}>fehlt?</span> = laut Vorrat vermutlich nicht da. ✓ = ist doch da, kommt in den Vorrat. Grundvorrat wie Salz und Öl zählt immer als da.</div>}
+                {household!==base&&portions===base&&<button onClick={()=>setPortions(household)} style={{...btn("ghost"),marginTop:"10px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>Auf {household} Personen umrechnen</button>}
               </div>
               {steps.length>0&&(
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                   <div style={{...cardTitle,marginBottom:"16px"}}>Zubereitung</div>
                   {steps.map((step,i)=>(
                     <div key={i} style={{display:"flex",gap:"14px",marginBottom:i<steps.length-1?"18px":"0"}}>
-                      <div style={{width:"26px",height:"26px",borderRadius:"50%",border:"1px solid "+(i===0?C.accent:C.border),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"11px",fontWeight:"700",color:i===0?C.accent:C.muted}}>{i+1}</div>
+                      <div style={{width:"26px",height:"26px",borderRadius:"50%",border:"1px solid "+(i===0?C.accent:C.border),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"13px",fontWeight:"700",color:i===0?C.accent:C.muted}}>{i+1}</div>
                       <div style={{paddingTop:"4px",fontSize:"14px",color:C.text,lineHeight:"1.7"}}>{step}</div>
                     </div>
                   ))}
@@ -167,9 +167,9 @@ export default function RecipeDetail({state,api}){
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={{...cardTitle,marginBottom:"8px"}}>Kochhistorie</div>
                 <div style={{fontSize:"14px",color:C.text}}>{cookedLabel(curRec)}</div>
-                {cooked.length>0&&<div style={{fontSize:"11px",color:C.muted,marginTop:"6px"}}>{cooked.slice(-6).reverse().map(fmtDate).join(" · ")}{cooked.length>6?" · …":""}</div>}
+                {cooked.length>0&&<div style={{fontSize:"13px",color:C.muted,marginTop:"6px"}}>{cooked.slice(-6).reverse().map(fmtDate).join(" · ")}{cooked.length>6?" · …":""}</div>}
               </div>
-              <button onClick={()=>deleteRecipe(detailRecipe)} style={{...btn("danger"),width:"100%"}}>REZEPT LÖSCHEN</button>
+              <button onClick={()=>deleteRecipe(detailRecipe)} style={{...btn("danger"),width:"100%",borderRadius:"6px"}}>REZEPT LÖSCHEN</button>
             </div>
           ):(
             <div>
@@ -198,7 +198,7 @@ export default function RecipeDetail({state,api}){
                 <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
                   {TAGS.map(t=>{ const on=(editData.tags||[]).includes(t.id); return <button key={t.id} type="button" onClick={()=>toggleTag(setEditData,t.id)} aria-pressed={on} style={chip(on)}>{on?"✓ ":""}{t.label}</button>; })}
                 </div>
-                <div style={{fontSize:"11px",color:C.subtle,marginTop:"4px"}}>„Schnell“ gilt automatisch auch bei einer Zeit bis 30 Minuten.</div>
+                <div style={{fontSize:"13px",color:C.subtle,marginTop:"4px"}}>„Schnell“ gilt automatisch auch bei einer Zeit bis 30 Minuten.</div>
               </div>
               {/* Portionen, Zeit, Herkunft, Quelle */}
               <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
@@ -223,33 +223,33 @@ export default function RecipeDetail({state,api}){
               </div>
               <div style={{marginBottom:"10px"}}>
                 <label style={lbl}>Beschreibung</label>
-                <textarea value={editData.description||""} onChange={e=>setEditData(d=>({...d,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white}} />
+                <textarea value={editData.description||""} onChange={e=>setEditData(d=>({...d,description:e.target.value}))} placeholder="Kurze Beschreibung / Geschichte zum Rezept..." style={{width:"100%",minHeight:"70px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.white,borderRadius:"6px"}} />
               </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"10px"}}>
                 <div style={{...cardTitle,color:C.muted}}>Zutaten</div>
                 {editData.ingredients.map((ing,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"2px 0",borderBottom:i<editData.ingredients.length-1?"1px solid "+C.border:"none"}}>
                     <div style={{width:"4px",height:"4px",borderRadius:"50%",background:C.accent,flexShrink:0}} />
-                    <input value={ing} onChange={e=>setEditData(d=>{const a=[...d.ingredients];a[i]=e.target.value;return{...d,ingredients:a};})} aria-label={"Zutat "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,padding:"10px 0",minWidth:0}} />
+                    <input value={ing} onChange={e=>setEditData(d=>{const a=[...d.ingredients];a[i]=e.target.value;return{...d,ingredients:a};})} aria-label={"Zutat "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,padding:"10px 0",minWidth:0,borderRadius:"6px"}} />
                     <button onClick={()=>setEditData(d=>({...d,ingredients:d.ingredients.filter((_,j)=>j!==i)}))} aria-label="Zutat entfernen" style={iconBtn}>×</button>
                   </div>
                 ))}
-                <button onClick={()=>setEditData(d=>({...d,ingredients:[...d.ingredients,""]}))} style={{...btn("ghost"),marginTop:"8px",padding:"8px 12px",letterSpacing:"0.5px"}}>+ Zutat</button>
+                <button onClick={()=>setEditData(d=>({...d,ingredients:[...d.ingredients,""]}))} style={{...btn("ghost"),marginTop:"8px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>+ Zutat</button>
               </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"14px"}}>
                 <div style={{...cardTitle,color:C.muted}}>Schritte</div>
                 {editData.steps.map((step,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"8px",padding:"6px 0",borderBottom:i<editData.steps.length-1?"1px solid "+C.border:"none"}}>
-                    <span style={{color:C.accent,fontSize:"11px",fontWeight:"700",minWidth:"16px",paddingTop:"12px"}}>{i+1}.</span>
-                    <textarea value={step} onChange={e=>setEditData(d=>{const a=[...d.steps];a[i]=e.target.value;return{...d,steps:a};})} aria-label={"Schritt "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,resize:"none",lineHeight:"1.5",minHeight:"40px",padding:"8px 0"}} />
+                    <span style={{color:C.accent,fontSize:"13px",fontWeight:"700",minWidth:"16px",paddingTop:"12px"}}>{i+1}.</span>
+                    <textarea value={step} onChange={e=>setEditData(d=>{const a=[...d.steps];a[i]=e.target.value;return{...d,steps:a};})} aria-label={"Schritt "+(i+1)} style={{flex:1,border:"none",background:"transparent",fontSize:"13px",color:C.text,outline:"none",fontFamily:SF,resize:"none",lineHeight:"1.5",minHeight:"40px",padding:"8px 0",borderRadius:"6px"}} />
                     <button onClick={()=>setEditData(d=>({...d,steps:d.steps.filter((_,j)=>j!==i)}))} aria-label="Schritt entfernen" style={iconBtn}>×</button>
                   </div>
                 ))}
-                <button onClick={()=>setEditData(d=>({...d,steps:[...d.steps,""]}))} style={{...btn("ghost"),marginTop:"8px",padding:"8px 12px",letterSpacing:"0.5px"}}>+ Schritt</button>
+                <button onClick={()=>setEditData(d=>({...d,steps:[...d.steps,""]}))} style={{...btn("ghost"),marginTop:"8px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>+ Schritt</button>
               </div>
               <div style={{display:"flex",gap:"8px"}}>
-                <button onClick={saveEdit} style={{...btn("dark"),flex:2,letterSpacing:"2px"}}>SPEICHERN</button>
-                <button onClick={cancelEdit} style={{...btn("ghost"),flex:1}}>ABBRECHEN</button>
+                <button onClick={saveEdit} style={{...btn("dark"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>SPEICHERN</button>
+                <button onClick={cancelEdit} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ABBRECHEN</button>
               </div>
             </div>
           )}
