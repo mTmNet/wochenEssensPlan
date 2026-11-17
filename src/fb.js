@@ -2,12 +2,17 @@
 // Regeln: Wurzel gesperrt, plans/$code und recipeImages/$code nur mit Code (recipeImages ist nicht auflistbar),
 // globalRecipes nur lesbar. Wortlaut siehe README.
 // Alles Neue liegt unter plans/<CODE>/… und recipeImages/<CODE>/…; globalRecipes und recipeImages/<Name> werden nur noch gelesen.
+import { createAuth, authedFetch } from "./auth.js";
+
 export const FB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
 
 // Zeitgrenze fuer jeden Netzaufruf: haengende Verbindungen (Funkloch) duerfen den Poll nicht dauerhaft blockieren.
 // Grosse Koerper (Bilder) bekommen mehr Zeit: 15 s Grundwert, +15 s je 500 KB, hoechstens 60 s.
 export const FETCH_TIMEOUT_MS = 15000;
 export const timeoutFor = (bodyLen) => Math.min(60000, FETCH_TIMEOUT_MS + Math.floor((bodyLen||0)/500000)*15000);
+// Anmeldung: Der Web-Schlüssel des Firebase-Projekts kommt aus der Vercel-Variable VITE_FB_API_KEY (öffentlich, kein Geheimnis).
+// Fehlt sie, bleibt die Anmeldung aus und alle Aufrufe gehen wie bisher ohne Nachweis hinaus.
+export const auth = createAuth({ apiKey: (import.meta.env && import.meta.env.VITE_FB_API_KEY) || "" });
 const fetchT = async (url, init, ms) => {
   const ctl = typeof AbortController!=="undefined" ? new AbortController() : null;
   const timer = ctl ? setTimeout(()=>ctl.abort(), ms) : null;
@@ -15,22 +20,25 @@ const fetchT = async (url, init, ms) => {
   finally { if(timer) clearTimeout(timer); }
 };
 
+// Aufruf an die eigene Datenbank, mit Anmelde-Nachweis (das Haushaltsbuch liegt in einem anderen Projekt und bekommt keinen)
+const fetchA = (url, init, ms) => authedFetch(auth, fetchT, url, init, ms);
+
 // undefined = Fehler (Netz, Regeln, Zeitueberschreitung), null = Knoten leer, sonst die Daten
 export const fbGet = async (p) => {
-  try { const r=await fetchT(FB+"/"+p+".json",{},FETCH_TIMEOUT_MS); return r.ok?await r.json():undefined; } catch(e){ return undefined; }
+  try { const r=await fetchA(FB+"/"+p+".json",{},FETCH_TIMEOUT_MS); return r.ok?await r.json():undefined; } catch(e){ return undefined; }
 };
 // Schreibhelfer melden zurueck, ob das Speichern geklappt hat (true/false)
 export const fbPut = async (p,d) => {
   const body=JSON.stringify(d);
-  try { const r=await fetchT(FB+"/"+p+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }
+  try { const r=await fetchA(FB+"/"+p+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }
 };
 // Knoten komplett entfernen (DELETE), z. B. plans/<CODE> beim endgueltigen Loeschen
 export const fbDelete = async (p) => {
-  try { const r=await fetchT(FB+"/"+p+".json",{method:"DELETE"},FETCH_TIMEOUT_MS); return r.ok; } catch(e){ return false; }
+  try { const r=await fetchA(FB+"/"+p+".json",{method:"DELETE"},FETCH_TIMEOUT_MS); return r.ok; } catch(e){ return false; }
 };
 export const fbPatch = async (p,d) => {
   const body=JSON.stringify(d);
-  try { const r=await fetchT(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }
+  try { const r=await fetchA(FB+"/"+p+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body},timeoutFor(body.length)); return r.ok; } catch(e){ return false; }
 };
 
 // PLAN-CODES: 10 Zeichen ohne verwechselbare O/0/I/1, Eingabe 6 bis 16 Zeichen (alte 6-stellige Codes bleiben gueltig)
