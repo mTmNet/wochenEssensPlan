@@ -120,7 +120,8 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
 - `key` = `ingKey(text)` (normierter Name + Einheitenklasse), dient dem Zusammenführen.
 - `src: "plan"` entsteht aus „Einkaufsliste aus dem Plan“, `"manuell"` aus Handeingabe oder „+“ am Rezept. Das „+“ merkt sich die Plan-Zelle am Posten (`slots`), daraus leitet die Plan-Ansicht die „+“-Sperre ab (auf allen Geräten).
 - `basic: true` kennzeichnet Grundvorrat (Salz, Öl, Mehl …), wird in einem eingeklappten Block „Vorrat prüfen“ gezeigt und zählt nicht im Fortschritt.
-- `stockP` (0..1, nur lokal berechnet, nicht gespeichert) = Wahrscheinlichkeit laut Haushaltsbuch; ab 0,6 landet der Posten im eingeklappten Block „Wahrscheinlich da“, ein Tipp holt ihn in die Liste (`forceBuy: true` wird gespeichert).
+- **Abhaken ohne Haushaltsbuch** (`plans/<CODE>/hb` fehlt): Der Posten gilt als heute gekauft. Im selben PATCH wie der Haken entsteht `stock/items/ek_<Posten-Id> = {name, sub, date, src: "einkauf", createdAt}` (`shopStockItem`, `shopStockId` in `src/logic/stock.js`; Name ohne Menge, Grundvorrat ausgenommen). Die Id hängt am Posten, zwei Geräte schreiben also denselben Eintrag. Wird der Haken am selben Tag entfernt, wird der Eintrag gelöscht; ältere Einträge verblassen von selbst. Abgehakte Posten bleiben in der Liste stehen. Mit verbundenem Haushaltsbuch ist das abgeschaltet (keine Doppelzählung).
+- `stockP` (0..1, nur lokal berechnet, nicht gespeichert) = Wahrscheinlichkeit laut Vorrat (Haushaltsbuch, Einkauf, Foto, Hand); ab 0,6 landet der Posten im eingeklappten Block „Wahrscheinlich da“, ein Tipp holt ihn in die Liste (`forceBuy: true` wird gespeichert).
 
 ## 4. Synchronisation
 

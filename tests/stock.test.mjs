@@ -1,7 +1,7 @@
 // Punktzahl fuer "Heute" (Bauplan Abschnitt 7) und Bestand aus dem Haushaltsbuch
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN, learnHalfLives, buildStock, guessGroup } from "../src/logic/stock.js";
+import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN, learnHalfLives, buildStock, guessGroup, shopStockId, shopStockItem } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const NOW = "2026-10-04";                                   // fester Bezugstag fuer die Kochhistorie-Rechnung
@@ -147,4 +147,34 @@ test("guessGroup: Emoji-Tabelle sortiert Gemuese und Obst richtig, Tiefkuehl und
   assert.equal(guessGroup("Jogh Natur"), "Milchprodukte");
   assert.equal(guessGroup("Parmesan Stk"), "Käse");
   assert.equal(guessGroup("Irgendwas"), "Sonstiges");
+});
+
+// EINKAUF OHNE HAUSHALTSBUCH: abgehakter Posten der Einkaufsliste wird Vorratseintrag
+test("shopStockItem: Name ohne Menge, Gruppe geraten, Herkunft einkauf; Grundvorrat und leere Posten liefern null", () => {
+  const a = shopStockItem({ text:"500 g Cocktailtomaten" }, "2026-11-17", 1);
+  assert.deepEqual(a, { name:"Cocktailtomaten", sub:"Gemüse", date:"2026-11-17", src:"einkauf", createdAt:1 });
+  assert.equal(shopStockItem({ text:"Tomaten 500 g" }, "2026-11-17", 1).name, "Tomaten");
+  assert.equal(shopStockItem({ text:"Salz" }, "2026-11-17", 1), null);
+  assert.equal(shopStockItem({ text:"Olivenöl 2 EL" }, "2026-11-17", 1), null);
+  assert.equal(shopStockItem({ text:"  " }, "2026-11-17", 1), null);
+  assert.equal(shopStockItem(null, "2026-11-17", 1), null);
+});
+
+test("shopStockId: fest je Posten (zwei Geraete schreiben denselben Eintrag), Firebase-tauglich", () => {
+  assert.equal(shopStockId("mabc12xyz"), "ek_mabc12xyz");
+  assert.equal(shopStockId("mabc12xyz"), shopStockId("mabc12xyz"));
+  assert.ok(!/[.#$\[\]\/\s]/.test(shopStockId("a.b/c d#e")));
+});
+
+test("buildStock: abgehakter Einkauf zaehlt ohne Haushaltsbuch als Vorrat und deckt die Rezeptzutat", () => {
+  const items = { [shopStockId("p1")]: shopStockItem({ text:"250 g Cocktailtomaten" }, TODAY, 1) };
+  const resolve = (raw) => /tomate/i.test(raw) ? { name:"Tomaten", key:"tomaten", src:"regel" } : { name:raw, key:raw.toLowerCase(), src:"" };
+  const stock = buildStock({ items, resolve });
+  assert.equal(stock.length, 1);
+  assert.equal(stock[0].name, "Tomaten");
+  assert.deepEqual(stock[0].srcs, ["einkauf"]);
+  assert.equal(stock[0].unsorted, false);
+  assert.ok(scoreRecipe(normalizeRecipe("T", { ingredients:["400 g Tomaten"] }, 0), stock, TODAY).cov > 0.9);
+  const un = buildStock({ items:{ x:{ name:"Klopapier", date:TODAY, src:"einkauf" } }, resolve });
+  assert.equal(un[0].unsorted, true);                               // ohne Zuordnung: Hinweis "nicht einsortiert"
 });

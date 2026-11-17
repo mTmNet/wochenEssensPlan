@@ -69,13 +69,13 @@ export default function Shopping({state,api}){
                   </div>
                 ))}
 
-                {/* WAHRSCHEINLICH DA (laut Haushaltsbuch) */}
+                {/* WAHRSCHEINLICH DA (laut Vorrat) */}
                 {shopLikely.length>0&&(
                   <div style={{marginBottom:"10px"}}>
                     {header("Wahrscheinlich da",shopLikely.length,showLikely,()=>setShowLikely(v=>!v))}
                     {showLikely&&(
                       <div style={{background:C.white,border:"1px solid "+C.border}}>
-                        <div style={{padding:"8px 14px",fontSize:"12px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Haushaltsbuch vermutlich noch vorrätig. Ein Tipp auf „Kaufen“ holt den Posten in die Liste.</div>
+                        <div style={{padding:"8px 14px",fontSize:"12px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Vorrat vermutlich noch da. Ein Tipp auf „Kaufen“ holt den Posten in die Liste.</div>
                         {shopLikely.map((item,gi)=>row(item,gi,shopLikely.length,(
                           <>
                             <span style={{fontSize:"11px",color:C.ok,flexShrink:0}}>{Math.round(item.stockP*100)} %</span>
@@ -101,7 +101,7 @@ export default function Shopping({state,api}){
                     )}
                   </div>
                 )}
-                {!hbLink&&<div style={{fontSize:"11px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Mit verknüpftem Haushaltsbuch (Reiter „Vorrat“) wandern wahrscheinlich vorrätige Zutaten in einen eigenen Block.</div>}
+                {!hbLink&&<div style={{fontSize:"11px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“). Was laut Vorrat noch da ist, wandert in einen eigenen Block.</div>}
                 <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px"}}>EINKAUFSLISTE KOMPLETT LÖSCHEN</button>
               </div>
             )}

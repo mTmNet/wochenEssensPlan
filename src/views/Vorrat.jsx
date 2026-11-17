@@ -10,9 +10,10 @@ import { groupOf } from "../logic/graph.js";
 import Modal from "../components/Modal.jsx";
 
 // VORRAT - eine Liste aus drei Quellen: Haushaltsbuch (automatisch), Speisekammer-Foto (KI) und Hand.
+// Ohne Haushaltsbuch kommen abgehakte Posten der Einkaufsliste dazu (Herkunft "Einkauf").
 // Dauervorrat (Pin) verblasst nie; x entfernt eigene Positionen bzw. streicht Haushaltsbuch-Positionen; lernendes Verblassen je Produkt.
 const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
-const SRC_LABEL={hb:"Haushaltsbuch",foto:"Foto",hand:"Hand",perm:"Dauervorrat"};
+const SRC_LABEL={hb:"Haushaltsbuch",foto:"Foto",hand:"Hand",einkauf:"Einkauf",perm:"Dauervorrat"};
 const sel={...input,width:"118px",flexShrink:0,padding:"8px 6px",minHeight:"40px",fontSize:"13px"};
 // Umschalter Liste / Graph wird je Geraet gemerkt (reine Bequemlichkeit, kein Plan-Zustand)
 const MODE_KEY="wp.vorratMode";
@@ -22,6 +23,7 @@ const saveMode=(m)=>{ try{ localStorage.setItem(MODE_KEY,m); }catch(e){} };
 export default function Vorrat({state,api}){
   const {stock,stockRaw,hbLink,hbLoading,hbErr,hbBook,learned,vocab,unmapped,aliasBusy,aliasErr}=state;
   const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast,setAlias,clearAlias,mapNamesAI}=api;
+  const [menu,setMenu]=useState("");            // Schluessel der Zeile mit offenem Menue "⋯"
   const [rename,setRename]=useState(null);      // {item, value} - Dialog "Name zuordnen"
   const [hbInput,setHbInput]=useState("");
   const [name,setName]=useState("");
@@ -59,16 +61,28 @@ export default function Vorrat({state,api}){
     const lrn=s.learnedN?"gelernt aus "+s.learnedN+(s.learnedN===1?" Kauf":" Käufen"):"";
     const rawsOther=(s.raws||[]).filter(r=>r.trim().toLowerCase()!==s.name.trim().toLowerCase());
     const aus=rawsOther.length?"aus: "+rawsOther.slice(0,3).join(", ")+(rawsOther.length>3?" …":""):"";
+    const raws=s.raws&&s.raws.length?s.raws:[s.name];
+    const open=menu===s.key;
+    const mBtn={...btn("ghost"),flex:"1 1 120px",minHeight:"44px",padding:"8px 6px",fontSize:"12px",letterSpacing:"1px"};
     return(
-      <div key={s.key} style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 2px 8px 14px",borderTop:i?"1px solid "+C.border:"none",minHeight:"56px",boxSizing:"border-box"}}>
+      <div key={s.key} style={{borderTop:i?"1px solid "+C.border:"none"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 2px 8px 14px",minHeight:"56px",boxSizing:"border-box"}}>
         <div style={{flex:1,minWidth:0}}>
           <button onClick={()=>setRename({item:s,value:s.name})} title="Name zuordnen" aria-label={s.name+": Name zuordnen"} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:SF,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{ const ic=foodIcon(s.name,groupOf(s)); return ic?<span aria-hidden="true" style={{marginRight:"8px"}}>{ic}</span>:null; })()}{s.name}</button>
-          <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn,aus].filter(Boolean).join(" · ")}</div>
+          <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn,aus].filter(Boolean).join(" · ")}{s.unsorted&&<span style={{color:C.accent}}> · nicht einsortiert</span>}</div>
         </div>
         {!s.permanent&&<span style={{fontSize:"16px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"46px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>}
         {!s.permanent&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:s.p>=0.99?C.subtle:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
-        <button onClick={()=>setPermanent(s,!s.permanent)} aria-label={s.permanent?s.name+": Dauervorrat aufheben":s.name+" als Dauervorrat"} aria-pressed={!!s.permanent} title={s.permanent?"Dauervorrat aufheben":"Dauervorrat: ist immer da"} style={{...iconBtn,color:s.permanent?C.accent:C.subtle,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>{s.permanent?"★":"☆"}</button>
-        <button onClick={()=>removeStock(s)} aria-label={s.name+" entfernen"} title={s.srcs&&s.srcs.includes("hb")?"Nicht mehr da – aus der Liste streichen":"Entfernen"} style={{...iconBtn,color:C.muted,minWidth:"36px",padding:"6px 4px"}}>×</button>
+        <button onClick={()=>{ removeStock(s); setMenu(""); showToast(s.permanent?"„"+s.name+"“ aus dem Dauervorrat genommen.":"„"+s.name+"“ gestrichen, gilt als aufgebraucht."); }} aria-label={s.name+": aufgebraucht, streichen"} title="Aufgebraucht – aus der Liste streichen" style={{...iconBtn,color:C.muted,minWidth:"36px",padding:"6px 4px"}}>×</button>
+        <button onClick={()=>setMenu(open?"":s.key)} aria-label={s.name+": weitere Aktionen"} aria-expanded={open} title="Weitere Aktionen" style={{...iconBtn,color:open?C.accent:C.muted,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>⋯</button>
+      </div>
+      {open&&(
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap",padding:"0 14px 10px"}}>
+          <button onClick={()=>{ setMenu(""); setRename({item:s,value:s.unsorted?"":s.name}); }} style={{...mBtn,color:C.accent}}>EINSORTIEREN</button>
+          <button onClick={()=>{ setMenu(""); setAlias(raws,""); showToast("„"+s.name+"“ als „kein Lebensmittel“ ausgeblendet."); }} style={mBtn}>KEIN LEBENSMITTEL</button>
+          <button onClick={()=>{ setMenu(""); setPermanent(s,!s.permanent); showToast(s.permanent?"„"+s.name+"“ ist kein Dauervorrat mehr.":"„"+s.name+"“ ist jetzt Dauervorrat."); }} style={mBtn}>{s.permanent?"DAUERVORRAT AUFHEBEN":"★ DAUERVORRAT"}</button>
+        </div>
+      )}
       </div>
     );
   };
@@ -98,7 +112,7 @@ export default function Vorrat({state,api}){
     <div style={{margin:"4px 2px 12px",display:"flex",alignItems:"flex-end",gap:"10px"}}>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontFamily:SER,fontSize:"26px",color:C.text,lineHeight:1.15}}>Vorrat</div>
-        <div style={{fontSize:"13px",color:C.muted,marginTop:"3px"}}>{mode==="graph"?"Dein Vorrat im Kreis – Rezept in der Mitte, Gruppen als Stücke.":"Was wahrscheinlich da ist – aus Haushaltsbuch, Foto und Hand."}</div>
+        <div style={{fontSize:"13px",color:C.muted,marginTop:"3px"}}>{mode==="graph"?"Dein Vorrat im Kreis – Rezept in der Mitte, Gruppen als Stücke.":hbLink?"Was wahrscheinlich da ist – aus Haushaltsbuch, Foto und Hand.":"Was wahrscheinlich da ist – aus Einkaufsliste, Foto und Hand."}</div>
       </div>
       <div role="group" aria-label="Ansicht" style={{display:"flex",border:"1px solid "+C.border,flexShrink:0}}>
         {[["list","Liste"],["graph","Graph"]].map(([m,t])=>(
@@ -139,7 +153,7 @@ export default function Vorrat({state,api}){
     {mode==="list"&&(!hbLink?(
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"12px"}}>
         <div style={label}>Haushaltsbuch verbinden</div>
-        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Mit dem Code eures Haushaltsbuchs kommen die Lebensmittel-Einkäufe automatisch in den Vorrat. Es wird nur gelesen, nie etwas geändert.</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Mit dem Code eures Haushaltsbuchs kommen die Lebensmittel-Einkäufe automatisch in den Vorrat. Es wird nur gelesen, nie etwas geändert. Ohne Haushaltsbuch füllt sich der Vorrat aus der Einkaufsliste: Abgehaktes gilt als gekauft.</div>
         <div style={{display:"flex",gap:"6px"}}>
           <input value={hbInput} onChange={e=>setHbInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter")doConnect();}} placeholder="BUCH-CODE" aria-label="Buch-Code" style={{...input,flex:1,width:"auto",letterSpacing:"2px"}} />
           <button onClick={doConnect} disabled={hbLoading||!hbInput.trim()} style={{...btn("primary"),letterSpacing:"2px",opacity:hbLoading||!hbInput.trim()?0.5:1}}>{hbLoading?"…":"VERBINDEN"}</button>
@@ -174,23 +188,23 @@ export default function Vorrat({state,api}){
     {/* WAHRSCHEINLICH DA */}
     {mode==="list"&&<div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"12px"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.border}}><span style={{...label,marginBottom:0}}>Wahrscheinlich da ({visible.length})</span></div>
-      {visible.length===0&&<div style={{padding:"14px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>Noch nichts im Vorrat. Haushaltsbuch verbinden, Speisekammer fotografieren oder oben etwas eintragen.</div>}
+      {visible.length===0&&<div style={{padding:"14px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>Noch nichts im Vorrat. Einkäufe in der Einkaufsliste abhaken, Haushaltsbuch verbinden, Speisekammer fotografieren oder oben etwas eintragen.</div>}
       {visible.map(row)}
       <div style={{padding:"10px 14px",fontSize:"13px",color:C.subtle,borderTop:"1px solid "+C.border,lineHeight:"1.5"}}>
         <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
-        <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. ★ Dauervorrat verblasst nie. Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+        <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. × heißt „aufgebraucht“. Unter ⋯ stehen „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position gestrichen.":goneCount+" Positionen gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
         {hidden.length>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>Als „kein Lebensmittel“ ausgeblendet:</span>{hidden.map(h=>(<button key={h.key} onClick={()=>{ clearAlias([],[h.key]); showToast("„"+h.label+"“ wieder eingeblendet."); }} aria-label={h.label+" wieder einblenden"} style={{background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"12px",cursor:"pointer",padding:"5px 8px",fontFamily:SF}}>{h.label} ×</button>))}</div>}
-        <div style={{marginTop:"6px"}}>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Name antippen, um eine Zuordnung zu ändern.</div>
+        <div style={{marginTop:"6px"}}>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
       </div>
     </div>}
 
     {/* NAME ZUORDNEN */}
     {rename&&(
-      <Modal title="Name zuordnen" micro="Vorrat" onClose={()=>setRename(null)}>
+      <Modal title="Einsortieren" micro="Vorrat" onClose={()=>setRename(null)}>
         <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>
           {(rename.item.raws||[]).length?<>Auf dem Kassenbon: <b style={{color:C.text}}>{(rename.item.raws||[]).join(", ")}</b>. </>:null}
-          Wie heißt das Produkt in deinen Rezepten? Die Zuordnung gilt ab jetzt für alle Teilnehmer.
+          Zu welcher Zutat aus deinen Rezepten gehört das? Gleiche Namen werden zu einer Zeile. Die Zuordnung gilt ab jetzt für alle Teilnehmer.
         </div>
         <input value={rename.value} onChange={e=>setRename(r=>({...r,value:e.target.value}))} list="vokabular" placeholder="Zutatenname, z. B. Tomaten" aria-label="Zutatenname" autoFocus style={{...input,marginBottom:"10px"}} />
         <datalist id="vokabular">{(vocab||[]).slice(0,300).map(v=><option key={v.key} value={v.name} />)}</datalist>
