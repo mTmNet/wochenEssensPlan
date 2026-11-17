@@ -76,7 +76,7 @@ export default function Recipes({state,api}){
           <div style={{padding:"12px",paddingBottom:"80px"}}>
             {/* Importmodus */}
             <div style={{display:"flex",marginBottom:"12px",border:"1px solid "+C.border,background:C.white}}>
-              {[{id:"text",label:"TEXT"},{id:"photo",label:"FOTO"}].map(m=>(
+              {[{id:"text",label:"Text"},{id:"photo",label:"Foto"}].map(m=>(
                 <button key={m.id} onClick={()=>{setImportMode(m.id);setExtracted(null);setImportErr("");}} aria-pressed={importMode===m.id} style={{flex:1,padding:"11px",minHeight:"44px",background:importMode===m.id?C.strong:C.white,color:importMode===m.id?C.onStrong:C.muted,fontWeight:"700",fontSize:"12px",letterSpacing:"0.5px",cursor:"pointer",border:"none",fontFamily:SF,borderRadius:"6px"}}>
                   {m.label}
                 </button>
@@ -107,7 +107,7 @@ export default function Recipes({state,api}){
               }
               {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:C.errBg,border:"1px solid "+C.errBorder,color:C.err,fontSize:"13px"}}>{importErr}</div>}
               <button disabled={!canExtract} onClick={doExtract} style={{...btn("primary"),width:"100%",marginTop:"10px",padding:"12px",letterSpacing:"0.5px",background:extracting?C.subtle:C.accent,cursor:canExtract?"pointer":"default",opacity:canExtract?1:0.4,borderRadius:"6px"}}>
-                {extracting?(importMode==="photo"&&photoMode==="dish"?"KI ERKENNT DAS GERICHT…":"KI LIEST DAS REZEPT…"):(importMode==="photo"&&photoMode==="dish"?"GERICHT ERKENNEN":"REZEPT MIT KI EXTRAHIEREN")}
+                {extracting?(importMode==="photo"&&photoMode==="dish"?"KI erkennt das Gericht…":"KI liest das Rezept…"):(importMode==="photo"&&photoMode==="dish"?"Gericht erkennen":"Rezept mit KI extrahieren")}
               </button>
             </div>
 
@@ -193,14 +193,14 @@ export default function Recipes({state,api}){
                   <div style={{marginTop:"14px",padding:"10px 12px",border:"1px solid "+C.accent,background:C.abg}}>
                     <div style={{fontSize:"13px",color:C.text,lineHeight:"1.5",marginBottom:"8px"}}>Ein Rezept „{recName(recipes[recKey(String(extracted.name).trim())],recKey(String(extracted.name).trim()))}“ gibt es schon. Ersetzen behält Bewertung, Notizen und Kochhistorie; die Kopie bekommt den Zusatz „(Kopie)“.</div>
                     <div style={{display:"flex",gap:"8px"}}>
-                      <button onClick={()=>doSave({replace:true})} style={{...btn("dark"),flex:1,borderRadius:"6px"}}>{savedMsg?"GESPEICHERT":"ERSETZEN"}</button>
-                      <button onClick={()=>doSave({copy:true})} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ALS KOPIE SPEICHERN</button>
+                      <button onClick={()=>doSave({replace:true})} style={{...btn("dark"),flex:1,borderRadius:"6px"}}>{savedMsg?"Gespeichert":"Ersetzen"}</button>
+                      <button onClick={()=>doSave({copy:true})} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Als Kopie speichern</button>
                     </div>
                   </div>
                 ):(
-                  <button onClick={()=>doSave({})} style={{...btn("primary"),width:"100%",marginTop:"14px",padding:"12px",letterSpacing:"0.5px",background:savedMsg?C.ok:C.accent,transition:"background 0.3s",borderRadius:"6px"}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
+                  <button onClick={()=>doSave({})} style={{...btn("primary"),width:"100%",marginTop:"14px",padding:"12px",letterSpacing:"0.5px",background:savedMsg?C.ok:C.accent,transition:"background 0.3s",borderRadius:"6px"}}>{savedMsg?"Gespeichert":extracted.ai?"Ins Kochbuch & öffnen":"Rezept speichern"}</button>
                 )}
-                {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{...btn("ghost"),width:"100%",marginTop:"6px",letterSpacing:"0.5px",borderRadius:"6px"}}>VERWERFEN</button>}
+                {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{...btn("ghost"),width:"100%",marginTop:"6px",letterSpacing:"0.5px",borderRadius:"6px"}}>Verwerfen</button>}
               </div>
             )}
 
@@ -208,7 +208,7 @@ export default function Recipes({state,api}){
             {total===0&&!extracted&&(
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"12px",textAlign:"center"}}>
                 <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"12px"}}>Noch keine Rezepte in diesem Plan. Übernimm unten Gerichte aus der Rezept-Basis, importiere oben ein eigenes Rezept oder hol dir die Startrezepte als Grundstock.</div>
-                <button onClick={adoptStarters} style={{...btn("primary"),letterSpacing:"0.5px",padding:"12px 20px",borderRadius:"6px"}}>STARTREZEPTE ÜBERNEHMEN</button>
+                <button onClick={adoptStarters} style={{...btn("primary"),letterSpacing:"0.5px",padding:"12px 20px",borderRadius:"6px"}}>Startrezepte übernehmen</button>
               </div>
             )}
 
@@ -266,7 +266,7 @@ export default function Recipes({state,api}){
                       <div style={{fontSize:"15px",fontFamily:SER,color:C.text,marginBottom:"2px"}}>{c.name}</div>
                       <div style={{fontSize:"13px",color:C.muted}}>{[c.category,c.cuisine,c.origin,c.minutes?c.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
                     </div>
-                    <button onClick={()=>doAdopt(c)} disabled={adopting===c.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0,borderRadius:"6px"}}>{adopting===c.name?"…":"ÜBERNEHMEN"}</button>
+                    <button onClick={()=>doAdopt(c)} disabled={adopting===c.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0,borderRadius:"6px"}}>{adopting===c.name?"…":"Übernehmen"}</button>
                   </div>
                 ))}
               </div>
@@ -275,7 +275,7 @@ export default function Recipes({state,api}){
             {/* Kochbuch als PDF */}
             {total>0&&(
               <div style={{marginTop:"14px"}}>
-                <button onClick={downloadPDF} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"0.5px",borderRadius:"6px"}}>KOCHBUCH ALS PDF DRUCKEN / SPEICHERN</button>
+                <button onClick={downloadPDF} style={{...btn("dark"),width:"100%",padding:"14px",fontSize:"12px",letterSpacing:"0.5px",borderRadius:"6px"}}>Kochbuch als PDF drucken / speichern</button>
                 <div style={{fontSize:"13px",color:C.muted,textAlign:"center",marginTop:"8px",lineHeight:"1.5"}}>Ein neues Fenster öffnet sich. Dort „Als PDF speichern“ im Druckdialog wählen.</div>
               </div>
             )}
@@ -286,8 +286,8 @@ export default function Recipes({state,api}){
               <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Alle Rezepte mit Bewertung, Notizen, Kochdaten und Fotos in einer Datei. Damit nimmst du dein Kochbuch in einen anderen Plan mit oder hast eine Sicherung.</div>
               <input ref={cbFileRef} type="file" accept="application/json,.json" style={{display:"none",borderRadius:"6px"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(e.target) e.target.value=""; if(f){ setCbMode("skip"); loadCookbookFile(f); } }} />
               <div style={{display:"flex",gap:"6px"}}>
-                <button onClick={exportCookbookFile} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5,borderRadius:"6px"}}>SICHERN (.JSON)</button>
-                <button onClick={()=>cbFileRef.current&&cbFileRef.current.click()} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>AUS DATEI LADEN</button>
+                <button onClick={exportCookbookFile} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5,borderRadius:"6px"}}>Sichern (.json)</button>
+                <button onClick={()=>cbFileRef.current&&cbFileRef.current.click()} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>Aus Datei laden</button>
               </div>
             </div>
 
@@ -314,8 +314,8 @@ export default function Recipes({state,api}){
                   </>
                 )}
                 <div style={{display:"flex",gap:"6px"}}>
-                  {!cookbookImport.err&&<button onClick={()=>confirmCookbookImport(cbMode)} disabled={cookbookImport.busy} style={{...btn("primary"),flex:2,opacity:cookbookImport.busy?0.6:1,borderRadius:"6px"}}>{cookbookImport.busy?"WIRD GELADEN…":"IMPORTIEREN"}</button>}
-                  <button onClick={cancelCookbookImport} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>{cookbookImport.err?"SCHLIESSEN":"ABBRECHEN"}</button>
+                  {!cookbookImport.err&&<button onClick={()=>confirmCookbookImport(cbMode)} disabled={cookbookImport.busy} style={{...btn("primary"),flex:2,opacity:cookbookImport.busy?0.6:1,borderRadius:"6px"}}>{cookbookImport.busy?"Wird geladen…":"Importieren"}</button>}
+                  <button onClick={cancelCookbookImport} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>{cookbookImport.err?"Schließen":"Abbrechen"}</button>
                 </div>
               </Modal>
             )}

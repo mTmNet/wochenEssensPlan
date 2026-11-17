@@ -108,8 +108,8 @@ export default function Heute({state,api}){
             </div>
           )}
           <div style={{display:"flex",gap:"6px"}}>
-            <button onClick={()=>open(top)} disabled={busy===top.key} style={{...btn("primary"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"6px"}}>ZUM REZEPT</button>
-            {(top.rec.steps||[]).length>0&&<button onClick={()=>cook(top)} disabled={busy===top.key} style={{...btn("dark"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"6px"}}>KOCHMODUS</button>}
+            <button onClick={()=>open(top)} disabled={busy===top.key} style={{...btn("primary"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"6px"}}>Zum Rezept</button>
+            {(top.rec.steps||[]).length>0&&<button onClick={()=>cook(top)} disabled={busy===top.key} style={{...btn("dark"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"6px"}}>Kochmodus</button>}
           </div>
         </div>
       </div>
@@ -121,7 +121,7 @@ export default function Heute({state,api}){
         {rest.map((s,i)=>(
           <button key={s.key} onClick={()=>{setSelected(s.key);window.scrollTo({top:0,behavior:"smooth"});}} title="Als Hauptvorschlag anzeigen" style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"8px 14px",minHeight:"56px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none",background:"none",border:"none",borderTop:"none",borderLeft:"none",borderRight:"none",cursor:"pointer",textAlign:"left",fontFamily:SF}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:SER,fontSize:"16px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameOf(s)}{s.basis&&<span style={{fontSize:"12px",color:C.subtle,letterSpacing:"1px",marginLeft:"8px"}}>BASIS</span>}</div>
+              <div style={{fontFamily:SER,fontSize:"16px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameOf(s)}{s.basis&&<span style={{fontSize:"12px",color:C.subtle,letterSpacing:"1px",marginLeft:"8px"}}>Basis</span>}</div>
               <div style={{fontSize:"13px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[meta(s),...s.reasons.slice(0,1)].filter(Boolean).join(" · ")}</div>
             </div>
             {hasStock&&<div style={{fontSize:"14px",fontWeight:"700",color:pColor(s.cov),flexShrink:0,minWidth:"42px",textAlign:"right"}}>{Math.round(s.cov*100)} %</div>}
@@ -131,7 +131,7 @@ export default function Heute({state,api}){
       </div>
     )}
     {ranked.length>4&&(
-      <button onClick={()=>setMore(m=>!m)} style={{...btn("ghost"),width:"100%",letterSpacing:"0.5px",marginBottom:"12px",borderRadius:"6px"}}>{more?"WENIGER":"MEHR VORSCHLÄGE"}</button>
+      <button onClick={()=>setMore(m=>!m)} style={{...btn("ghost"),width:"100%",letterSpacing:"0.5px",marginBottom:"12px",borderRadius:"6px"}}>{more?"Weniger":"Mehr Vorschläge"}</button>
     )}
     {top&&<div style={{fontSize:"13px",color:C.subtle,margin:"-6px 2px 12px"}}>Alternative antippen zeigt sie als Hauptvorschlag mit ihren Zutaten.</div>}
 
@@ -164,7 +164,7 @@ export default function Heute({state,api}){
             ))}
           </div>
           <button onClick={()=>suggestRecipe({fast:filters.quick,kids:filters.kids,cuisine:aiCuisine})} disabled={aiBusy} style={{...btn("primary"),width:"100%",padding:"13px",fontSize:"12px",letterSpacing:"0.5px",background:aiBusy?C.subtle:C.accent,cursor:aiBusy?"default":"pointer",borderRadius:"6px"}}>
-            {aiBusy?"KI SUCHT…":"BEKANNTES GERICHT FINDEN"}
+            {aiBusy?"KI sucht…":"Bekanntes Gericht finden"}
           </button>
           <div style={{fontSize:"13px",color:C.subtle,marginTop:"6px",lineHeight:"1.4"}}>{hasStock?"Die KI nennt ein etabliertes Gericht, das zu deinem Vorrat passt. Die Filter oben gelten mit.":"Ohne Vorrat nennt die KI ein etabliertes Gericht nach deiner Auswahl – keine erfundenen Kombinationen."}</div>
           {aiErr&&<div style={{marginTop:"8px",fontSize:"13px",color:C.err}}>{aiErr}</div>}

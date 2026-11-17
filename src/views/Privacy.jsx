@@ -22,11 +22,11 @@ export default function PrivacyModal({onClose,onExport,onDelete,hasRecipes}){
       ))}
       {onDelete&&(
         <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
-          <button onClick={onExport} disabled={!hasRecipes} style={{...btn("ghost"),flex:1,color:C.accent,borderColor:C.accent,opacity:hasRecipes?1:0.4,borderRadius:"6px"}}>KOCHBUCH-PDF</button>
-          <button onClick={onDelete} style={{...btn("danger"),flex:1,borderRadius:"6px"}}>PLAN ENDGÜLTIG LÖSCHEN</button>
+          <button onClick={onExport} disabled={!hasRecipes} style={{...btn("ghost"),flex:1,color:C.accent,borderColor:C.accent,opacity:hasRecipes?1:0.4,borderRadius:"6px"}}>Kochbuch-PDF</button>
+          <button onClick={onDelete} style={{...btn("danger"),flex:1,borderRadius:"6px"}}>Plan endgültig löschen</button>
         </div>
       )}
-      <button onClick={onClose} style={{...btn("ghost"),width:"100%",marginTop:"8px",letterSpacing:"0.5px",borderRadius:"6px"}}>SCHLIESSEN</button>
+      <button onClick={onClose} style={{...btn("ghost"),width:"100%",marginTop:"8px",letterSpacing:"0.5px",borderRadius:"6px"}}>Schließen</button>
     </Modal>
   );
 }

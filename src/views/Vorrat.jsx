@@ -83,9 +83,9 @@ export default function Vorrat({state,api}){
       {open&&info&&<div style={{padding:"0 14px 8px",fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{info}</div>}
       {open&&(
         <div style={{display:"flex",gap:"6px",flexWrap:"wrap",padding:"0 14px 10px"}}>
-          <button onClick={()=>{ setMenu(""); setRename({item:s,value:s.unsorted?"":s.name}); }} style={{...mBtn,color:C.accent,borderRadius:"6px"}}>EINSORTIEREN</button>
-          <button onClick={()=>{ setMenu(""); setAlias(raws,""); showToast("„"+s.name+"“ als „kein Lebensmittel“ ausgeblendet."); }} style={mBtn}>KEIN LEBENSMITTEL</button>
-          <button onClick={()=>{ setMenu(""); setPermanent(s,!s.permanent); showToast(s.permanent?"„"+s.name+"“ ist kein Dauervorrat mehr.":"„"+s.name+"“ ist jetzt Dauervorrat."); }} style={mBtn}>{s.permanent?"DAUERVORRAT AUFHEBEN":"★ DAUERVORRAT"}</button>
+          <button onClick={()=>{ setMenu(""); setRename({item:s,value:s.unsorted?"":s.name}); }} style={{...mBtn,color:C.accent,borderRadius:"6px"}}>Einsortieren</button>
+          <button onClick={()=>{ setMenu(""); setAlias(raws,""); showToast("„"+s.name+"“ als „kein Lebensmittel“ ausgeblendet."); }} style={mBtn}>Kein Lebensmittel</button>
+          <button onClick={()=>{ setMenu(""); setPermanent(s,!s.permanent); showToast(s.permanent?"„"+s.name+"“ ist kein Dauervorrat mehr.":"„"+s.name+"“ ist jetzt Dauervorrat."); }} style={mBtn}>{s.permanent?"Dauervorrat aufheben":"★ Dauervorrat"}</button>
         </div>
       )}
       </div>
@@ -107,8 +107,8 @@ export default function Vorrat({state,api}){
             </div>
           ))}
           <div style={{display:"flex",gap:"6px",padding:"8px 12px"}}>
-            {scan.items.length>0&&<button onClick={takeScan} style={{...btn("primary"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>{scan.items.filter(x=>x.on).length} ÜBERNEHMEN</button>}
-            <button onClick={()=>setScan(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>VERWERFEN</button>
+            {scan.items.length>0&&<button onClick={takeScan} style={{...btn("primary"),flex:2,letterSpacing:"0.5px",borderRadius:"6px"}}>{scan.items.filter(x=>x.on).length} Übernehmen</button>}
+            <button onClick={()=>setScan(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Verwerfen</button>
           </div>
         </div>
   ):null;
@@ -148,7 +148,7 @@ export default function Vorrat({state,api}){
         <button onClick={doAdd} disabled={!name.trim()} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",opacity:name.trim()?1:0.5,borderRadius:"6px"}}>+</button>
       </div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={onFile} />
-      {!scan&&<button onClick={()=>fileRef.current&&fileRef.current.click()} style={{...btn("ghost"),width:"100%",color:C.accent,letterSpacing:"0.5px",borderRadius:"6px"}}>📷 SPEISEKAMMER FOTOGRAFIEREN</button>}
+      {!scan&&<button onClick={()=>fileRef.current&&fileRef.current.click()} style={{...btn("ghost"),width:"100%",color:C.accent,letterSpacing:"0.5px",borderRadius:"6px"}}>📷 Speisekammer fotografieren</button>}
       {scan&&scan.busy&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 0"}}>Die KI schaut sich das Foto an…</div>}
       {scan&&!scan.busy&&scanBox}
       <div style={{fontSize:"13px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}>Das Foto geht nur zur Erkennung an die KI und wird nicht gespeichert. Erkannte Lebensmittel gelten ab heute als gekauft.</div>
@@ -161,7 +161,7 @@ export default function Vorrat({state,api}){
         <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Mit dem Code eures Haushaltsbuchs kommen die Lebensmittel-Einkäufe automatisch in den Vorrat. Es wird nur gelesen, nie etwas geändert. Ohne Haushaltsbuch füllt sich der Vorrat aus der Einkaufsliste: Abgehaktes gilt als gekauft.</div>
         <div style={{display:"flex",gap:"6px"}}>
           <input value={hbInput} onChange={e=>setHbInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter")doConnect();}} placeholder="BUCH-CODE" aria-label="Buch-Code" style={{...input,flex:1,width:"auto",letterSpacing:"0.5px"}} />
-          <button onClick={doConnect} disabled={hbLoading||!hbInput.trim()} style={{...btn("primary"),letterSpacing:"0.5px",opacity:hbLoading||!hbInput.trim()?0.5:1,borderRadius:"6px"}}>{hbLoading?"…":"VERBINDEN"}</button>
+          <button onClick={doConnect} disabled={hbLoading||!hbInput.trim()} style={{...btn("primary"),letterSpacing:"0.5px",opacity:hbLoading||!hbInput.trim()?0.5:1,borderRadius:"6px"}}>{hbLoading?"…":"Verbinden"}</button>
         </div>
         {hbErr&&<div style={{marginTop:"8px",fontSize:"13px",color:C.err}}>{hbErr}</div>}
       </div>
@@ -173,11 +173,11 @@ export default function Vorrat({state,api}){
           <div style={{fontSize:"13px",color:hbErr?C.err:C.muted}}>{hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+(learnedCount?" · Verblassen gelernt für "+learnedCount+(learnedCount===1?" Produkt":" Produkte"):"")):"verbunden"}</div>
           {aliasBusy&&<div style={{fontSize:"13px",color:C.accent}}>KI ordnet Produktnamen zu…</div>}
           {!aliasBusy&&aliasErr&&<div style={{fontSize:"13px",color:C.err}}>{aliasErr}</div>}
-          {!aliasBusy&&!aliasErr&&unmapped.length>0&&<div style={{fontSize:"13px",color:C.muted,display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{unmapped.length===1?"1 Name ungeklärt":unmapped.length+" Namen ungeklärt"}</span><button onClick={()=>mapNamesAI(unmapped)} style={{background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"6px 4px",fontFamily:SF,fontWeight:"700",letterSpacing:"1px"}}>MIT KI ZUORDNEN</button></div>}
+          {!aliasBusy&&!aliasErr&&unmapped.length>0&&<div style={{fontSize:"13px",color:C.muted,display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{unmapped.length===1?"1 Name ungeklärt":unmapped.length+" Namen ungeklärt"}</span><button onClick={()=>mapNamesAI(unmapped)} style={{background:"none",border:"none",color:C.accent,fontSize:"12px",cursor:"pointer",padding:"6px 4px",fontFamily:SF,fontWeight:"700",letterSpacing:"1px"}}>Mit KI zuordnen</button></div>}
         </div>
         <div style={{display:"flex",gap:"6px"}}>
           <button onClick={()=>reloadHb()} disabled={hbLoading} style={{...tile,color:C.accent,opacity:hbLoading?0.5:1,borderRadius:"6px"}}>↻</button>
-          <button onClick={disconnectHb} style={tile}>TRENNEN</button>
+          <button onClick={disconnectHb} style={tile}>Trennen</button>
         </div>
       </div>
     ))}
@@ -225,12 +225,12 @@ export default function Vorrat({state,api}){
         <input value={rename.value} onChange={e=>setRename(r=>({...r,value:e.target.value}))} list="vokabular" placeholder="Zutatenname, z. B. Tomaten" aria-label="Zutatenname" autoFocus style={{...input,marginBottom:"10px"}} />
         <datalist id="vokabular">{(vocab||[]).slice(0,300).map(v=><option key={v.key} value={v.name} />)}</datalist>
         <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-          <button onClick={()=>{ const n=rename.value.trim(); if(!n) return; setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],n); showToast("Zugeordnet: "+n); setRename(null); }} disabled={!rename.value.trim()} style={{...btn("primary"),flex:"1 1 120px",opacity:rename.value.trim()?1:0.5,borderRadius:"6px"}}>SPEICHERN</button>
-          <button onClick={()=>{ setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],""); showToast("Als „kein Lebensmittel“ ausgeblendet."); setRename(null); }} style={{...btn("ghost"),flex:"1 1 120px",borderRadius:"6px"}}>KEIN LEBENSMITTEL</button>
+          <button onClick={()=>{ const n=rename.value.trim(); if(!n) return; setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],n); showToast("Zugeordnet: "+n); setRename(null); }} disabled={!rename.value.trim()} style={{...btn("primary"),flex:"1 1 120px",opacity:rename.value.trim()?1:0.5,borderRadius:"6px"}}>Speichern</button>
+          <button onClick={()=>{ setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],""); showToast("Als „kein Lebensmittel“ ausgeblendet."); setRename(null); }} style={{...btn("ghost"),flex:"1 1 120px",borderRadius:"6px"}}>Kein Lebensmittel</button>
         </div>
         <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
-          <button onClick={()=>{ clearAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name]); setRename(null); }} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ZURÜCKSETZEN</button>
-          <button onClick={()=>setRename(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>ABBRECHEN</button>
+          <button onClick={()=>{ clearAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name]); setRename(null); }} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Zurücksetzen</button>
+          <button onClick={()=>setRename(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Abbrechen</button>
         </div>
       </Modal>
     )}

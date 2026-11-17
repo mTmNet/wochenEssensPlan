@@ -34,23 +34,23 @@ export default function Join({state,api}){
               <span style={{color:"rgba(255,255,255,0.4)",fontSize:"11px",letterSpacing:"1px"}}>CODE</span>
               <span style={{color:C.accent,fontSize:"20px",fontWeight:"700",letterSpacing:"6px"}}>{myCode}</span>
             </div>
-            <button onClick={startPlan} disabled={joinBusy} style={{width:"100%",padding:"12px",minHeight:"44px",background:nameInput.trim()?C.accent:"#2d2d2d",border:"none",color:nameInput.trim()?C.onAccent:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:nameInput.trim()?"pointer":"default",fontFamily:SF}}>{joinBusy?"…":"PLAN STARTEN"}</button>
+            <button onClick={startPlan} disabled={joinBusy} style={{width:"100%",padding:"12px",minHeight:"44px",background:nameInput.trim()?C.accent:"#2d2d2d",border:"none",color:nameInput.trim()?C.onAccent:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:nameInput.trim()?"pointer":"default",fontFamily:SF}}>{joinBusy?"…":"Plan starten"}</button>
           </div>
           <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",padding:"16px"}}>
-            <div style={{color:"rgba(255,255,255,0.6)",fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"4px"}}>BEITRETEN</div>
+            <div style={{color:"rgba(255,255,255,0.6)",fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"4px"}}>Beitreten</div>
             <div style={{color:"rgba(255,255,255,0.35)",fontSize:"11px",marginBottom:"10px"}}>Code eingeben, den du erhalten hast.</div>
             <input aria-label="Plan-Code" value={joinInput} onChange={e=>setJoinInput(e.target.value.toUpperCase().replace(/[\s-]/g,""))} onKeyDown={e=>{if(e.key==="Enter"&&canJoin)joinPlan();}} placeholder="CODE" maxLength={16} style={{width:"100%",padding:"12px 16px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#fff",fontSize:"20px",fontWeight:"700",letterSpacing:"4px",outline:"none",boxSizing:"border-box",textAlign:"center",marginBottom:"10px",fontFamily:SF}} />
-            <button onClick={joinPlan} disabled={joinBusy} style={{width:"100%",padding:"12px",minHeight:"44px",background:canJoin?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.02)",border:"none",color:canJoin?"#fff":"rgba(255,255,255,0.3)",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:canJoin?"pointer":"default",fontFamily:SF}}>BEITRETEN</button>
+            <button onClick={joinPlan} disabled={joinBusy} style={{width:"100%",padding:"12px",minHeight:"44px",background:canJoin?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.02)",border:"none",color:canJoin?"#fff":"rgba(255,255,255,0.3)",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:canJoin?"pointer":"default",fontFamily:SF}}>Beitreten</button>
             {joinErr&&(
               <div style={{marginTop:"10px"}}>
                 <div style={{color:C.err,fontSize:"12px",lineHeight:"1.5"}}>{joinErr}</div>
                 {joinOffer&&(
-                  <button onClick={createWithCode} disabled={joinBusy} style={{width:"100%",marginTop:"8px",padding:"11px",minHeight:"44px",background:"none",border:"1px solid "+C.accent,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",cursor:"pointer",fontFamily:SF}}>NEUEN PLAN MIT DIESEM CODE ANLEGEN</button>
+                  <button onClick={createWithCode} disabled={joinBusy} style={{width:"100%",marginTop:"8px",padding:"11px",minHeight:"44px",background:"none",border:"1px solid "+C.accent,color:C.accent,fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",cursor:"pointer",fontFamily:SF}}>Neuen Plan mit diesem Code anlegen</button>
                 )}
               </div>
             )}
           </div>
-          <button onClick={()=>setInfoOpen(true)} style={{display:"block",margin:"14px auto 0",background:"none",border:"none",color:"rgba(255,255,255,0.45)",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,padding:"8px",minHeight:"40px"}}>DATENSCHUTZ</button>
+          <button onClick={()=>setInfoOpen(true)} style={{display:"block",margin:"14px auto 0",background:"none",border:"none",color:"rgba(255,255,255,0.45)",fontSize:"11px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF,padding:"8px",minHeight:"40px"}}>Datenschutz</button>
         </div>
         {infoOpen&&<PrivacyModal onClose={()=>setInfoOpen(false)} />}
       </div>
