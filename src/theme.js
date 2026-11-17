@@ -20,6 +20,7 @@ export const C = {
   strong:"var(--c-strong)",        // kraeftiger Knopf
   onStrong:"var(--c-on-strong)",
   logo:"var(--c-logo)",
+  logoLine:"var(--c-logo-line)",   // feine dunkle Linie um den Schriftzug
   head:"var(--c-head)",            // Kopfzeile
   headMuted:"var(--c-head-muted)",
   headBtn:"var(--c-head-btn)",
