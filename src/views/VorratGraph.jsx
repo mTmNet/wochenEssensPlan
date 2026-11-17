@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { C, SF, SER, micro as label, btn, chip } from "../theme.js";
+import { C, SF, SER, micro as label, btn, chip, groupTint } from "../theme.js";
 import { recName, recKey, normalizeRecipe } from "../logic/recipes.js";
-import { graphNodes, radialLayout, sectorPath, dragToManual, recipeLinks, rankForSelection, R_CENTER, R_IN } from "../logic/graph.js";
+import { graphNodes, netLayout, netDrag, isNetManual, recipeLinks, rankForSelection } from "../logic/graph.js";
 import { goneKey } from "../logic/stock.js";
-import { foodIcon } from "../logic/foodIcon.js";
 
-// GRAPH DES VORRATS - Rezeptkreis in der Mitte, drumherum je Gruppe ein Kuchenstueck (Groesse nach Anzahl, leichter Farbakzent),
-// Produkte als Punkte darin (gross und hell = wahrscheinlich da, Ring = Dauervorrat, roter Bogen = kippt bald).
-// Rezept antippen: Kanten vom Kreis zu vorhandenen Zutaten, Fehlendes steht im Kreis. Punkte antippen = Auswahl -> "Daraus kochen" (KI).
-// Schieben, Zoomen (Rad, zwei Finger), Kuchenstueck per Gruppenname zuklappen. Punkte lassen sich im eigenen Stueck verschieben (Lage im Plan).
+// NETZ DES VORRATS - je Gruppe ein Mittelpunkt (Kreis in der Farbe der Gruppe), die Produkte haengen als lockerer Haufen daran
+// (kraeftig = wahrscheinlich da, Ring = Dauervorrat, roter Bogen = kippt bald). Keine Emojis, Farben wie am Wochenmarkt.
+// Rezept antippen: Linien von der Mitte zu den vorhandenen Zutaten, Fehlendes steht in der Mitte. Punkte antippen = Auswahl -> "Daraus kochen" (KI).
+// Schieben, Zoomen (Rad, zwei Finger), Gruppe per Mittelpunkt zuklappen. Punkte lassen sich um ihren Mittelpunkt verschieben (Lage im Plan).
 const short=(s,n=14)=>{ const t=String(s||""); return t.length>n?t.slice(0,n-1)+"…":t; };
 const K_MIN=0.4, K_MAX=4;
-// Zwei Zeilen fuer den Rezeptnamen im Kreis
-const wrap2=(name,n=16)=>{ const w=String(name||"").split(" "); const a=[],b=[]; w.forEach(x=>{ if(!b.length&&(a.join(" ")+" "+x).trim().length<=n) a.push(x); else b.push(x); }); return [a.join(" "),short(b.join(" "),n)].filter(Boolean); };
 
 export default function VorratGraph({state,api,onPhoto,onList}){
   const {stock,stockRaw,recipes,classics,aiBusy,aiErr}=state;
@@ -42,14 +39,14 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   useEffect(()=>{ setSelected(s=>{ const n=new Set([...s].filter(k=>nodes.some(x=>x.key===k))); return n.size===s.size?s:n; }); },[sig]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hand-Lagen aus dem Plan (stock/layout/<goneKey>), waehrend des Ziehens die lokale Lage
-  const manual=useMemo(()=>{ const out={}; const raw=(stockRaw&&stockRaw.layout)||{}; nodes.forEach(n=>{ const e=raw[goneKey(n.key)]; if(e&&Number.isFinite(e.t)&&Number.isFinite(e.r)) out[n.key]={t:e.t,r:e.r}; }); if(dragPos) out[dragPos.key]={t:dragPos.t,r:dragPos.r}; return out; },[nodes,stockRaw,dragPos]);
+  const manual=useMemo(()=>{ const out={}; const raw=(stockRaw&&stockRaw.layout)||{}; nodes.forEach(n=>{ const e=raw[goneKey(n.key)]; if(isNetManual(e)) out[n.key]={t:e.t,r:e.r}; }); if(dragPos) out[dragPos.key]={t:dragPos.t,r:dragPos.r}; return out; },[nodes,stockRaw,dragPos]);
   const manualCount=Object.keys(manual).length-(dragPos&&!((stockRaw&&stockRaw.layout)||{})[goneKey(dragPos.key)]?1:0);
-  const layout=useMemo(()=>radialLayout(nodes,collapsed,manual,dragPos?dragPos.key:""),[nodes,collapsed,manual,dragPos]);
-  const {sectors,placed,rOut,rMax}=layout;
-  const isCollapsed=(name)=>collapsed.has(name);
-  const anchorOf=(key)=>{ const n=placed.find(x=>x.key===key); if(n) return n; const src=nodes.find(x=>x.key===key); const sec=src&&sectors.find(x=>x.name===src.group&&x.collapsed); return sec?{x:sec.x,y:sec.y,ang:sec.mid}:null; };
-  const vbR=rOut+36+12;                                 // Band mit den Gruppennamen plus Rand
-  const vb={x:-vbR,y:-vbR,w:2*vbR,h:2*vbR};
+  const layout=useMemo(()=>netLayout(nodes,collapsed,manual),[nodes,collapsed,manual]);
+  const {hubs,placed}=layout;
+  const anchorOf=(key)=>{ const n=placed.find(x=>x.key===key); if(n) return n; const src=nodes.find(x=>x.key===key); const hub=src&&hubs.find(x=>x.name===src.group&&x.collapsed); return hub?{x:hub.x,y:hub.y}:null; };
+  // Sichtfenster: waehrend des Ziehens eines Punkts bleibt es stehen
+  const boxRef=useRef(layout.box); if(!dragPos) boxRef.current=layout.box;
+  const bx=boxRef.current, vb={x:bx.x-10,y:bx.y-10,w:bx.w+44,h:bx.h+20};   // rechts Platz fuer die Knoepfe
 
   // SCHIEBEN UND ZOOMEN (Zeiger: ein Finger schiebt, zwei zoomen; Mausrad zoomt um den Zeiger)
   const toWorld=(px,py)=>{ const r=svgRef.current.getBoundingClientRect(); const s=vb.w/r.width, s2=vb.h/r.height, sc=Math.max(s,s2); const ox=vb.x-(r.width*sc-vb.w)/2, oy=vb.y-(r.height*sc-vb.h)/2; return {x:(px-r.left)*sc+ox,y:(py-r.top)*sc+oy,sc}; };
@@ -66,8 +63,8 @@ export default function VorratGraph({state,api,onPhoto,onList}){
     if(nd&&ptrs.current.size===1){
       if(!nd.moved&&Math.hypot(cur.x-nd.x0,cur.y-nd.y0)<5) return;
       nd.moved=true; dragRef.current=true;
-      const sec=sectors.find(x=>x.name===nd.group); if(!sec||sec.collapsed) return;
-      const g=toGraph(cur.x,cur.y); const m=dragToManual(sec,g.x,g.y,rMax);
+      const hub=hubs.find(x=>x.name===nd.group); if(!hub||hub.collapsed) return;
+      const g=toGraph(cur.x,cur.y); const m=netDrag(hub,g.x,g.y);
       setDragPos({key:nd.key,t:m.t,r:m.r});
       return;
     }
@@ -91,7 +88,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
     el.addEventListener("wheel",wheel,{passive:false});
     return ()=>el.removeEventListener("wheel",wheel);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[vbR]);
+  },[vb.x,vb.y,vb.w,vb.h]);
   const tap=(fn)=>(e)=>{ if(dragRef.current){ dragRef.current=false; return; } fn(e); };
 
   const toggleSel=(key)=>{ setRecipeKey(""); setSelected(s=>{ const n=new Set(s); if(n.has(key)) n.delete(key); else n.add(key); return n; }); };
@@ -106,8 +103,8 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   if(!nodes.length){
     return(
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"28px 18px",textAlign:"center"}}>
-        <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"8px"}}>Noch keine Punkte im Graph.</div>
-        <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"16px"}}>Der Graph zeigt, was wahrscheinlich da ist – als Wolken je Gruppe. Fotografiere die Speisekammer oder trag in der Liste etwas ein.</div>
+        <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"8px"}}>Noch keine Punkte im Netz.</div>
+        <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"16px"}}>Das Netz zeigt, was wahrscheinlich da ist – je Gruppe ein Mittelpunkt mit ihren Lebensmitteln. Fotografiere die Speisekammer oder trag in der Liste etwas ein.</div>
         <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
           <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px"}}>📷 Speisekammer fotografieren</button>
           <button onClick={onList} style={btn("ghost")}>Zur Liste</button>
@@ -118,71 +115,47 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   const covText=links?links.present.length+" von "+(links.present.length+links.missing.length)+" Zutaten da":"";
   return(
   <div>
-    {/* GRAPH */}
-    <div data-theme="dark" style={{position:"relative",background:C.dark,border:"1px solid "+C.border,height:"min(62vh, 560px)",minHeight:"340px",overflow:"hidden"}}>
+    {/* NETZ */}
+    <div style={{position:"relative",background:C.white,border:"1px solid "+C.border,borderRadius:"8px 8px 0 0",height:"min(62vh, 560px)",minHeight:"340px",overflow:"hidden"}}>
       <svg ref={svgRef} data-testid="vorrat-graph" viewBox={vb.x+" "+vb.y+" "+vb.w+" "+vb.h} preserveAspectRatio="xMidYMid meet" width="100%" height="100%" style={{display:"block",touchAction:"none",cursor:"grab",fontFamily:SF,userSelect:"none"}}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onUp}>
         <g transform={"translate("+tf.x+" "+tf.y+") scale("+tf.k+")"}>
-          {/* Kuchenstuecke */}
-          {sectors.map(sec=>{
-            // Gruppenname als Band am Aussenrand, tangential gedreht; in der unteren Haelfte umgedreht, damit er lesbar bleibt
-            const deg=sec.mid*180/Math.PI, below=Math.sin(sec.mid)>0;
-            const lx=Math.cos(sec.mid)*(rOut+18), ly=Math.sin(sec.mid)*(rOut+18);
-            const rot=deg+(below?-90:90);
-            const span=sec.a1-sec.a0, maxChars=Math.max(4,Math.floor(span*(rOut+18)/8.6));
-            return(
-              <g key={sec.name}>
-                <path d={sectorPath(sec.a0,sec.a1,R_IN-14,rOut+36)} fill={sec.color} fillOpacity={sec.collapsed?0.05:0.11} stroke={C.dark} strokeWidth="3" />
-                <path d={sectorPath(sec.a0,sec.a1,rOut,rOut+36)} fill={sec.color} fillOpacity="0.14" stroke="none" />
-                <g role="button" aria-label={sec.collapsed?"Gruppe "+sec.name+" aufklappen":"Gruppe "+sec.name+" zuklappen"} onClick={tap(()=>toggleCluster(sec.name))} style={{cursor:"pointer"}}>
-                  {sec.collapsed
-                    ? <><circle cx={sec.x} cy={sec.y} r={sec.r} fill={C.white} stroke={sec.color} strokeWidth="1.5" /><text x={sec.x} y={sec.y-2} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>{short(sec.name,16)}</text><text x={sec.x} y={sec.y+12} textAnchor="middle" fontSize="10" fill={C.muted}>{sec.n} {sec.n===1?"Produkt":"Produkte"} ▸</text></>
-                    : null}
-                  <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" transform={"rotate("+rot+" "+lx+" "+ly+")"} fontSize="13" fontWeight="700" letterSpacing="1.5" fill={sec.color}>{short(sec.name.toUpperCase()+(sec.collapsed?"":" ("+sec.n+")"),maxChars)}</text>
-                  <path d={sectorPath(sec.a0,sec.a1,rOut,rOut+36)} fill="transparent" />
-                </g>
-              </g>
-            );
-          })}
-          {/* Kanten des Rezepts: vom Rand des Rezeptkreises zu den Zutaten */}
-          {links&&links.present.map(x=>{ const a=anchorOf(x.key); if(!a) return null; const ang=a.ang!==undefined?a.ang:Math.atan2(a.y,a.x); return <line key={"e"+x.key} data-edge="present" x1={Math.cos(ang)*R_CENTER} y1={Math.sin(ang)*R_CENTER} x2={a.x} y2={a.y} stroke={C.accent} strokeWidth={1.5+2.5*x.p} strokeOpacity="0.9" strokeLinecap="round" />; })}
+          {/* feine Linien vom Mittelpunkt der Gruppe zu ihren Produkten */}
+          {placed.map(n=><line key={"h"+n.key} data-edge="hub" x1={n.hx} y1={n.hy} x2={n.x} y2={n.y} stroke={groupTint(n.group)} strokeWidth="1.1" opacity={recipe?0.35:0.7} />)}
+          {/* Linien des Rezepts: von der Mitte zu den vorhandenen Zutaten, leicht gebogen */}
+          {links&&links.present.map(x=>{ const a=anchorOf(x.key); if(!a) return null; const mx=a.x/2+a.y*0.1, my=a.y/2-a.x*0.1; return <path key={"e"+x.key} data-edge="present" d={"M0 0 Q"+mx.toFixed(1)+" "+my.toFixed(1)+" "+a.x+" "+a.y} fill="none" stroke={C.accent} strokeWidth={1.2+1.2*x.p} strokeLinecap="round" />; })}
+          {/* Mittelpunkte der Gruppen: Kreis in der Gruppenfarbe, Name darueber; antippen klappt die Gruppe zu */}
+          {hubs.map(h=>{ const tint=groupTint(h.name); return(
+            <g key={h.name} role="button" aria-label={h.collapsed?"Gruppe "+h.name+" aufklappen":"Gruppe "+h.name+" zuklappen"} transform={"translate("+h.x+" "+h.y+")"} onClick={tap(()=>toggleCluster(h.name))} style={{cursor:"pointer"}}>
+              <circle r="13" fill={tint} opacity="0.22" />
+              <circle r={h.collapsed?6:8} fill={h.collapsed?C.white:tint} stroke={tint} strokeWidth={h.collapsed?3:0} />
+              <text y="-17" textAnchor="middle" fontSize="12" fontWeight="700" fill={C.text}>{h.name}<tspan fontWeight="400" fill={C.muted}>{" ("+h.n+")"+(h.collapsed?" ▸":"")}</tspan></text>
+              <rect x="-40" y="-30" width="80" height="46" fill="transparent" />
+            </g>
+          ); })}
           {/* Produkte */}
           {placed.map(n=>{
-            const isSel=selected.has(n.key), isLinked=linked.has(n.key), dim=recipe&&!isLinked;
-            const circ=2*Math.PI*(n.r+3), icon=foodIcon(n.name,n.group);
+            const isSel=selected.has(n.key), isLinked=linked.has(n.key), dim=recipe&&!isLinked, tint=groupTint(n.group);
+            const circ=2*Math.PI*(n.r+3), strong=isSel||isLinked;
             return(
-              <g key={n.key} role="button" aria-label={n.name+(isSel?" abwählen":" auswählen")} aria-pressed={isSel} data-manual={n.manual?"1":undefined} transform={"translate("+n.x+" "+n.y+")"} onPointerDown={onNodeDown(n)} onClick={tap(()=>toggleSel(n.key))} style={{cursor:"grab",opacity:dim?0.25:1,transition:dragPos&&dragPos.key===n.key?"none":"opacity 0.3s"}}>
-                {(isSel||isLinked)&&<circle r={n.r+7} fill="none" stroke={isSel?C.text:C.accent} strokeWidth="2" />}
-                <circle r={n.r} fill={C.accent} fillOpacity={0.25+0.55*n.p} stroke={n.permanent?C.text:"none"} strokeWidth={n.permanent?2:0} />
-                {n.expiring&&<circle r={n.r+3} fill="none" stroke={C.err} strokeWidth="2.5" strokeDasharray={(circ*0.62)+" "+circ} transform="rotate(-90)" strokeLinecap="round" />}
-                {icon?<text y="0.5" textAnchor="middle" dominantBaseline="central" fontSize={Math.round(n.r*1.5)} opacity={0.7+0.3*n.p} style={{pointerEvents:"none"}}>{icon}</text>
-                     :<text y="0.5" textAnchor="middle" dominantBaseline="central" fontSize={Math.round(n.r*1.1)} fontFamily={SER} fill={C.dark} style={{pointerEvents:"none"}}>{String(n.name).charAt(0).toUpperCase()}</text>}
-                <text y={n.r+13} textAnchor="middle" fontSize="11" fill={C.text} fillOpacity={0.55+0.45*n.p}>{short(n.name)}</text>
-                <circle r={Math.max(n.r+8,18)} fill="transparent" />
+              <g key={n.key} role="button" aria-label={n.name+(isSel?" abwählen":" auswählen")} aria-pressed={isSel} data-manual={n.manual?"1":undefined} transform={"translate("+n.x+" "+n.y+")"} onPointerDown={onNodeDown(n)} onClick={tap(()=>toggleSel(n.key))} style={{cursor:"grab",opacity:dim?0.6:1,transition:dragPos&&dragPos.key===n.key?"none":"opacity 0.3s"}}>
+                {isSel&&<circle r={n.r+6} fill="none" stroke={C.accent} strokeWidth="2" />}
+                {n.permanent&&<circle data-ring="dauer" r={n.r+3} fill="none" stroke={tint} strokeWidth="1.5" />}
+                <circle r={n.r} fill={tint} fillOpacity={0.4+0.6*n.p} />
+                {n.expiring&&<circle r={n.r+3} fill="none" stroke={C.err} strokeWidth="2" strokeDasharray={(circ*0.62)+" "+circ} transform="rotate(-90)" strokeLinecap="round" />}
+                <text y={n.r+12} textAnchor="middle" fontSize="11" fontWeight={strong?"700":"400"} fill={strong?C.text:C.muted}>{short(n.name,13)}</text>
+                <circle r="17" fill="transparent" />
               </g>
             );
           })}
-          {/* Rezeptkreis in der Mitte */}
+          {/* Mitte: das gewaehlte Rezept */}
           <g role={recipe?"button":undefined} aria-label={recipe?"Rezept "+recipe.name+" öffnen":undefined} data-testid="graph-center" onClick={recipe?tap(()=>open(recipe)):undefined} style={{cursor:recipe?"pointer":"default"}}>
-            <circle r={R_CENTER} fill={C.dark} stroke={recipe?C.accent:C.border} strokeWidth={recipe?2.5:1.5} />
-            {recipe?(
+            {recipe&&(
               <>
-                {wrap2(recipe.name).map((t,i,arr)=><text key={i} x="0" y={(arr.length===2?-16:-6)+i*19} textAnchor="middle" fontSize="15" fontFamily={SER} fill={C.text}>{t}</text>)}
-                <text x="0" y="18" textAnchor="middle" fontSize="9.5" letterSpacing="1" fill={C.accent}>{covText.toUpperCase()}</text>
-                {links.missing.length>0&&<text x="0" y="34" textAnchor="middle" fontSize="9.5" fill={C.muted}>{short("fehlt: "+links.missing.map(m=>m.name).join(", "),26)}</text>}
-                {links.missing.length===0&&<text x="0" y="34" textAnchor="middle" fontSize="9.5" fill={C.ok}>alles da</text>}
-                <text x="0" y="56" textAnchor="middle" fontSize="9" letterSpacing="1.5" fill={C.subtle}>ÖFFNEN ›</text>
-              </>
-            ):selected.size?(
-              <>
-                <text x="0" y="-4" textAnchor="middle" fontSize="22" fontFamily={SER} fill={C.text}>{selected.size}</text>
-                <text x="0" y="16" textAnchor="middle" fontSize="10" letterSpacing="1" fill={C.accent}>AUSGEWÄHLT</text>
-              </>
-            ):(
-              <>
-                <text x="0" y="-4" textAnchor="middle" fontSize="22" fontFamily={SER} fill={C.text}>{nodes.length}</text>
-                <text x="0" y="16" textAnchor="middle" fontSize="10" letterSpacing="1" fill={C.muted}>PRODUKTE</text>
-                <text x="0" y="34" textAnchor="middle" fontSize="9" fill={C.subtle}>Rezept unten antippen</text>
+                <circle r="7" fill={C.white} stroke={C.accent} strokeWidth="3" />
+                <text x="0" y="22" textAnchor="middle" fontSize="12" fontWeight="700" fill={C.accent} stroke={C.white} strokeWidth="3" paintOrder="stroke">{short(recipe.name,26)}</text>
+                <text x="0" y="35" textAnchor="middle" fontSize="10" fill={links.missing.length?C.muted:C.ok} stroke={C.white} strokeWidth="3" paintOrder="stroke">{links.missing.length?short("fehlt: "+links.missing.map(m=>m.name).join(", "),30):"alles da"}</text>
+                <rect x="-60" y="-12" width="120" height="52" fill="transparent" />
               </>
             )}
           </g>
@@ -191,14 +164,14 @@ export default function VorratGraph({state,api,onPhoto,onList}){
       {/* Steuerung */}
       <div style={{position:"absolute",top:"8px",right:"8px",display:"flex",flexDirection:"column",gap:"4px"}}>
         {[["+","Vergrößern",()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1.3)],["−","Verkleinern",()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1/1.3)],["⊡","Einpassen",()=>setTf({x:0,y:0,k:1})],...(manualCount>0?[["↺","Anordnung zurücksetzen",()=>resetStockLayout()]]:[])].map(([t,a,f])=>(
-          <button key={a} onClick={f} aria-label={a} title={a} style={{width:"36px",height:"36px",background:"rgba(42,42,50,0.9)",border:"1px solid "+C.border,color:C.text,fontSize:"18px",cursor:"pointer",fontFamily:SF,padding:0,borderRadius:"6px"}}>{t}</button>
+          <button key={a} onClick={f} aria-label={a} title={a} style={{width:"36px",height:"36px",background:C.white,border:"1px solid "+C.border,color:C.accent,fontSize:"18px",cursor:"pointer",fontFamily:SF,padding:0,borderRadius:"6px"}}>{t}</button>
         ))}
       </div>
-      <div style={{position:"absolute",left:"10px",bottom:"8px",fontSize:"12px",color:C.subtle,letterSpacing:"0.5px",pointerEvents:"none"}}>groß und hell = wahrscheinlich da · Ring = Dauervorrat · roter Bogen = kippt bald · Stück = Gruppe · Punkte lassen sich im Stück verschieben</div>
+      <div style={{position:"absolute",left:"10px",right:"52px",bottom:"6px",fontSize:"12px",color:C.muted,pointerEvents:"none",lineHeight:"1.35"}}>kräftig = wahrscheinlich da · Ring = Dauervorrat · roter Bogen = kippt bald</div>
     </div>
 
     {/* LEISTE: Rezept oder Auswahl */}
-    <div style={{background:C.white,border:"1px solid "+C.border,borderTop:"none",padding:"10px 12px",minHeight:"58px",display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
+    <div style={{background:C.white,border:"1px solid "+C.border,borderTop:"none",borderRadius:"0 0 8px 8px",padding:"10px 12px",minHeight:"58px",display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
       {recipe?(
         <>
           <div style={{flex:"1 1 160px",minWidth:0}}>
@@ -223,7 +196,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
           </div>
         </>
       ):(
-        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt der Graph seine Zutaten. Gruppenname antippen klappt die Wolke zu.</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt das Netz seine Zutaten. Punkte lassen sich verschieben, ein Tipp auf den Mittelpunkt klappt die Gruppe zu.</div>
       )}
       {aiErr&&!recipe&&selected.size>0&&<div style={{flexBasis:"100%",fontSize:"13px",color:C.err}}>{aiErr}</div>}
     </div>

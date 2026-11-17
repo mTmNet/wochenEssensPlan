@@ -145,3 +145,82 @@ export const rankForSelection = (pool, stock, selected) => {
   }).filter(e=>sel.size===0||e.hits>0)
     .sort((a,b)=>b.hits-a.hits||b.cov-a.cov||(b.rec.rating||0)-(a.rec.rating||0)||String(a.key).localeCompare(String(b.key)));
 };
+
+// NETZ: je Gruppe ein Mittelpunkt, die Produkte sammeln sich als lockerer Haufen darum (feine Linie zum Mittelpunkt).
+// Die Mittelpunkte ruecken hochkant um die Mitte zusammen, grosse Gruppen bekommen mehr Platz. Die Mitte bleibt frei
+// fuer das gewaehlte Rezept. Fester Ablauf ohne Zufall: Startlagen aus der Reihenfolge, danach schieben sich ueberlappende Punkte
+// (samt Beschriftung, deshalb breiter als hoch) auseinander.
+// manual = {key: {t, r}}: von Hand verschobene Punkte; t = Richtung um den eigenen Mittelpunkt (0..1 = voller Kreis), r = Abstand dazu.
+// Lagen aus dem frueheren Kuchen-Graph (r ab 178, dort Abstand von der Mitte) gelten nicht und werden uebergangen.
+export const NET_R_MIN = 16, NET_R_MAX = 120;
+export const isNetManual = (m) => !!m && Number.isFinite(m.t) && Number.isFinite(m.r) && m.r<=NET_R_MAX+10;
+export const netNodeRadius = (p) => 4 + 5*Math.max(0,Math.min(1,p||0));
+export const netLayout = (nodes, collapsed, manual) => {
+  const col = collapsed instanceof Set ? collapsed : new Set(collapsed||[]);
+  const man = manual||{};
+  const clusters = clusterList(nodes);
+  // Platzbedarf je Gruppe als liegendes Oval (Beschriftungen sind breiter als hoch)
+  const ax = clusters.map(c=>col.has(c.name)?50:42+25*Math.sqrt(c.n)), ay = clusters.map(c=>col.has(c.name)?30:30+17*Math.sqrt(c.n));
+  const sum = ax.reduce((a,b)=>a+b,0)||1;
+  const R = Math.max(90, sum/Math.PI*0.8);
+  // 1. Mittelpunkte: Start auf einem hochkant gestellten Oval, dann ruecken sie zusammen, bis sich die Ovale gerade nicht ueberlappen
+  const H=[]; let a=-2.2;
+  clusters.forEach((c,i)=>{ const span=ax[i]/sum*2*Math.PI, mid=a+span/2; H.push({x:Math.cos(mid)*R*0.7,y:Math.sin(mid)*R*1.4,ax:ax[i],ay:ay[i]}); a+=span; });
+  for(let it=0; it<400; it++){
+    H.forEach(h=>{ h.x-=h.x*0.03; h.y-=h.y*0.008; });
+    for(let i=0;i<H.length;i++){
+      const p=H[i];
+      { const sx=p.ax+34, sy=p.ay+26; let dx=p.x, dy=p.y; if(!dx&&!dy) dy=-1; const d=Math.sqrt(dx*dx/(sx*sx)+dy*dy/(sy*sy)); if(d<1){ const m=(1-d)/d; p.x+=dx*m; p.y+=dy*m; } }
+      for(let j=i+1;j<H.length;j++){
+        const q=H[j], sx=p.ax+q.ax, sy=p.ay+q.ay; let dx=q.x-p.x, dy=q.y-p.y; if(!dx&&!dy){ dx=0.5; dy=0.5; }
+        const d=Math.sqrt(dx*dx/(sx*sx)+dy*dy/(sy*sy)); if(d>=1) continue;
+        const m=(1-d)/d/2; p.x-=dx*m; p.y-=dy*m; q.x+=dx*m; q.y+=dy*m;
+      }
+    }
+  }
+  const hubs=[], N=[];
+  clusters.forEach((c,i)=>{
+    const hub={name:c.name,n:c.n,x:Math.round(H[i].x*10)/10,y:Math.round(H[i].y*10)/10,color:groupColor(c.name),collapsed:col.has(c.name)};
+    hubs.push(hub); N.push({fix:true,hub:true,x:hub.x,y:hub.y-14});          // Platzhalter samt Name ueber dem Kreis
+  });
+  N.push({fix:true,mid:true,x:0,y:0});
+  const placed=[];
+  hubs.forEach(hub=>{
+    if(hub.collapsed) return;
+    nodes.filter(n=>n.group===hub.name).sort((x,y)=>y.p-x.p||x.name.localeCompare(y.name)).forEach((n,i)=>{
+      const m=man[n.key], r=netNodeRadius(n.p), lw=Math.max(2*r+8,Math.min(13,String(n.name).length)*5.8+4);   // Breite samt Beschriftung
+      if(isNetManual(m)){
+        const ang=m.t*2*Math.PI, d=Math.max(NET_R_MIN,Math.min(NET_R_MAX,m.r));
+        const e={...n,r,lw,x:hub.x+Math.cos(ang)*d,y:hub.y+Math.sin(ang)*d,hx:hub.x,hy:hub.y,manual:true,fix:true};
+        placed.push(e); N.push(e);
+      }else{
+        const ang=i*2.4, d=26+6*Math.sqrt(i);
+        const e={...n,r,lw,x:hub.x+Math.cos(ang)*d,y:hub.y+Math.sin(ang)*d*0.8,hx:hub.x,hy:hub.y};
+        placed.push(e); N.push(e);
+      }
+    });
+  });
+  for(let it=0; it<500; it++){
+    N.forEach(n=>{ if(n.fix) return; n.x+=(n.hx-n.x)*0.05; n.y+=(n.hy-n.y)*0.05; });
+    for(let i=0;i<N.length;i++) for(let j=i+1;j<N.length;j++){
+      const p=N[i], q=N[j]; if(p.fix&&q.fix) continue;
+      let dx=q.x-p.x, dy=q.y-p.y; if(!dx&&!dy){ dx=0.5; dy=0.5; }
+      const big=p.mid||q.mid, hubp=p.hub||q.hub, sx=big?78:hubp?46+(p.lw||q.lw||60)/2:(p.lw+q.lw)/2+6, sy=big?42:hubp?34:30;
+      const d=Math.sqrt(dx*dx/(sx*sx)+dy*dy/(sy*sy)); if(d>=1) continue;
+      const m=(1-d)/d;
+      if(p.fix){ q.x+=dx*m; q.y+=dy*m; } else if(q.fix){ p.x-=dx*m; p.y-=dy*m; } else { p.x-=dx*m/2; p.y-=dy*m/2; q.x+=dx*m/2; q.y+=dy*m/2; }
+    }
+  }
+  placed.forEach(n=>{ n.x=Math.round(n.x*10)/10; n.y=Math.round(n.y*10)/10; delete n.fix; delete n.lw; });
+  let x0=-60,x1=60,y0=-40,y1=40;
+  hubs.forEach(h=>{ x0=Math.min(x0,h.x-46); x1=Math.max(x1,h.x+46); y0=Math.min(y0,h.y-30); y1=Math.max(y1,h.y+22); });
+  placed.forEach(n=>{ x0=Math.min(x0,n.x-34); x1=Math.max(x1,n.x+34); y0=Math.min(y0,n.y-n.r-6); y1=Math.max(y1,n.y+n.r+18); });
+  return {hubs,placed,box:{x:Math.floor(x0),y:Math.floor(y0),w:Math.ceil(x1-x0),h:Math.ceil(y1-y0)}};
+};
+// Zielpunkt (x,y) beim Ziehen -> Hand-Lage {t,r} um den eigenen Mittelpunkt, Abstand begrenzt
+export const netDrag = (hub, x, y) => {
+  const dx=x-hub.x, dy=y-hub.y;
+  const t=((Math.atan2(dy,dx)/(2*Math.PI))%1+1)%1;
+  const r=Math.max(NET_R_MIN,Math.min(NET_R_MAX,Math.hypot(dx,dy)));
+  return {t:Math.round(t*1000)/1000,r:Math.round(r)};
+};
