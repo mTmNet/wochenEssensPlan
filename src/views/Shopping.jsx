@@ -19,10 +19,10 @@ export default function Shopping({state,api}){
   const row=(item,gi,len,extra)=>(
     <div key={item.id} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 10px 6px 14px",minHeight:"48px",borderBottom:gi<len-1?"1px solid "+C.border:"none",background:C.white}}>
       <button onClick={()=>toggleShopItem(item.id)} aria-label={item.checked?"Haken entfernen":"Abhaken"} style={{width:"28px",height:"28px",border:"2px solid "+(item.checked?C.ok:C.border),background:item.checked?C.ok:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",borderRadius:"4px",padding:0}}>
-        {item.checked&&<span style={{color:"#fff",fontSize:"15px",fontWeight:"800"}}>✓</span>}
+        {item.checked&&<span style={{color:C.onAccent,fontSize:"15px",fontWeight:"800"}}>✓</span>}
       </button>
       {editShopId===item.id
-        ?<input autoFocus value={editShopText} onChange={e=>setEditShopText(e.target.value)} onBlur={saveShopEdit} onKeyDown={e=>{if(e.key==="Enter")saveShopEdit();if(e.key==="Escape"){setEditShopId(null);setEditShopText("");}}} aria-label="Posten bearbeiten" style={{flex:1,fontSize:"14px",color:C.text,background:"#16161C",border:"1px solid "+C.accent,padding:"6px 8px",outline:"none",fontFamily:SF,minWidth:0}} />
+        ?<input autoFocus value={editShopText} onChange={e=>setEditShopText(e.target.value)} onBlur={saveShopEdit} onKeyDown={e=>{if(e.key==="Enter")saveShopEdit();if(e.key==="Escape"){setEditShopId(null);setEditShopText("");}}} aria-label="Posten bearbeiten" style={{flex:1,fontSize:"14px",color:C.text,background:C.field,border:"1px solid "+C.accent,padding:"6px 8px",outline:"none",fontFamily:SF,minWidth:0}} />
         :<span onClick={()=>{setEditShopId(item.id);setEditShopText(item.text);}} title="Tippen zum Bearbeiten" style={{flex:1,fontSize:"14px",color:item.checked?C.muted:C.text,textDecoration:item.checked?"line-through "+C.err:"none",textDecorationThickness:"2px",cursor:"pointer",minWidth:0,padding:"8px 0"}}>{item.text}</span>
       }
       {extra}

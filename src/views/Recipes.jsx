@@ -77,7 +77,7 @@ export default function Recipes({state,api}){
             {/* Importmodus */}
             <div style={{display:"flex",marginBottom:"12px",border:"1px solid "+C.border,background:C.white}}>
               {[{id:"text",label:"TEXT"},{id:"photo",label:"FOTO"}].map(m=>(
-                <button key={m.id} onClick={()=>{setImportMode(m.id);setExtracted(null);setImportErr("");}} aria-pressed={importMode===m.id} style={{flex:1,padding:"11px",minHeight:"44px",background:importMode===m.id?C.dark:C.white,color:importMode===m.id?"#fff":C.muted,fontWeight:"700",fontSize:"11px",letterSpacing:"2px",cursor:"pointer",border:"none",fontFamily:SF}}>
+                <button key={m.id} onClick={()=>{setImportMode(m.id);setExtracted(null);setImportErr("");}} aria-pressed={importMode===m.id} style={{flex:1,padding:"11px",minHeight:"44px",background:importMode===m.id?C.strong:C.white,color:importMode===m.id?C.onStrong:C.muted,fontWeight:"700",fontSize:"11px",letterSpacing:"2px",cursor:"pointer",border:"none",fontFamily:SF}}>
                   {m.label}
                 </button>
               ))}
@@ -87,7 +87,7 @@ export default function Recipes({state,api}){
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"14px",marginBottom:"12px"}}>
               <div style={{fontSize:"11px",fontWeight:"700",color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"10px"}}>{importMode==="text"?"REZEPTTEXT EINFÜGEN":"REZEPTFOTO HOCHLADEN"}</div>
               {importMode==="text"
-                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Zutaten und Schritte werden wörtlich übernommen; fehlt die Anleitung, wird sie ergänzt und als ergänzt gekennzeichnet." aria-label="Rezepttext" style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
+                ?<textarea value={recipeText} onChange={e=>setRecipeText(e.target.value)} placeholder="Füge hier einen Rezepttext ein. Zutaten und Schritte werden wörtlich übernommen; fehlt die Anleitung, wird sie ergänzt und als ergänzt gekennzeichnet." aria-label="Rezepttext" style={{width:"100%",minHeight:"110px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field}} />
                 :(
                   <div>
                     {/* Zwei Fotomodi: Rezeptseite abschreiben oder fertiges Gericht erkennen lassen */}
@@ -97,7 +97,7 @@ export default function Recipes({state,api}){
                     </div>
                     <div style={{fontSize:"12px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>{photoMode==="page"?"Die KI schreibt das Rezept von der Seite wörtlich ab.":"Die KI benennt das bekannte Gericht auf dem Foto und liefert ein typisches Rezept – gespeichert als KI-Vorschlag."}</div>
                     <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:"none"}} aria-label="Foto auswählen" />
-                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:img?"12px":"28px 16px",minHeight:"48px",border:"1px dashed "+C.border,background:"#16161C",cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
+                    <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{width:"100%",padding:img?"12px":"28px 16px",minHeight:"48px",border:"1px dashed "+C.border,background:C.field,cursor:"pointer",color:C.muted,fontSize:"13px",display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",fontFamily:SF}}>
                       {img?<img src={img.previewUrl} alt="Rezept" style={{maxHeight:"140px",maxWidth:"100%",objectFit:"contain"}} />:<span style={{fontSize:"14px"}}>{photoMode==="page"?"Foto auswählen (Kochbuchseite, Screenshot)":"Foto des Gerichts auswählen"}</span>}
                     </button>
                     {img&&<button onClick={clearImg} style={{marginTop:"6px",background:"none",border:"none",color:C.err,cursor:"pointer",fontSize:"12px",fontFamily:SF,minHeight:"40px",padding:"8px 4px"}}>Bild entfernen</button>}
@@ -105,8 +105,8 @@ export default function Recipes({state,api}){
                   </div>
                 )
               }
-              {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:"#2A1E1E",border:"1px solid #5A2E2E",color:C.err,fontSize:"12px"}}>{importErr}</div>}
-              <button disabled={!canExtract} onClick={doExtract} style={{...btn("dark"),width:"100%",marginTop:"10px",padding:"12px",letterSpacing:"2px",background:extracting?C.subtle:C.dark,cursor:canExtract?"pointer":"default",opacity:canExtract?1:0.4}}>
+              {importErr&&<div style={{marginTop:"8px",padding:"9px 12px",background:C.errBg,border:"1px solid "+C.errBorder,color:C.err,fontSize:"12px"}}>{importErr}</div>}
+              <button disabled={!canExtract} onClick={doExtract} style={{...btn("dark"),width:"100%",marginTop:"10px",padding:"12px",letterSpacing:"2px",background:extracting?C.subtle:C.strong,cursor:canExtract?"pointer":"default",opacity:canExtract?1:0.4}}>
                 {extracting?(importMode==="photo"&&photoMode==="dish"?"KI ERKENNT DAS GERICHT…":"KI LIEST DAS REZEPT…"):(importMode==="photo"&&photoMode==="dish"?"GERICHT ERKENNEN":"REZEPT MIT KI EXTRAHIEREN")}
               </button>
             </div>
@@ -198,7 +198,7 @@ export default function Recipes({state,api}){
                     </div>
                   </div>
                 ):(
-                  <button onClick={()=>doSave({})} style={{...btn("dark"),width:"100%",marginTop:"14px",padding:"12px",letterSpacing:"2px",background:savedMsg?C.ok:C.dark,transition:"background 0.3s"}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
+                  <button onClick={()=>doSave({})} style={{...btn("dark"),width:"100%",marginTop:"14px",padding:"12px",letterSpacing:"2px",background:savedMsg?C.ok:C.strong,transition:"background 0.3s"}}>{savedMsg?"GESPEICHERT":extracted.ai?"INS KOCHBUCH & ÖFFNEN":"REZEPT SPEICHERN"}</button>
                 )}
                 {extracted.ai&&<button onClick={()=>setExtracted(null)} style={{...btn("ghost"),width:"100%",marginTop:"6px",letterSpacing:"2px"}}>VERWERFEN</button>}
               </div>

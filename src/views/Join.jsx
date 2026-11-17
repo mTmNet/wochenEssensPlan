@@ -10,7 +10,7 @@ export default function Join({state,api}){
   const {setNameInput,setJoinInput,startPlan,joinPlan,createWithCode}=api;
   const canJoin=joinInput.length>=6&&!!nameInput.trim()&&!joinBusy;
   return(
-      <div style={{minHeight:"100vh",background:C.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",fontFamily:SF}}>
+      <div data-theme="dark" style={{minHeight:"100vh",background:C.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",fontFamily:SF}}>
         <div style={{width:"100%",maxWidth:"380px"}}>
           <div style={{textAlign:"center",marginBottom:"24px"}}>
             <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"3px",textTransform:"uppercase",marginBottom:"16px"}}>Wochenplan</div>
@@ -34,7 +34,7 @@ export default function Join({state,api}){
               <span style={{color:"rgba(255,255,255,0.4)",fontSize:"11px",letterSpacing:"1px"}}>CODE</span>
               <span style={{color:C.accent,fontSize:"20px",fontWeight:"700",letterSpacing:"6px"}}>{myCode}</span>
             </div>
-            <button onClick={startPlan} disabled={joinBusy} style={{width:"100%",padding:"12px",minHeight:"44px",background:nameInput.trim()?C.accent:"#2d2d2d",border:"none",color:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:nameInput.trim()?"pointer":"default",fontFamily:SF}}>{joinBusy?"…":"PLAN STARTEN"}</button>
+            <button onClick={startPlan} disabled={joinBusy} style={{width:"100%",padding:"12px",minHeight:"44px",background:nameInput.trim()?C.accent:"#2d2d2d",border:"none",color:nameInput.trim()?C.onAccent:"#fff",fontSize:"12px",fontWeight:"700",letterSpacing:"2px",cursor:nameInput.trim()?"pointer":"default",fontFamily:SF}}>{joinBusy?"…":"PLAN STARTEN"}</button>
           </div>
           <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",padding:"16px"}}>
             <div style={{color:"rgba(255,255,255,0.6)",fontSize:"11px",fontWeight:"700",letterSpacing:"1.5px",marginBottom:"4px"}}>BEITRETEN</div>

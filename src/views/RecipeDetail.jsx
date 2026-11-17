@@ -63,7 +63,7 @@ export default function RecipeDetail({state,api}){
         {rateAfterCook&&(
           <Modal title={"Wie war "+name+"?"} micro="Guten Appetit!" onClose={()=>setRateAfterCook(false)}>
             <Stars value={ratingDraft} onRate={setRatingDraft} size={32} />
-            <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" aria-label="Notiz" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
+            <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" aria-label="Notiz" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field}} />
             <input ref={dishPhotoRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
             <button onClick={()=>dishPhotoRef.current&&dishPhotoRef.current.click()} style={{...btn("ghost"),width:"100%",marginTop:"10px",color:C.accent}}>{images[detailRecipe]?"FOTO VOM GERICHT ERSETZEN":"FOTO VOM GERICHT"}</button>
             <div style={{display:"flex",gap:"8px",marginTop:"14px"}}>
@@ -74,8 +74,10 @@ export default function RecipeDetail({state,api}){
         )}
         {picker&&<PickDay name={name} today={today} onConfirm={confirmPicker} onClose={()=>setPicker(false)} registerBackHandler={registerBackHandler} />}
         <div style={column}>
+        {/* Kopfbild: Schrift liegt auf dem Foto, deshalb in beiden Designs die dunklen Farben */}
+        <div data-theme="dark">
         <DishImage name={name} rec={curRec} img={images[detailRecipe]} height={260} dim compact>
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.dark+")"}} />
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,"+C.shade+")"}} />
           <button onClick={closeRecipe} style={{...headBtn,position:"absolute",top:12,left:12}}>ZURÜCK</button>
           {/* Eigenes Bild hochladen / Standard wiederherstellen */}
           <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
@@ -89,6 +91,7 @@ export default function RecipeDetail({state,api}){
             {srcLine&&<div style={{color:"rgba(255,255,255,0.7)",fontSize:"11px",marginTop:"4px"}}>{srcLine}</div>}
           </div>
         </DishImage>
+        </div>
 
         <div style={{padding:"16px 16px 60px"}}>
           {!editMode?(
@@ -122,7 +125,7 @@ export default function RecipeDetail({state,api}){
                   <Stars value={curRec.rating||0} onRate={r=>rateRecipe(detailRecipe,r)} />
                   <button onClick={()=>cookedToday(detailRecipe)} disabled={cooked.includes(today)} style={{...btn("ghost"),marginLeft:"auto",padding:"8px 12px",color:cooked.includes(today)?C.ok:C.accent,borderColor:cooked.includes(today)?C.ok:C.border}}>{cooked.includes(today)?"✓ HEUTE GEKOCHT":"WURDE HEUTE GEKOCHT"}</button>
                 </div>
-                <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))noteRecipe(detailRecipe,noteDraft);}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" aria-label="Notizen" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:"#16161C"}} />
+                <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} onBlur={()=>{if(noteDraft!==(curRec.notes||""))noteRecipe(detailRecipe,noteDraft);}} placeholder="Notizen zum Rezept... (z.B. weniger Salz, 10 Min. länger backen)" aria-label="Notizen" style={{width:"100%",minHeight:"70px",marginTop:"10px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field}} />
               </div>
               <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                 <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"}}>

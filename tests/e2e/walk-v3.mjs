@@ -85,7 +85,9 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
 // ---------- DURCHLAUF Version 3: Heute statt Woche ----------
 (async()=>{
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:2, isMobile:true, hasTouch:true, locale:'de-DE' });
+  // Design des Geraets: SCHEME=dark node tests/e2e/walk-v3.mjs prueft das dunkle Design, sonst hell
+  const SCHEME = process.env.SCHEME==='dark' ? 'dark' : 'light';
+  const ctx = await browser.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:2, isMobile:true, hasTouch:true, locale:'de-DE', colorScheme:SCHEME });
   const page = await ctx.newPage();
   const consoleErrs = [];
   page.on('console', m=>{ if(m.type()==='error'||m.type()==='warning') consoleErrs.push(m.type()+': '+m.text().slice(0,300)); });
@@ -310,6 +312,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
   check(await page.isVisible('button:has-text("VORMERKEN")') && !(await page.isVisible('text=ZUM WOCHENPLAN')), 'Rezeptdetail: Vormerken statt Zum Wochenplan');
+  await shot('06b-rezeptdetail');
   const tags = await page.locator('span[data-stock]').evaluateAll(els=>els.map(e=>e.getAttribute('data-stock')));
   check(tags.includes('da') && tags.includes('fehlt') && (await page.locator('span[data-stock="da"]').count())>=2 && (await page.locator('span[data-stock="fehlt"]').first().textContent())==='fehlt?', 'Rezeptdetail: Zutaten mit "da" / "fehlt?" nach Vorrat', tags);
   // "Nur Fehlendes" auf die Einkaufsliste, dann "Ist da" aus dem Rezept: erste fehlende Zutat in den Vorrat
@@ -361,12 +364,20 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // Menue: Datenschutz, Vorgemerkt
   await page.click('button[aria-label="Menü"]'); await page.waitForTimeout(200);
   const menu = (await page.locator('div[role="menu"]').textContent());
+  // Design-Umschalter: System folgt dem Geraet, Hell und Dunkel werden gemerkt
+  const themeOf = ()=>page.evaluate(()=>[document.documentElement.getAttribute('data-theme'), localStorage.getItem('wochenplan_theme')]);
+  const t0 = await themeOf();
+  await page.click('div[role="menu"] button:text-is("Dunkel")'); const t1 = await themeOf();
+  await page.click('div[role="menu"] button:text-is("Hell")'); const t2 = await themeOf();
+  await shot('06c-menue');
+  await page.click('div[role="menu"] button:text-is("System")'); const t3 = await themeOf();
+  check(t0[0]===SCHEME && t0[1]===null && t1[0]==='dark' && t1[1]==='dark' && t2[0]==='light' && t2[1]==='light' && t3[0]===SCHEME && t3[1]===null, 'Menue: Design System/Hell/Dunkel schaltet um und wird gemerkt', {t0,t1,t2,t3});
   check(menu.includes('Vorgemerkt')&&menu.includes('Datenschutz')&&!menu.includes('Symbolbilder')&&!menu.includes('Haushaltsbuch'), 'Menue: Vorgemerkt, Datenschutz, keine KI-Symbolbilder', menu);
   await page.click('text=Datenschutz & Daten'); await page.waitForTimeout(200);
   check(await page.isVisible('button:has-text("PLAN ENDGÜLTIG LÖSCHEN")'), 'Datenschutz-Modal offen');
   await page.click('button:has-text("SCHLIESSEN")');
   // Desktop-Blick
-  const dctx = await browser.newContext({ viewport:{width:1280,height:900}, locale:'de-DE' });
+  const dctx = await browser.newContext({ viewport:{width:1280,height:900}, locale:'de-DE', colorScheme:SCHEME });
   await dctx.route(/wochenessenplan-3d0e1-default-rtdb/, mockFb(db.wochen));
   await dctx.route(/haushaltsbuch-3cefb-default-rtdb/, mockFb(db.hb));
   await dctx.route(/fonts\.(googleapis|gstatic)\.com/, route=>route.abort());
