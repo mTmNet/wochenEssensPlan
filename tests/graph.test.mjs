@@ -149,3 +149,43 @@ test("relax: uebereinanderliegende Punkte stossen sich ab, der gezogene bleibt l
   assert.ok(Math.hypot(a2.x-b2.x,a2.y-b2.y) >= a2.r+b2.r+20);
   assert.ok(Math.abs(Math.hypot(a2.x,a2.y)-man.apfel.r)>1e-6 || Math.abs(a2.ang-(obst.a0+span*man.apfel.t))>1e-6, "Hand-Lage weicht auch etwas");
 });
+
+test("netLayout: je Gruppe ein Mittelpunkt, Produkte darum, nichts liegt aufeinander, Mitte bleibt frei, gleiche Eingabe = gleiche Lage", async () => {
+  const { netLayout, netDrag, isNetManual, NET_R_MAX } = await import("../src/logic/graph.js");
+  const names = ["Apfel","Birne","Banane","Kiwi","Zwiebeln","Paprika","Brokkoli","Lachs","Butter","Milch","Eier","Joghurt"];
+  const subs  = ["Obst","Obst","Obst","Obst","Gemüse","Gemüse","Gemüse","Fisch","Milchprodukte","Milchprodukte","Milchprodukte","Milchprodukte"];
+  const nodes = graphNodes(names.map((n,i)=>({key:n.toLowerCase(),name:n,p:0.5+0.04*i,sub:subs[i],left:10})));
+  const l = netLayout(nodes);
+  assert.deepEqual(l.hubs.map(h=>h.name), ["Obst","Gemüse","Fisch","Milchprodukte"]);
+  assert.equal(l.placed.length, 12);
+  // jedes Produkt naeher am eigenen Mittelpunkt als an fremden
+  l.placed.forEach(n=>{
+    const own=Math.hypot(n.x-n.hx,n.y-n.hy);
+    l.hubs.filter(h=>h.name!==n.group).forEach(h=>assert.ok(own<Math.hypot(n.x-h.x,n.y-h.y), n.name+" liegt bei "+h.name));
+    assert.ok(Math.hypot(n.x,n.y)>30, n.name+" liegt in der Mitte");
+  });
+  // keine zwei Produkte aufeinander (Beschriftung braucht Breite)
+  for(let i=0;i<l.placed.length;i++) for(let j=i+1;j<l.placed.length;j++){
+    const a=l.placed[i], b=l.placed[j];
+    const w=(a.name.length+b.name.length)/2*5.8;
+    assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>a.r+b.r+4, a.name+" und "+b.name+" liegen aufeinander");
+    assert.ok(Math.abs(a.x-b.x)>=w*0.8 || Math.abs(a.y-b.y)>=13, "Beschriftungen von "+a.name+" und "+b.name+" ueberlappen");
+  }
+  assert.deepEqual(netLayout(nodes).placed.map(n=>[n.x,n.y]), l.placed.map(n=>[n.x,n.y]));
+  // alles im Sichtfenster
+  l.placed.forEach(n=>assert.ok(n.x>=l.box.x && n.x<=l.box.x+l.box.w && n.y>=l.box.y && n.y<=l.box.y+l.box.h));
+  // zugeklappte Gruppe: Mittelpunkt bleibt, Produkte verschwinden
+  const col = netLayout(nodes, new Set(["Obst"]));
+  assert.equal(col.hubs.find(h=>h.name==="Obst").collapsed, true);
+  assert.equal(col.placed.some(n=>n.group==="Obst"), false);
+  // Hand-Lage: bleibt, wo sie hingezogen wurde; alte Lagen aus dem Kuchen-Graph gelten nicht
+  const hub = l.hubs.find(h=>h.name==="Obst");
+  const m = netDrag(hub, hub.x+30, hub.y+40);
+  assert.equal(m.r, 50);
+  const lm = netLayout(nodes, new Set(), {apfel:m});
+  const ap = lm.placed.find(n=>n.key==="apfel");
+  assert.ok(ap.manual && Math.abs(ap.x-(hub.x+30))<1 && Math.abs(ap.y-(hub.y+40))<1);
+  assert.equal(netDrag(hub, hub.x+500, hub.y).r, NET_R_MAX);
+  assert.equal(isNetManual({t:0.4,r:230}), false);
+  assert.equal(netLayout(nodes, new Set(), {apfel:{t:0.4,r:230}}).placed.find(n=>n.key==="apfel").manual, undefined);
+});

@@ -269,22 +269,22 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check((await page.locator('button[aria-label="Butter auffrischen: ist noch da"]').count())===0, 'Vorrat: bei "ist da" gibt es keinen Haken mehr');
   await shot('05-vorrat');
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
-  await page.click('button:text-is("Graph")'); await page.waitForTimeout(500);
+  await page.click('button:text-is("Netz")'); await page.waitForTimeout(500);
   const G = 'svg[data-testid="vorrat-graph"]';
   const nodeCount = await page.locator(G+' g[role="button"][aria-label$=" auswählen"]').count();
   const groupLabels = await page.locator(G+' g[role="button"][aria-label^="Gruppe "]').allTextContents();
-  check(!groupLabels.some(t=>/OBST/.test(t)) && groupLabels.some(t=>/GEM.SE \(3\)/.test(t)) && groupLabels.some(t=>/FLEISCH \(3\)/.test(t)), 'Graph: Gruppen stimmen (Gemuese 3, Fleisch 3, kein Obst nach Streichen der Bananen)', groupLabels);
-  const sectorCount = await page.locator(G+' path[fill^="#"]').count();
-  check(nodeCount>=8 && groupLabels.length>=3 && sectorCount===2*groupLabels.length, 'Graph: Punkte in mehreren Kuchenstuecken mit Farbakzent (Flaeche + Band)', {nodeCount, groupLabels, sectorCount});
-  check((await page.locator(G+' g[aria-label="Spaghetti auswählen"] circle[stroke="var(--c-text)"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
+  check(!groupLabels.some(t=>/Obst/.test(t)) && groupLabels.some(t=>/Gem.se \(3\)/.test(t)) && groupLabels.some(t=>/Fleisch \(3\)/.test(t)), 'Graph: Gruppen stimmen (Gemuese 3, Fleisch 3, kein Obst nach Streichen der Bananen)', groupLabels);
+  const sectorCount = await page.locator(G+' line[data-edge="hub"]').count();
+  check(nodeCount>=8 && groupLabels.length>=3 && sectorCount===nodeCount && (await page.locator(G+' g[aria-label^="Gruppe "] circle[fill^="#"]').count())>=groupLabels.length, 'Netz: Punkte haengen an farbigen Mittelpunkten der Gruppen', {nodeCount, groupLabels, sectorCount});
+  check((await page.locator(G+' g[aria-label="Spaghetti auswählen"] circle[data-ring="dauer"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
   check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="var(--c-err)"]').count())===1 && (await page.locator(G+' g[aria-label="Hackfleisch auswählen"] circle[stroke="var(--c-err)"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Hackfleisch ohne');
   await page.click('button[aria-pressed="false"]:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
-  const edges = await page.locator(G+' line[data-edge="present"]').count();
+  const edges = await page.locator(G+' path[data-edge="present"]').count();
   const center = await page.locator(G+' g[data-testid="graph-center"]').textContent();
   check(edges>=2 && /fehlt: Knoblauch/.test(center) && /Pasta Bolognese/.test(center) && await page.isVisible('button:has-text("Zum Rezept")') && await page.isVisible('text=/\\d+ von \\d+ Zutaten da/'), 'Graph: Rezept im Mittelkreis mit Kanten zu vorhandenen Zutaten, Fehlendes im Kreis, Leiste mit Zum Rezept', {edges, center});
   await shot('05b-graph-rezept');
   await page.click('button[aria-label="Rezept ausblenden"]'); await page.waitForTimeout(200);
-  check((await page.locator(G+' line[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
+  check((await page.locator(G+' path[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
   await page.click(G+' g[aria-label="Kokosmilch auswählen"]'); await page.waitForTimeout(200);
   await page.click(G+' g[aria-label="Linsen auswählen"]'); await page.waitForTimeout(300);
   check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('text=Kokosmilch, Linsen') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
@@ -292,14 +292,14 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
   // Emoji auf den Punkten, Verschieben eines Punkts (Lage im Plan), Zuruecksetzen
   const passataTxt = await page.locator(G+' g[aria-label="Tomaten auswählen"] text').allTextContents();
-  check(passataTxt.includes('🍅') && passataTxt.includes('Tomaten'), 'Graph: Passata heisst jetzt Tomaten, mit Emoji', passataTxt);
+  check(!passataTxt.includes('🍅') && passataTxt.includes('Tomaten'), 'Netz: Passata heisst jetzt Tomaten, ohne Emoji', passataTxt);
   const bb = await page.locator(G+' g[aria-label="Tomaten auswählen"] circle').first().boundingBox();
   await page.mouse.move(bb.x+bb.width/2, bb.y+bb.height/2); await page.mouse.down();
   await page.mouse.move(bb.x+bb.width/2+10, bb.y+bb.height/2+8, {steps:3}); await page.mouse.move(bb.x+bb.width/2+34, bb.y+bb.height/2+26, {steps:6}); await page.mouse.up();
   await page.waitForTimeout(500);
   const layout = plan().stock?.layout||{};
   const lk = Object.keys(layout);
-  check(lk.length===1 && lk[0]==='tomaten' && Number.isFinite(layout.tomaten.t) && layout.tomaten.r>150 && layout.tomaten.at>0, 'Graph: Verschieben schreibt stock/layout/tomaten (normierter Schluessel von Passata) = {t, r, at}', layout);
+  check(lk.length===1 && lk[0]==='tomaten' && Number.isFinite(layout.tomaten.t) && layout.tomaten.r>=16 && layout.tomaten.r<=120 && layout.tomaten.at>0, 'Graph: Verschieben schreibt stock/layout/tomaten (normierter Schluessel von Passata) = {t, r, at}', layout);
   check((await page.locator(G+' g[aria-label="Tomaten auswählen"][data-manual="1"]').count())===1 && !(await page.isVisible('text=3 ausgewählt')), 'Graph: Tomaten als Hand-Lage markiert, Ziehen ist keine Auswahl');
   await shot('05c-graph-auswahl');
   await page.click('button[aria-label="Anordnung zurücksetzen"]'); await page.waitForTimeout(400);
