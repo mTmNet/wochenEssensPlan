@@ -75,7 +75,8 @@ export default function Vorrat({state,api}){
           <div style={{fontSize:"13px",color:C.muted,lineHeight:1.25,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[grp,s.permanent?"immer da":left].filter(Boolean).join(" · ")}{s.unsorted&&<span style={{color:C.accent}}> · nicht einsortiert</span>}</div>
         </div>
         {!s.permanent&&<span data-level={lv.label} style={{fontSize:"13px",fontWeight:"700",color:TONE[lv.tone],flexShrink:0,textAlign:"right",whiteSpace:"nowrap"}}>{lv.label}</span>}
-        {!s.permanent&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:s.p>=0.99?C.subtle:C.ok,fontSize:"18px",minWidth:"34px",padding:"6px 4px"}}>✓</button>}
+        {!s.permanent&&lv.min>=0.85&&<span aria-hidden="true" style={{minWidth:"34px",flexShrink:0}}/>}
+        {!s.permanent&&lv.min<0.85&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:C.ok,fontSize:"18px",minWidth:"34px",padding:"6px 4px"}}>✓</button>}
         <button onClick={()=>{ removeStock(s); setMenu(""); showToast(s.permanent?"„"+s.name+"“ aus dem Dauervorrat genommen.":"„"+s.name+"“ gestrichen, gilt als aufgebraucht."); }} aria-label={s.name+": aufgebraucht, streichen"} title="Aufgebraucht – aus der Liste streichen" style={{...iconBtn,color:C.muted,minWidth:"34px",padding:"6px 4px"}}>×</button>
         <button onClick={()=>setMenu(open?"":s.key)} aria-label={s.name+": weitere Aktionen"} aria-expanded={open} title="Weitere Aktionen" style={{...iconBtn,color:open?C.accent:C.muted,fontSize:"18px",minWidth:"34px",padding:"6px 4px"}}>⋯</button>
       </div>
@@ -209,7 +210,7 @@ export default function Vorrat({state,api}){
       {help&&<div style={{padding:"4px 14px 12px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>
         <div style={{marginBottom:"6px"}}><span style={{color:C.text,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
         <div style={{marginBottom:"6px"}}>Rechts steht, wie sicher etwas noch da ist: „ist da“, „vermutlich da“, „eventuell da“, „eher nicht mehr da“. Danach gilt es als aufgebraucht und verschwindet aus der Liste.</div>
-        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. × heißt „aufgebraucht“. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen; der Haken erscheint erst, wenn ein Produkt nicht mehr sicher da ist. × heißt „aufgebraucht“. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         <div>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
       </div>}
     </div>}

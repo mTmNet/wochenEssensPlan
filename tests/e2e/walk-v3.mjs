@@ -266,6 +266,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const fresh = Object.values(plan().stock.items).find(i=>i.name==='Butter');
   await openRow('Butter');
   check(!!fresh && fresh.src==='hand' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + Hand') && (await page.locator('div:has(> div button[aria-label="Butter: Name zuordnen"]) span[data-level]').first().textContent())==='ist da', 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
+  check((await page.locator('button[aria-label="Butter auffrischen: ist noch da"]').count())===0, 'Vorrat: bei "ist da" gibt es keinen Haken mehr');
   await shot('05-vorrat');
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
   await page.click('button:text-is("Graph")'); await page.waitForTimeout(500);
