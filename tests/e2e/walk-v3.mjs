@@ -263,8 +263,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(!groupLabels.some(t=>/OBST/.test(t)) && groupLabels.some(t=>/GEM.SE \(3\)/.test(t)) && groupLabels.some(t=>/FLEISCH \(3\)/.test(t)), 'Graph: Gruppen stimmen (Gemuese 3, Fleisch 3, kein Obst nach Streichen der Bananen)', groupLabels);
   const sectorCount = await page.locator(G+' path[fill^="#"]').count();
   check(nodeCount>=8 && groupLabels.length>=3 && sectorCount===2*groupLabels.length, 'Graph: Punkte in mehreren Kuchenstuecken mit Farbakzent (Flaeche + Band)', {nodeCount, groupLabels, sectorCount});
-  check((await page.locator(G+' g[aria-label="Spaghetti auswählen"] circle[stroke="#F0EEE9"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
-  check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="#E05555"]').count())===1 && (await page.locator(G+' g[aria-label="Hackfleisch auswählen"] circle[stroke="#E05555"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Hackfleisch ohne');
+  check((await page.locator(G+' g[aria-label="Spaghetti auswählen"] circle[stroke="var(--c-text)"]').count())===1, 'Graph: Dauervorrat Spaghetti mit Ring');
+  check((await page.locator(G+' g[aria-label="Bratwurst auswählen"] circle[stroke="var(--c-err)"]').count())===1 && (await page.locator(G+' g[aria-label="Hackfleisch auswählen"] circle[stroke="var(--c-err)"]').count())===0, 'Graph: Bratwurst (kippt bald) mit rotem Bogen, Hackfleisch ohne');
   await page.click('button[aria-pressed="false"]:has-text("Pasta Bolognese")'); await page.waitForTimeout(400);
   const edges = await page.locator(G+' line[data-edge="present"]').count();
   const center = await page.locator(G+' g[data-testid="graph-center"]').textContent();

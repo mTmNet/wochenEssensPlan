@@ -1,17 +1,19 @@
-// DESIGN - mid-dark theme (Farben, Schriften, kleine Style-Helfer fuer die Ansichten)
+// DESIGN (Farben, Schriften, kleine Style-Helfer fuer die Ansichten)
+// Die Farbwerte stehen als CSS-Variablen in index.html (:root). Hier nur die Namen,
+// damit spaeter ein helles Design die Werte an einer Stelle tauschen kann.
 export const C = {
-  bg:"#1E1E24",
-  white:"#2A2A32",
-  border:"#3A3A46",
-  text:"#F0EEE9",
-  muted:"#9A9898",
-  subtle:"#7A7A86",
-  accent:"#D4904A",
-  abg:"#2E2820",
-  dark:"#13131A",
-  ok:"#4CAF7D",
-  err:"#E05555",
-  star:"#E8B547",
+  bg:"var(--c-bg)",
+  white:"var(--c-white)",
+  border:"var(--c-border)",
+  text:"var(--c-text)",
+  muted:"var(--c-muted)",
+  subtle:"var(--c-subtle)",
+  accent:"var(--c-accent)",
+  abg:"var(--c-abg)",
+  dark:"var(--c-dark)",
+  ok:"var(--c-ok)",
+  err:"var(--c-err)",
+  star:"var(--c-star)",
 };
 export const SF = "system-ui,-apple-system,Helvetica Neue,Arial,sans-serif";
 export const SER = "Georgia,'Times New Roman',serif";
