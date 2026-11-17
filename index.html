@@ -18,10 +18,25 @@
     <style>
       /* Schrift für den Schriftzug: liegt in public/fonts und wird von der eigenen Adresse geladen, nicht von fremden Servern */
       @font-face { font-family: 'Dancing Script'; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/dancing-script-600.woff2) format('woff2'); }
+      /* Farben der App (dunkles Design). src/theme.js greift per var(--c-…) darauf zu. */
+      :root {
+        --c-bg: #1E1E24;
+        --c-white: #2A2A32;
+        --c-border: #3A3A46;
+        --c-text: #F0EEE9;
+        --c-muted: #9A9898;
+        --c-subtle: #7A7A86;
+        --c-accent: #D4904A;
+        --c-abg: #2E2820;
+        --c-dark: #13131A;
+        --c-ok: #4CAF7D;
+        --c-err: #E05555;
+        --c-star: #E8B547;
+      }
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { background: #13131A; overscroll-behavior: none; }
+      html, body { background: var(--c-dark); overscroll-behavior: none; }
       body { font-family: system-ui, -apple-system, sans-serif; }
-      #root { min-height: 100vh; background: #13131A; }
+      #root { min-height: 100vh; background: var(--c-dark); }
     </style>
   </head>
   <body>
