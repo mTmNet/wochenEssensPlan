@@ -1,18 +1,17 @@
 import { useRef, useState } from "react";
-import { C, SF, SER, micro as label, btn, input, iconBtn, chip } from "../theme.js";
+import { C, SF, SER, micro as label, btn, input, iconBtn, chip, groupTint } from "../theme.js";
 import { daysSince } from "../logic/weeks.js";
-import { STOCK_MIN, STOCK_GROUPS, fadeTable, guessGroup } from "../logic/stock.js";
+import { STOCK_MIN, STOCK_GROUPS, fadeTable, guessGroup, stockLevel } from "../logic/stock.js";
 import { isBasicText } from "../logic/ingredients.js";
 import { compressImageToBase64, kiErrText } from "../ai.js";
 import VorratGraph from "./VorratGraph.jsx";
-import { foodIcon } from "../logic/foodIcon.js";
 import { groupOf } from "../logic/graph.js";
 import Modal from "../components/Modal.jsx";
 
 // VORRAT - eine Liste aus drei Quellen: Haushaltsbuch (automatisch), Speisekammer-Foto (KI) und Hand.
 // Ohne Haushaltsbuch kommen abgehakte Posten der Einkaufsliste dazu (Herkunft "Einkauf").
 // Dauervorrat (Pin) verblasst nie; x entfernt eigene Positionen bzw. streicht Haushaltsbuch-Positionen; lernendes Verblassen je Produkt.
-const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
+const TONE={ok:C.ok,warn:C.warn,muted:C.muted};
 const SRC_LABEL={hb:"Haushaltsbuch",foto:"Foto",hand:"Hand",einkauf:"Einkauf",perm:"Dauervorrat"};
 const sel={...input,width:"118px",flexShrink:0,padding:"6px",fontSize:"13px"};
 // Umschalter Liste / Graph wird je Geraet gemerkt (reine Bequemlichkeit, kein Plan-Zustand)
@@ -23,6 +22,7 @@ const saveMode=(m)=>{ try{ localStorage.setItem(MODE_KEY,m); }catch(e){} };
 export default function Vorrat({state,api}){
   const {stock,stockRaw,hbLink,hbLoading,hbErr,hbBook,learned,vocab,unmapped,aliasBusy,aliasErr}=state;
   const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast,setAlias,clearAlias,mapNamesAI}=api;
+  const [help,setHelp]=useState(false);         // Abschnitt "So funktioniert der Vorrat" aufgeklappt
   const [menu,setMenu]=useState("");            // Schluessel der Zeile mit offenem Menue "⋯"
   const [rename,setRename]=useState(null);      // {item, value} - Dialog "Name zuordnen"
   const [hbInput,setHbInput]=useState("");
@@ -63,19 +63,24 @@ export default function Vorrat({state,api}){
     const aus=rawsOther.length?"aus: "+rawsOther.slice(0,3).join(", ")+(rawsOther.length>3?" …":""):"";
     const raws=s.raws&&s.raws.length?s.raws:[s.name];
     const open=menu===s.key;
-    const mBtn={...btn("ghost"),flex:"1 1 120px",minHeight:"44px",padding:"8px 6px",fontSize:"12px",letterSpacing:"1px"};
+    const mBtn={...btn("ghost"),flex:"1 1 120px",minHeight:"40px",padding:"8px 6px",fontSize:"12px",letterSpacing:"0.5px"};
+    const grp=groupOf(s), lv=stockLevel(s.p);
+    // Herkunft steht erst im aufgeklappten Bereich, damit die Zeile ruhig bleibt
+    const info=[!s.permanent&&when?"zuletzt "+when:"",src,lrn,aus].filter(Boolean).join(" · ");
     return(
-      <div key={s.key} style={{borderTop:i?"1px solid "+C.border:"none"}}>
-      <div style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 2px 8px 14px",minHeight:"56px",boxSizing:"border-box"}}>
+      <div key={s.key} style={{borderTop:i?"1px solid "+C.border:"none",boxShadow:"inset 4px 0 0 "+groupTint(grp)}}>
+      <div style={{display:"flex",alignItems:"center",gap:"4px",padding:"4px 2px 4px 14px",minHeight:"44px",boxSizing:"border-box"}}>
         <div style={{flex:1,minWidth:0}}>
-          <button onClick={()=>setRename({item:s,value:s.name})} title="Name zuordnen" aria-label={s.name+": Name zuordnen"} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:SF,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{ const ic=foodIcon(s.name,groupOf(s)); return ic?<span aria-hidden="true" style={{marginRight:"8px"}}>{ic}</span>:null; })()}{s.name}</button>
-          <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{[s.sub,when,left,src,lrn,aus].filter(Boolean).join(" · ")}{s.unsorted&&<span style={{color:C.accent}}> · nicht einsortiert</span>}</div>
+          <button onClick={()=>setRename({item:s,value:s.name})} title="Name zuordnen" aria-label={s.name+": Name zuordnen"} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:SF,fontSize:"15px",lineHeight:1.25,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</button>
+          <div style={{fontSize:"13px",color:C.muted,lineHeight:1.25,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[grp,s.permanent?"immer da":left].filter(Boolean).join(" · ")}{s.unsorted&&<span style={{color:C.accent}}> · nicht einsortiert</span>}</div>
         </div>
-        {!s.permanent&&<span style={{fontSize:"16px",fontWeight:"700",color:pColor(s.p),flexShrink:0,minWidth:"46px",textAlign:"right"}}>{Math.round(s.p*100)} %</span>}
-        {!s.permanent&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:s.p>=0.99?C.subtle:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
-        <button onClick={()=>{ removeStock(s); setMenu(""); showToast(s.permanent?"„"+s.name+"“ aus dem Dauervorrat genommen.":"„"+s.name+"“ gestrichen, gilt als aufgebraucht."); }} aria-label={s.name+": aufgebraucht, streichen"} title="Aufgebraucht – aus der Liste streichen" style={{...iconBtn,color:C.muted,minWidth:"36px",padding:"6px 4px"}}>×</button>
-        <button onClick={()=>setMenu(open?"":s.key)} aria-label={s.name+": weitere Aktionen"} aria-expanded={open} title="Weitere Aktionen" style={{...iconBtn,color:open?C.accent:C.muted,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>⋯</button>
+        {!s.permanent&&<span data-level={lv.label} style={{fontSize:"13px",fontWeight:"700",color:TONE[lv.tone],flexShrink:0,textAlign:"right",whiteSpace:"nowrap"}}>{lv.label}</span>}
+        {!s.permanent&&lv.min>=0.85&&<span aria-hidden="true" style={{minWidth:"34px",flexShrink:0}}/>}
+        {!s.permanent&&lv.min<0.85&&<button onClick={()=>{ refreshStock(s); showToast("„"+s.name+"“ ist wieder frisch da."); }} aria-label={s.name+" auffrischen: ist noch da"} title="Ist noch da – Verblassen beginnt neu" style={{...iconBtn,color:C.ok,fontSize:"18px",minWidth:"34px",padding:"6px 4px"}}>✓</button>}
+        <button onClick={()=>{ removeStock(s); setMenu(""); showToast(s.permanent?"„"+s.name+"“ aus dem Dauervorrat genommen.":"„"+s.name+"“ gestrichen, gilt als aufgebraucht."); }} aria-label={s.name+": aufgebraucht, streichen"} title="Aufgebraucht – aus der Liste streichen" style={{...iconBtn,color:C.muted,minWidth:"34px",padding:"6px 4px"}}>×</button>
+        <button onClick={()=>setMenu(open?"":s.key)} aria-label={s.name+": weitere Aktionen"} aria-expanded={open} title="Weitere Aktionen" style={{...iconBtn,color:open?C.accent:C.muted,fontSize:"18px",minWidth:"34px",padding:"6px 4px"}}>⋯</button>
       </div>
+      {open&&info&&<div style={{padding:"0 14px 8px",fontSize:"13px",color:C.muted,lineHeight:"1.4"}}>{info}</div>}
       {open&&(
         <div style={{display:"flex",gap:"6px",flexWrap:"wrap",padding:"0 14px 10px"}}>
           <button onClick={()=>{ setMenu(""); setRename({item:s,value:s.unsorted?"":s.name}); }} style={{...mBtn,color:C.accent,borderRadius:"6px"}}>EINSORTIEREN</button>
@@ -179,24 +184,35 @@ export default function Vorrat({state,api}){
 
     {/* DAUERVORRAT */}
     {mode==="list"&&perm.length>0&&(
-      <div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"12px"}}>
+      <div style={{background:C.white,border:"1px solid "+C.border,borderRadius:"8px",overflow:"hidden",marginBottom:"12px"}}>
         <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.border}}><span style={{...label,marginBottom:0}}>Dauervorrat ({perm.length})</span></div>
         {perm.map(row)}
       </div>
     )}
 
     {/* WAHRSCHEINLICH DA */}
-    {mode==="list"&&<div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"12px"}}>
+    {mode==="list"&&<div style={{background:C.white,border:"1px solid "+C.border,borderRadius:"8px",overflow:"hidden",marginBottom:"12px"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.border}}><span style={{...label,marginBottom:0}}>Wahrscheinlich da ({visible.length})</span></div>
       {visible.length===0&&<div style={{padding:"14px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>Noch nichts im Vorrat. Einkäufe in der Einkaufsliste abhaken, Haushaltsbuch verbinden, Speisekammer fotografieren oder oben etwas eintragen.</div>}
       {visible.map(row)}
-      <div style={{padding:"10px 14px",fontSize:"13px",color:C.subtle,borderTop:"1px solid "+C.border,lineHeight:"1.5"}}>
-        <div style={{marginBottom:"4px"}}><span style={{color:C.muted,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
-        <div>Das sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit („gelernt aus … Käufen“). Unter {Math.round(STOCK_MIN*100)} % gilt eine Sache als aufgebraucht. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen. × heißt „aufgebraucht“. Unter ⋯ stehen „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+      {(goneCount>0||hidden.length>0)&&<div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,borderTop:"1px solid "+C.border,lineHeight:"1.5"}}>
         {goneCount>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>{goneCount===1?"1 Position gestrichen.":goneCount+" Positionen gestrichen."}</span><button onClick={clearGone} style={{background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",padding:"6px 4px",fontFamily:SF}}>wieder einblenden</button></div>}
         {hidden.length>0&&<div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}><span>Als „kein Lebensmittel“ ausgeblendet:</span>{hidden.map(h=>(<button key={h.key} onClick={()=>{ clearAlias([],[h.key]); showToast("„"+h.label+"“ wieder eingeblendet."); }} aria-label={h.label+" wieder einblenden"} style={{background:"none",border:"1px solid "+C.border,color:C.accent,fontSize:"13px",cursor:"pointer",padding:"5px 8px",fontFamily:SF,borderRadius:"6px"}}>{h.label} ×</button>))}</div>}
-        <div style={{marginTop:"6px"}}>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
-      </div>
+      </div>}
+    </div>}
+
+    {/* ERKLAERUNG - eigener Abschnitt, zugeklappt, in gut lesbarer Groesse */}
+    {mode==="list"&&<div style={{background:C.white,border:"1px solid "+C.border,borderRadius:"8px",marginBottom:"12px",overflow:"hidden"}}>
+      <button onClick={()=>setHelp(h=>!h)} aria-expanded={help} style={{display:"flex",alignItems:"center",gap:"10px",width:"100%",minHeight:"44px",padding:"6px 14px",background:"none",border:"none",textAlign:"left",cursor:"pointer",fontFamily:SF}}>
+        <span style={{flex:1,minWidth:0}}><span style={{display:"block",fontSize:"15px",color:C.text}}>So funktioniert der Vorrat</span><span style={{display:"block",fontSize:"13px",color:C.muted}}>Haltbarkeit, Stufen und Dauervorrat erklärt</span></span>
+        <span aria-hidden="true" style={{color:C.accent,fontSize:"14px"}}>{help?"▴":"▾"}</span>
+      </button>
+      {help&&<div style={{padding:"4px 14px 12px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>
+        <div style={{marginBottom:"6px"}}><span style={{color:C.text,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
+        <div style={{marginBottom:"6px"}}>Rechts steht, wie sicher etwas noch da ist: „ist da“, „vermutlich da“, „eventuell da“, „eher nicht mehr da“. Danach gilt es als aufgebraucht und verschwindet aus der Liste.</div>
+        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen; der Haken erscheint erst, wenn ein Produkt nicht mehr sicher da ist. × heißt „aufgebraucht“. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+        <div>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
+      </div>}
     </div>}
 
     {/* NAME ZUORDNEN */}

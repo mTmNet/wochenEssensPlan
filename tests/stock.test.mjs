@@ -1,7 +1,7 @@
 // Punktzahl fuer "Heute" (Bauplan Abschnitt 7) und Bestand aus dem Haushaltsbuch
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN, learnHalfLives, buildStock, guessGroup, shopStockId, shopStockItem } from "../src/logic/stock.js";
+import { stockLevel, scoreRecipe, hbStock, ingStatus, pickFoodCat, goneKey, fadeDays, fadeTable, STOCK_MIN, learnHalfLives, buildStock, guessGroup, shopStockId, shopStockItem } from "../src/logic/stock.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 
 const NOW = "2026-10-04";                                   // fester Bezugstag fuer die Kochhistorie-Rechnung
@@ -177,4 +177,17 @@ test("buildStock: abgehakter Einkauf zaehlt ohne Haushaltsbuch als Vorrat und de
   assert.ok(scoreRecipe(normalizeRecipe("T", { ingredients:["400 g Tomaten"] }, 0), stock, TODAY).cov > 0.9);
   const un = buildStock({ items:{ x:{ name:"Klopapier", date:TODAY, src:"einkauf" } }, resolve });
   assert.equal(un[0].unsorted, true);                               // ohne Zuordnung: Hinweis "nicht einsortiert"
+});
+
+test("stockLevel: Stufen in Worten an den Grenzen 85, 70 und 50 Prozent", () => {
+  assert.equal(stockLevel(1).label, "ist da");
+  assert.equal(stockLevel(0.85).label, "ist da");
+  assert.equal(stockLevel(0.849).label, "vermutlich da");
+  assert.equal(stockLevel(0.7).label, "vermutlich da");
+  assert.equal(stockLevel(0.699).label, "eventuell da");
+  assert.equal(stockLevel(0.5).label, "eventuell da");
+  assert.equal(stockLevel(0.499).label, "eher nicht mehr da");
+  assert.equal(stockLevel(0.25).label, "eher nicht mehr da");
+  assert.equal(stockLevel(undefined).label, "eher nicht mehr da");
+  assert.equal(stockLevel(0.6).tone, "warn");
 });

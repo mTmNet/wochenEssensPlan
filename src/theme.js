@@ -14,6 +14,7 @@ export const C = {
   onAccent:"var(--c-on-accent)",   // Schrift auf Akzent- oder Gruenflaeche
   dark:"var(--c-dark)",            // Grund hinter dem Inhalt (Startbildschirm, Kochmodus)
   ok:"var(--c-ok)",
+  warn:"var(--c-warn)",            // unsicher (zwischen ok und grau)
   err:"var(--c-err)",
   star:"var(--c-star)",
   field:"var(--c-field)",          // Eingabefelder
@@ -60,3 +61,7 @@ export const btn = (kind)=>{
 export const iconBtn = {minWidth:"36px",minHeight:"36px",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:"20px",lineHeight:1,padding:"4px 8px",fontFamily:SF,flexShrink:0};
 // Eingabefeld
 export const input = {width:"100%",minWidth:0,border:"1px solid "+C.border,borderRadius:RB,padding:"8px 12px",fontSize:"14px",fontFamily:SF,color:C.text,outline:"none",boxSizing:"border-box",background:C.field,minHeight:"36px"};
+
+// FARBKANTE je Vorratsgruppe: gedeckte Farben wie am Marktstand, in beiden Designs gleich
+export const GROUP_TINT = {"Obst":"#D08A2E","Gemüse":"#5F9148","Fleisch":"#B4594E","Wurst":"#C27F8E","Fisch":"#5B86B5","Brot & Backwaren":"#B8935A","Milchprodukte":"#89A9C4","Käse":"#D9A441","Getränke":"#4FA59A","Süßes":"#96648E","Tiefkühl":"#5E8F8C","Konserven":"#C8663F","Trockenwaren":"#A9824F","Sonstiges":"#8A8A8A"};
+export const groupTint = (name) => GROUP_TINT[name] || GROUP_TINT.Sonstiges;

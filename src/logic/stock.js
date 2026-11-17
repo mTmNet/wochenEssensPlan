@@ -24,6 +24,14 @@ export const guessGroup = (name) => {
 };
 // Unter dieser Wahrscheinlichkeit gilt eine Sache als "nicht mehr da" (Vorratsliste und Einkauf blenden sie aus)
 export const STOCK_MIN = 0.25;
+// STUFEN in Worten statt Prozent (Anzeige in der Vorratsliste). Die Rechnung dahinter bleibt die Wahrscheinlichkeit p.
+export const STOCK_LEVELS = [
+  {min:0.85,label:"ist da",tone:"ok"},
+  {min:0.7,label:"vermutlich da",tone:"ok"},
+  {min:0.5,label:"eventuell da",tone:"warn"},
+  {min:0,label:"eher nicht mehr da",tone:"muted"},
+];
+export const stockLevel = (p) => STOCK_LEVELS.find(l=>(Number(p)||0)>=l.min) || STOCK_LEVELS[STOCK_LEVELS.length-1];
 // Nach so vielen Tagen faellt eine Sache unter STOCK_MIN (zwei Halbwertszeiten), hoechstens das Betrachtungsfenster
 export const fadeDays = (hl) => Math.min(HB_DAYS, Math.round(hl*Math.log(STOCK_MIN)/Math.log(0.5)));
 const HL_LABEL = {obst:"Obst",gemuese:"Gemüse",fleisch:"Fleisch",wurst:"Wurst",fisch:"Fisch",backwaren:"Backwaren",brot:"Brot",milch:"Milch",kaese:"Käse",getraenk:"Getränke",suess:"Süßes",tiefkuehl:"Tiefkühl"};

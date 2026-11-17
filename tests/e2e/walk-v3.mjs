@@ -99,6 +99,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await ctx.route(/\/api\/gemini/, mockAi);
   await ctx.route(/image\.pollinations\.ai/, route=>route.abort());
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, route=>route.abort());
+  // Vorratszeile: Herkunft steht im aufgeklappten Bereich unter "⋯"
+  const openRow = async(name)=>{ const b=page.locator('button[aria-label="'+name+': weitere Aktionen"]'); if((await b.getAttribute('aria-expanded'))!=='true'){ await b.click(); await page.waitForTimeout(200); } };
   const shot = async(name)=>{ await page.waitForTimeout(350); await page.screenshot({path:`${OUT}/v3-${name}.png`, fullPage:true}); log('shot', name); };
   const IN_APP = 'button:text-is("Rezepte")';
   const today = new Date(); const iso = (d)=>{ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate(),12); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); };
@@ -181,7 +183,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
     check(plan().shopping[sid].checked===true && ek && ek.src==='einkauf' && ek.date===T && !/\d/.test(ek.name), 'Einkauf ohne Haushaltsbuch: Abhaken schreibt stock/items/ek_<id> (Herkunft einkauf, Name ohne Menge)', {txt, ek});
     check(await page.isVisible('span:text-is("'+txt.replace(/"/g,'\\"')+'")'), 'Einkauf: abgehakter Posten bleibt in der Liste stehen');
     await page.click('button:text-is("Vorrat")'); await page.waitForTimeout(400);
-    check(await page.isVisible('text=Einkauf · ') || await page.isVisible('text=· Einkauf'), 'Vorrat: Zeile mit Herkunft "Einkauf"');
+    await page.locator('button[aria-label$=": weitere Aktionen"]').first().click(); await page.waitForTimeout(200);
+    check(await page.isVisible('text=/zuletzt heute · Einkauf/'), 'Vorrat: Herkunft "Einkauf" unter "⋯" der Zeile');
     await shot('04b-vorrat-aus-einkauf');
     await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(400);
     await page.locator('div:has(> span:text-is("'+txt.replace(/"/g,'\\"')+'")) > button[aria-label="Haken entfernen"]').first().click(); await page.waitForTimeout(700);
@@ -214,6 +217,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.fill('div[role="dialog"] input[aria-label="Zutatenname"]', 'Lachs');
   await page.click('div[role="dialog"] button:text-is("SPEICHERN")'); await page.waitForTimeout(500);
   const alias2 = plan().stock?.alias||{};
+  await openRow('Lachs');
   check(alias2.lachsfilet?.name==='Lachs' && alias2.lachsfilet.src==='hand' && (await page.locator('button[aria-label="Lachs: Name zuordnen"]').count())===1 && await page.isVisible('text=aus: Lachsfilet TK'), 'Vorrat: Hand-Zuordnung Lachsfilet -> Lachs unter stock/alias (src hand), Zeile heisst Lachs', alias2);
   // Kein Lebensmittel: Zeile verschwindet, unten "wieder einblenden" bringt sie zurueck
   await page.click('button[aria-label="Honig: Name zuordnen"]'); await page.waitForTimeout(200);
@@ -223,14 +227,18 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check((await page.locator('button[aria-label="Honig: Name zuordnen"]').count())===1 && !plan().stock.alias.honig, 'Vorrat: Wieder einblenden loescht die Zuordnung, Honig ist zurueck');
   const rowNames = await page.locator('button[aria-label$=": Name zuordnen"]').allTextContents();
   check(rowNames.some(t=>/Hackfleisch/.test(t)) && rowNames.some(t=>/Paprika$/.test(t.trim())) && rowNames.some(t=>/Joghurt/.test(t)) && !rowNames.some(t=>/500g|3er|Natur|3,5/.test(t)), 'Vorrat: Zeilen zeigen Zutatennamen statt Kassenbon-Bezeichnungen', rowNames);
-  check(await page.isVisible('text=aus: Rinderhack 500g'), 'Vorrat: Herkunft "aus: Rinderhack 500g" in der Zeile');
+  await openRow('Hackfleisch');
+  check(await page.isVisible('text=aus: Rinderhack 500g'), 'Vorrat: Herkunft "aus: Rinderhack 500g" unter "⋯" der Zeile');
   check(!(await page.isVisible('text=ungeklärt')), 'Vorrat: keine ungeklaerten Namen mehr');
-  check(await page.isVisible('text=Verblasst nach:'), 'Vorrat: Verblassen-Hinweis');
+  check((await page.locator('span[data-level]').count())>0 && !(await page.isVisible('text=/^\\d+ %$/')), 'Vorrat: Stufe in Worten statt Prozent');
+  await page.click('button:has-text("So funktioniert der Vorrat")'); await page.waitForTimeout(200);
+  check(await page.isVisible('text=Verblasst nach:'), 'Vorrat: Verblassen-Hinweis im Abschnitt "So funktioniert der Vorrat"');
   // Eigene Positionen: Hand, Dauervorrat (Pin), Foto, x
   await page.fill('input[placeholder="Lebensmittel, z. B. Linsen"]', 'Zwiebeln');
   await page.click('button[aria-label="Hinzufügen"]'); await page.waitForTimeout(500);
   const own = Object.values(plan().stock?.items||{});
   check(own.length===1 && own[0].name==='Zwiebeln' && own[0].sub==='Gemüse' && own[0].src==='hand' && own[0].date===T, 'Vorrat: Handeintrag unter stock/items mit erratener Gruppe', own);
+  await openRow('Zwiebeln');
   check(await page.isVisible('text=Haushaltsbuch + Hand') && await page.isVisible('text=aus: Zwiebeln 1kg'), 'Vorrat: Zwiebeln (Hand) verschmilzt mit "Zwiebeln 1kg" aus dem Haushaltsbuch: beide Quellen, Herkunft in der Zeile');
   await page.click('button[aria-label="Spaghetti: weitere Aktionen"]'); await page.waitForTimeout(200);
   check(await page.isVisible('button:text-is("EINSORTIEREN")') && await page.isVisible('button:text-is("KEIN LEBENSMITTEL")'), 'Vorrat: Menue "⋯" zeigt Einsortieren, Kein Lebensmittel, Dauervorrat');
@@ -247,6 +255,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("3 ÜBERNEHMEN")'); await page.waitForTimeout(600);
   const own2 = Object.values(plan().stock?.items||{});
   check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
+  await openRow('Linsen');
   check(await page.isVisible('text=Kichererbsen') && await page.isVisible('text=aus: Rote Linsen') && own2.some(i=>i.name==='Kichererbsen Dose'), 'Vorrat: Foto-Positionen in der Liste (Name im Dialog geaendert, Rote Linsen als Linsen mit Herkunft)');
   await page.click('button[aria-label="Kichererbsen: aufgebraucht, streichen"]'); await page.waitForTimeout(400);
   check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position (Kichererbsen aus dem Foto) loescht nur den Eintrag, kein gone-Marker');
@@ -255,7 +264,9 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // Auffrischen: Haken bei einer verblassten Haushaltsbuch-Position -> Handeintrag von heute, 100 %
   await page.click('button[aria-label="Butter auffrischen: ist noch da"]'); await page.waitForTimeout(500);
   const fresh = Object.values(plan().stock.items).find(i=>i.name==='Butter');
-  check(!!fresh && fresh.src==='hand' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + Hand'), 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
+  await openRow('Butter');
+  check(!!fresh && fresh.src==='hand' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + Hand') && (await page.locator('div:has(> div button[aria-label="Butter: Name zuordnen"]) span[data-level]').first().textContent())==='ist da', 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
+  check((await page.locator('button[aria-label="Butter auffrischen: ist noch da"]').count())===0, 'Vorrat: bei "ist da" gibt es keinen Haken mehr');
   await shot('05-vorrat');
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
   await page.click('button:text-is("Graph")'); await page.waitForTimeout(500);
