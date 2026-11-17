@@ -119,7 +119,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   return(
   <div>
     {/* GRAPH */}
-    <div style={{position:"relative",background:C.dark,border:"1px solid "+C.border,height:"min(62vh, 560px)",minHeight:"340px",overflow:"hidden"}}>
+    <div data-theme="dark" style={{position:"relative",background:C.dark,border:"1px solid "+C.border,height:"min(62vh, 560px)",minHeight:"340px",overflow:"hidden"}}>
       <svg ref={svgRef} data-testid="vorrat-graph" viewBox={vb.x+" "+vb.y+" "+vb.w+" "+vb.h} preserveAspectRatio="xMidYMid meet" width="100%" height="100%" style={{display:"block",touchAction:"none",cursor:"grab",fontFamily:SF,userSelect:"none"}}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onUp}>
         <g transform={"translate("+tf.x+" "+tf.y+") scale("+tf.k+")"}>

@@ -52,7 +52,7 @@ export default function CookMode({state,api}){
   const removeTimer=(id)=>setTimers(ts=>ts.filter(t=>t.id!==id));
   const navBtn={flex:1,padding:"14px",minHeight:"48px",border:"none",fontSize:"13px",letterSpacing:"1px",cursor:"pointer",fontFamily:SF};
   return(
-      <div style={{minHeight:"100vh",background:C.dark,fontFamily:SF,display:"flex",flexDirection:"column"}}>
+      <div data-theme="dark" style={{minHeight:"100vh",background:C.dark,fontFamily:SF,display:"flex",flexDirection:"column"}}>
         <Toast text={toast} />
         <div style={{...column,display:"flex",flexDirection:"column",flex:1}}>
           <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:"12px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
@@ -108,8 +108,8 @@ export default function CookMode({state,api}){
           <div style={{padding:"20px",display:"flex",gap:"12px"}}>
             <button onClick={()=>setCookStep(s=>Math.max(0,s-1))} disabled={cookStep===0} style={{...navBtn,background:"rgba(255,255,255,0.07)",color:cookStep===0?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.75)",cursor:cookStep===0?"default":"pointer"}}>ZURÜCK</button>
             {cookStep<steps.length-1
-              ?<button onClick={()=>setCookStep(s=>s+1)} style={{...navBtn,flex:2,background:C.accent,color:"#fff",fontWeight:"700"}}>WEITER</button>
-              :<button onClick={finishCook} style={{...navBtn,flex:2,background:C.ok,color:"#fff",fontWeight:"700"}}>FERTIG</button>
+              ?<button onClick={()=>setCookStep(s=>s+1)} style={{...navBtn,flex:2,background:C.accent,color:C.onAccent,fontWeight:"700"}}>WEITER</button>
+              :<button onClick={finishCook} style={{...navBtn,flex:2,background:C.ok,color:C.onAccent,fontWeight:"700"}}>FERTIG</button>
             }
           </div>
         </div>
