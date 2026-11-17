@@ -14,9 +14,10 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="preload" href="/fonts/dancing-script-600.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/dancing-script-700.woff2" as="font" type="font/woff2" crossorigin>
     <style>
       /* Schrift für den Schriftzug: liegt in public/fonts und wird von der eigenen Adresse geladen, nicht von fremden Servern */
+      @font-face { font-family: 'Dancing Script'; font-style: normal; font-weight: 700; font-display: swap; src: url(/fonts/dancing-script-700.woff2) format('woff2'); }
       @font-face { font-family: 'Dancing Script'; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/dancing-script-600.woff2) format('woff2'); }
       /* Farben der App. src/theme.js greift per var(--c-…) darauf zu.
          Hell ist der Grundzustand, [data-theme="dark"] schaltet auf Dunkel (am <html> oder an einer einzelnen Ansicht). */
@@ -24,7 +25,7 @@
         --c-bg: #F6F3EE; --c-white: #FFFEFB; --c-border: #E3DDD3; --c-text: #221E1A; --c-muted: #645C52; --c-subtle: #7A7166;
         --c-accent: #0B6466; --c-abg: #DFF0EF; --c-abg-border: #B9DAD8; --c-on-accent: #FFFFFF;
         --c-dark: #F6F3EE; --c-ok: #17714C; --c-err: #B93434; --c-star: #B07A00;
-        --c-field: #FFFFFF; --c-strong: #221E1A; --c-on-strong: #FFFEFB; --c-logo: #E3000F;
+        --c-field: #FFFFFF; --c-strong: #221E1A; --c-on-strong: #FFFEFB; --c-logo: #E3000F; --c-logo-line: #1A1A1A;
         --c-head: #FFFEFB; --c-head-muted: #645C52; --c-head-btn: #F1EDE6; --c-head-btn-border: #E3DDD3; --c-head-btn-text: #221E1A;
         --c-ok-bg: #E3F3EB; --c-ok-border: #C4E3D2; --c-err-bg: #FBE9E9; --c-err-border: #F0C4C4;
         --c-shade: #13131A;
@@ -34,7 +35,7 @@
         --c-bg: #23201D; --c-white: #2E2A26; --c-border: #433D36; --c-text: #EFEAE3; --c-muted: #B5AB9E; --c-subtle: #9A9084;
         --c-accent: #62C6C0; --c-abg: #21403F; --c-abg-border: #2F5958; --c-on-accent: #06201F;
         --c-dark: #171512; --c-ok: #62C394; --c-err: #F08585; --c-star: #E8B547;
-        --c-field: #1F1C19; --c-strong: #EFEAE3; --c-on-strong: #171512; --c-logo: #FF2E3E;
+        --c-field: #1F1C19; --c-strong: #EFEAE3; --c-on-strong: #171512; --c-logo: #FF2E3E; --c-logo-line: #000000;
         --c-head: #171512; --c-head-muted: rgba(255,255,255,0.6); --c-head-btn: rgba(255,255,255,0.06); --c-head-btn-border: rgba(255,255,255,0.12); --c-head-btn-text: rgba(255,255,255,0.8);
         --c-ok-bg: #1F3A2E; --c-ok-border: #2E5040; --c-err-bg: #40282A; --c-err-border: #6A3A3C;
         --c-shade: #171512;

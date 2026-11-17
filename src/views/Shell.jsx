@@ -29,18 +29,21 @@ export default function Shell({state,api,children}){
         <Toast text={toast} />
         {/* HEADER */}
         <div style={{background:C.head,borderBottom:"1px solid "+C.border}}>
-          <div style={{...column,padding:"12px 16px",display:"flex",alignItems:"center",gap:"8px 10px"}}>
+          <div style={{...column,position:"relative",padding:"8px 16px 17px",display:"flex",alignItems:"center",gap:"8px 10px"}}>
+            {/* Schriftzug mittig in der Hoehe, der Name sitzt klein direkt ueber der Linie */}
             <div style={{flex:"1 1 auto",minWidth:0}}>
-              <div style={{color:C.logo,fontSize:"clamp(24px,7vw,34px)",fontWeight:"600",fontFamily:"'Dancing Script',cursive",lineHeight:1.05,marginBottom:"1px",whiteSpace:"nowrap"}}>Wochenplan</div>
-              <div style={{color:C.headMuted,fontSize:"11px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
+              <div style={{color:C.logo,fontSize:"clamp(28px,9vw,36px)",fontWeight:"700",fontFamily:"'Dancing Script',cursive",lineHeight:1.1,whiteSpace:"nowrap",WebkitTextStroke:"0.7px "+C.logoLine,paintOrder:"stroke fill"}}>Wochenplan</div>
             </div>
-            <button onClick={copyCode} aria-label="Plan-Code kopieren" style={{background:C.abg,border:"1px solid "+C.abgBorder,padding:"5px 10px",minHeight:"40px",textAlign:"center",cursor:"pointer",fontFamily:SF}}>
-              <div style={{color:C.headMuted,fontSize:"11px",fontWeight:"700",letterSpacing:"1px",marginBottom:"1px"}}>{codeCopied?"KOPIERT":"CODE"}</div>
-              <div style={{color:C.accent,fontSize:"14px",fontWeight:"700",letterSpacing:"2px"}}>{code}</div>
+            <div style={{position:"absolute",left:"16px",bottom:"1px",maxWidth:"60%",color:C.headMuted,fontSize:"12px",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
+            <button onClick={copyCode} aria-label="Plan-Code kopieren" title="Plan-Code kopieren" style={{display:"inline-flex",alignItems:"center",gap:"6px",background:C.abg,border:"1px solid "+C.abgBorder,borderRadius:"6px",padding:"0 10px",minHeight:"40px",cursor:"pointer",fontFamily:SF,color:C.accent,fontSize:"13px",fontWeight:"700",letterSpacing:"1px",flexShrink:0}}>
+              <span>{code}</span>
+              {codeCopied
+                ? <span aria-live="polite" style={{fontSize:"14px",lineHeight:1}}>✓</span>
+                : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>}
             </button>
             {/* MENUE */}
             <div ref={menuRef} style={{position:"relative",flexShrink:0}}>
-              <button onClick={()=>setMenuOpen(o=>!o)} aria-label="Menü" aria-expanded={menuOpen} title="Menü" style={{minWidth:"44px",minHeight:"44px",background:C.headBtn,border:"1px solid "+C.headBtnBorder,color:C.headBtnText,fontSize:"22px",lineHeight:1,cursor:"pointer",fontFamily:SF}}>⋯</button>
+              <button onClick={()=>setMenuOpen(o=>!o)} aria-label="Menü" aria-expanded={menuOpen} title="Menü" style={{minWidth:"40px",minHeight:"40px",background:C.headBtn,border:"1px solid "+C.headBtnBorder,borderRadius:"6px",color:C.headBtnText,fontSize:"22px",lineHeight:1,cursor:"pointer",fontFamily:SF}}>⋯</button>
               {menuOpen&&(
                 <div role="menu" style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:1000,width:"260px",background:C.white,border:"1px solid "+C.border,boxShadow:"0 10px 30px rgba(0,0,0,0.5)"}}>
                   <div style={{...rowBtn,cursor:"default"}}>
