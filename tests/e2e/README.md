@@ -11,6 +11,7 @@ ln -sfn "$(npm root -g)/playwright" node_modules/playwright
 npm run dev -- --port 5173 --host 127.0.0.1 &   # Dev-Server
 node tests/e2e/walk-v3.mjs                        # Durchlauf, Screenshots nach tests/e2e/shots/
 node tests/e2e/rules-v3.mjs                       # Firebase-Regeln: recipeImages nicht auflistbar, Migration samt Bildkopie
+node tests/e2e/auth-rules.mjs                     # Anmeldung und Mitglieder-Regeln; Dev-Server dafür mit VITE_FB_API_KEY=TEST starten
 node tests/e2e/race-v2.mjs                        # Zwei Geräte, Nebenläufigkeit, Beitritt mit falschem Code, Migration
 ```
 
