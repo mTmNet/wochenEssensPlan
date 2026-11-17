@@ -115,7 +115,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(tabs.join('|').includes('Heute')&&tabs.join('|').includes('Vorrat')&&!tabs.join('|').includes('Woche')&&!tabs.join('|').includes('Plan'), 'Reiter: Heute · Vorrat · Rezepte · Einkauf, kein Woche, Plan versteckt', tabs);
   // HEUTE mit leerem Kochbuch: Vorschlaege aus der Rezept-Basis
   check(await page.isVisible('text=Was kochen wir heute?') && await page.isVisible('text=Aus der Rezept-Basis') && await page.isVisible('button:has-text("ZUM REZEPT")') && !(await page.isVisible('button:has-text("VORMERKEN")')), 'Heute: leeres Kochbuch -> bester Vorschlag aus der Rezept-Basis mit Zum Rezept/Kochmodus, kein Vormerken');
-  check(await page.isVisible('text=Vorrat verbinden'), 'Heute: Vorrat-Zeile laedt zum Verbinden ein');
+  check(await page.isVisible('text=Vorrat füllen'), 'Heute: Vorrat-Zeile laedt zum Fuellen ein (Einkaeufe abhaken oder Haushaltsbuch)');
   await shot('01-heute-leer');
   // REZEPTE: Meine/Alle, Startrezepte
   await page.click(IN_APP); await page.waitForTimeout(300);
@@ -168,6 +168,23 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(shop.length>3 && shop.every(i=>i.src==='plan'), 'Einkauf: Liste aus dem Vorgemerkten erzeugt', shop.length);
   check(await page.isVisible('text=Erledigt'), 'Einkauf: Ansicht offen');
   await shot('04-einkauf');
+  // OHNE HAUSHALTSBUCH: Abhaken traegt den Posten als heute gekauft in den Vorrat ein, Haken weg nimmt ihn zurueck
+  {
+    const before = Object.keys(plan().stock?.items||{}).length;
+    const sid = Object.keys(plan().shopping).find(id=>!plan().shopping[id].basic&&!plan().shopping[id].checked);
+    const txt = plan().shopping[sid].text;
+    const rowBtn = page.locator('div:has(> span:text-is("'+txt.replace(/"/g,'\\"')+'")) > button[aria-label="Abhaken"]').first();
+    await rowBtn.click(); await page.waitForTimeout(700);
+    const ek = plan().stock?.items?.['ek_'+sid];
+    check(plan().shopping[sid].checked===true && ek && ek.src==='einkauf' && ek.date===T && !/\d/.test(ek.name), 'Einkauf ohne Haushaltsbuch: Abhaken schreibt stock/items/ek_<id> (Herkunft einkauf, Name ohne Menge)', {txt, ek});
+    check(await page.isVisible('span:text-is("'+txt.replace(/"/g,'\\"')+'")'), 'Einkauf: abgehakter Posten bleibt in der Liste stehen');
+    await page.click('button:text-is("Vorrat")'); await page.waitForTimeout(400);
+    check(await page.isVisible('text=Einkauf · ') || await page.isVisible('text=· Einkauf'), 'Vorrat: Zeile mit Herkunft "Einkauf"');
+    await shot('04b-vorrat-aus-einkauf');
+    await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(400);
+    await page.locator('div:has(> span:text-is("'+txt.replace(/"/g,'\\"')+'")) > button[aria-label="Haken entfernen"]').first().click(); await page.waitForTimeout(700);
+    check(plan().shopping[sid].checked===false && !plan().stock?.items?.['ek_'+sid] && Object.keys(plan().stock?.items||{}).length===before, 'Einkauf: Haken am selben Tag entfernt nimmt den Vorratseintrag zurueck');
+  }
   // "WURDE HEUTE GEKOCHT" im Rezept: Kochdatum, Vormerkung weg, Bewertungsdialog
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(300);
   await page.locator('text=Pasta Bolognese').first().click(); await page.waitForTimeout(500);
@@ -213,7 +230,9 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const own = Object.values(plan().stock?.items||{});
   check(own.length===1 && own[0].name==='Zwiebeln' && own[0].sub==='Gemüse' && own[0].src==='hand' && own[0].date===T, 'Vorrat: Handeintrag unter stock/items mit erratener Gruppe', own);
   check(await page.isVisible('text=Haushaltsbuch + Hand') && await page.isVisible('text=aus: Zwiebeln 1kg'), 'Vorrat: Zwiebeln (Hand) verschmilzt mit "Zwiebeln 1kg" aus dem Haushaltsbuch: beide Quellen, Herkunft in der Zeile');
-  await page.click('button[aria-label="Spaghetti als Dauervorrat"]'); await page.waitForTimeout(500);
+  await page.click('button[aria-label="Spaghetti: weitere Aktionen"]'); await page.waitForTimeout(200);
+  check(await page.isVisible('button:text-is("EINSORTIEREN")') && await page.isVisible('button:text-is("KEIN LEBENSMITTEL")'), 'Vorrat: Menue "⋯" zeigt Einsortieren, Kein Lebensmittel, Dauervorrat');
+  await page.click('button:text-is("★ DAUERVORRAT")'); await page.waitForTimeout(500);
   const perm = plan().stock?.perm||{};
   check(Object.keys(perm).length===1 && perm[Object.keys(perm)[0]].name==='Spaghetti' && await page.isVisible('text=Dauervorrat (1)'), 'Vorrat: Pin schreibt stock/perm, Block Dauervorrat erscheint', perm);
   // Foto: kleines PNG, KI simuliert
@@ -227,9 +246,9 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const own2 = Object.values(plan().stock?.items||{});
   check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
   check(await page.isVisible('text=Kichererbsen') && await page.isVisible('text=aus: Rote Linsen') && own2.some(i=>i.name==='Kichererbsen Dose'), 'Vorrat: Foto-Positionen in der Liste (Name im Dialog geaendert, Rote Linsen als Linsen mit Herkunft)');
-  await page.click('button[aria-label="Kichererbsen entfernen"]'); await page.waitForTimeout(400);
+  await page.click('button[aria-label="Kichererbsen: aufgebraucht, streichen"]'); await page.waitForTimeout(400);
   check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position (Kichererbsen aus dem Foto) loescht nur den Eintrag, kein gone-Marker');
-  await page.click('button[aria-label="Bananen entfernen"]'); await page.waitForTimeout(400);
+  await page.click('button[aria-label="Bananen: aufgebraucht, streichen"]'); await page.waitForTimeout(400);
   check(plan().hb.gone && Object.keys(plan().hb.gone).length===1, 'x bei Haushaltsbuch-Position setzt gone-Marker');
   // Auffrischen: Haken bei einer verblassten Haushaltsbuch-Position -> Handeintrag von heute, 100 %
   await page.click('button[aria-label="Butter auffrischen: ist noch da"]'); await page.waitForTimeout(500);

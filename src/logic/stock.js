@@ -44,7 +44,17 @@ export const goneKey = (key) => String(key||"").replace(/\s+/g,"_").replace(/[.#
 const resolved = (resolve, raw) => {
   if(!resolve) { const key=normKey(raw); return key?{name:raw,key}:undefined; }
   const r = resolve(raw); if(r===null) return null;
-  return r&&r.key ? {name:r.name,key:r.key} : undefined;
+  return r&&r.key ? {name:r.name,key:r.key,src:r.src} : undefined;
+};
+// EINKAUF OHNE HAUSHALTSBUCH: Ein abgehakter Posten der Einkaufsliste gilt als heute gekauft (nur wenn kein Haushaltsbuch verbunden ist).
+// Der Schluessel haengt am Posten (stock/items/ek_<Posten-Id>): zwei Geraete, die gleichzeitig abhaken, schreiben denselben Eintrag.
+export const shopStockId = (shopId) => "ek_"+String(shopId||"").replace(/[.#$\[\]\/\s]/g,"");
+// Liefert {name, sub, date, src:"einkauf", createdAt} oder null (kein Name, Grundvorrat wie Salz und Oel)
+export const shopStockItem = (item, day, now) => {
+  const name = parseIng(String((item&&item.text)||"")).name.replace(/\s+/g," ").trim().slice(0,80);
+  const key = normKey(name);
+  if(!name||!key||isBasic(key)) return null;
+  return {name, sub:guessGroup(name), date:day, src:"einkauf", createdAt:now===undefined?Date.now():now};
 };
 // Rohbezeichnungen der Lebensmittel-Einkaeufe im Betrachtungsfenster (fuer die Namenszuordnung)
 export const hbRawNames = (book,cat,now) => {
@@ -80,7 +90,7 @@ export const hbStock = (book,cat,gone,learned,resolve) => {
       const last = prev&&prev.last>e.date?prev.last:e.date;
       const newest = !prev||last!==prev.last;
       const raws = prev?prev.raws:[]; if(!raws.includes(it.name)) raws.push(it.name);
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:r.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,src:"hb",learnedN:learned&&learned[key]?learned[key].n:0,raws};
+      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:r.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,src:"hb",learnedN:learned&&learned[key]?learned[key].n:0,raws,unsorted:prev?prev.unsorted:r.src===""};
     });
   });
   const g = gone||{};
@@ -189,7 +199,7 @@ export const buildStock = ({book,cat,gone,items,perm,learned,now,resolve}={}) =>
       const raws=prev.raws||[]; if(!raws.includes(it.name)) raws.push(it.name);
       map[key]={...prev,p:1-(1-prev.p)*(1-p),last:date>prev.last?date:prev.last,hl:date>prev.last?hl:prev.hl,srcs:[...new Set([...prev.srcs,it.src||"hand"])],ownIds:[...prev.ownIds,id],raws};
     }else{
-      map[key]={key,toks:key.split(" "),p,name:r.name,sub:it.sub||guessGroup(r.name),last:date,hl,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:learned&&learned[key]?learned[key].n:0,raws:[it.name]};
+      map[key]={key,toks:key.split(" "),p,name:r.name,sub:it.sub||guessGroup(r.name),last:date,hl,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:learned&&learned[key]?learned[key].n:0,raws:[it.name],unsorted:r.src===""};
     }
   });
   Object.keys(perm||{}).forEach(gk=>{

@@ -4,7 +4,7 @@ import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames } from "./logic/stock.js";
+import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem } from "./logic/stock.js";
 import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } from "./logic/alias.js";
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
@@ -431,7 +431,15 @@ export default function App() {
     const v=!it.checked;
     setShopping(prev=>prev[id]?{...prev,[id]:{...prev[id],checked:v}}:prev);
     if(await shopItemGone(id)) return;
-    writePlan({["shopping/"+id+"/checked"]:v},"shopping");
+    const patch={["shopping/"+id+"/checked"]:v}, parts=["shopping"];
+    // Ohne Haushaltsbuch gilt Abgehaktes als heute gekauft und kommt in den Vorrat; Haken am selben Tag wieder weg = Eintrag wieder weg
+    if(!hbLink){
+      const sid=shopStockId(id), cur=stockRaw.items&&stockRaw.items[sid];
+      const si=v?shopStockItem(it,todayISO(),Date.now()):null;
+      if(si){ patch["stock/items/"+sid]=si; parts.push("stock"); setStockRaw(prev=>({...prev,items:{...(prev.items||{}),[sid]:si}})); }
+      else if(!v&&cur&&cur.date===todayISO()){ patch["stock/items/"+sid]=null; parts.push("stock"); setStockRaw(prev=>{ const items={...(prev.items||{})}; delete items[sid]; return {...prev,items}; }); }
+    }
+    writePlan(patch,parts);
   };
   const forceBuy=async(id)=>{
     if(!shopping[id])return;
@@ -1018,8 +1026,10 @@ export default function App() {
 
   // EINKAUFSLISTE in Bloecken (Bauplan Abschnitt 9): Liste, "Wahrscheinlich da" (stockP >= 0,6), "Vorrat pruefen" (Grundvorrat)
   const shopList=useMemo(()=>shoppingList(shopping).map(it=>{ const st=stock.length?ingStatus(it.text,stock):null; return {...it,stockP:st&&!st.basic?st.p:0}; }),[shopping,stock]);
-  const shopMain=useMemo(()=>shopList.filter(it=>isListed(it)&&(it.forceBuy||it.stockP<0.6)),[shopList]);
-  const shopLikely=useMemo(()=>shopList.filter(it=>isListed(it)&&!it.forceBuy&&it.stockP>=0.6),[shopList]);
+  // Ohne Haushaltsbuch fuellt das Abhaken den Vorrat: ein abgehakter Posten bleibt in der Liste stehen (sonst spraenge er sofort nach "Wahrscheinlich da")
+  const keepChecked=!hbLink;
+  const shopMain=useMemo(()=>shopList.filter(it=>isListed(it)&&(it.forceBuy||(keepChecked&&it.checked)||it.stockP<0.6)),[shopList,keepChecked]);
+  const shopLikely=useMemo(()=>shopList.filter(it=>isListed(it)&&!it.forceBuy&&!(keepChecked&&it.checked)&&it.stockP>=0.6),[shopList,keepChecked]);
   const shopBasics=useMemo(()=>shopList.filter(it=>it.basic&&!it.forceBuy),[shopList]);
   const shopGroups=useMemo(()=>groupShopping(shopMain),[shopMain]);
   const unchecked=shopMain.filter(x=>!x.checked).length;

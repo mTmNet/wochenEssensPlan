@@ -137,15 +137,17 @@ export default function Heute({state,api}){
 
     {/* VORRAT-ZEILE */}
     <button onClick={()=>setView("vorrat")} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",background:C.white,border:"1px solid "+C.border,padding:"12px 14px",minHeight:"52px",marginBottom:"12px",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
-      <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hbLink?(hasStock?C.ok:C.subtle):C.subtle,flexShrink:0}} />
+      <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hasStock?C.ok:C.subtle,flexShrink:0}} />
       <span style={{flex:1,fontSize:"14px",color:C.text}}>
         {hbLink
           ? (hbBook?<>Vorrat: <b>{likely}</b> Lebensmittel wahrscheinlich da<span style={{color:C.muted}}> · Haushaltsbuch {hbLink.code}</span></>:"Vorrat wird geladen…")
-          : <>Vorrat verbinden<span style={{color:C.muted}}> · dann passen die Vorschläge zu dem, was da ist</span></>}
+          : hasStock
+            ? <>Vorrat: <b>{likely}</b> Lebensmittel wahrscheinlich da<span style={{color:C.muted}}> · aus Einkaufsliste, Foto und Hand</span></>
+            : <>Vorrat füllen<span style={{color:C.muted}}> · Einkäufe abhaken oder Haushaltsbuch verbinden, dann passen die Vorschläge zu dem, was da ist</span></>}
       </span>
       <span style={{color:C.accent,fontSize:"16px"}}>›</span>
     </button>
-    {!hbLink&&top&&!emptyBook&&<div style={{fontSize:"12px",color:C.subtle,margin:"-6px 2px 12px"}}>Ohne Vorrat sortiert nach Bewertung und Abwechslung.</div>}
+    {!hbLink&&!hasStock&&top&&!emptyBook&&<div style={{fontSize:"12px",color:C.subtle,margin:"-6px 2px 12px"}}>Ohne Vorrat sortiert nach Bewertung und Abwechslung.</div>}
 
     {/* KI - bekanntes Gericht finden */}
     <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px"}}>
