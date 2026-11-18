@@ -140,7 +140,7 @@ export default function Heute({state,api}){
       <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hasStock?C.ok:C.subtle,flexShrink:0}} />
       <span style={{flex:1,fontSize:"14px",color:C.text}}>
         {hbLink
-          ? (hbBook?<>Vorrat: <b>{likely}</b> Lebensmittel wahrscheinlich da<span style={{color:C.muted}}> · Haushaltsbuch {hbLink.code}</span></>:"Vorrat wird geladen…")
+          ? (hbBook?<>Vorrat: <b>{likely}</b> Lebensmittel wahrscheinlich da<span style={{color:C.muted}}> · Haushaltsbuch{hbLink.code?" "+hbLink.code:""}</span></>:"Vorrat wird geladen…")
           : hasStock
             ? <>Vorrat: <b>{likely}</b> Lebensmittel wahrscheinlich da<span style={{color:C.muted}}> · aus Einkaufsliste, Foto und Hand</span></>
             : <>Vorrat füllen<span style={{color:C.muted}}> · Einkäufe abhaken oder Haushaltsbuch verbinden, dann passen die Vorschläge zu dem, was da ist</span></>}

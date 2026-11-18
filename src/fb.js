@@ -76,4 +76,28 @@ export const normCode = (s) => String(s||"").toUpperCase().replace(/[\s-]/g,"");
 export const HB_FB = "https://haushaltsbuch-3cefb-default-rtdb.europe-west1.firebasedatabase.app";
 export const HB_CODE_RE = CODE_RE;
 // undefined = nicht erreichbar, null = kein Buch mit diesem Code
-export const hbGet = async (code) => { try { const r=await fetchT(HB_FB+"/books/"+code+".json",{},FETCH_TIMEOUT_MS); return r.ok?await r.json():undefined; } catch(e){ return undefined; } };
+const hbRead = async (path) => { try { const r=await fetchT(HB_FB+"/"+path+".json",{},FETCH_TIMEOUT_MS); return r.ok?await r.json():undefined; } catch(e){ return undefined; } };
+export const hbGet = (code) => hbRead("books/"+code);
+// EINKAUFSAUSZUG: Das Haushaltsbuch legt die Lebensmittel-Einkäufe (Datum, Artikel, Unterkategorie, keine Beträge) unter
+// kitchen/<Schlüssel> ab; den Schlüssel gibt es einmalig gegen den Buch-Code unter kitchenKeys/<CODE>.
+// Der Plan merkt sich den Schlüssel statt des Buch-Codes: Wer den Plan-Code kennt, kommt so nicht mehr an die Finanzdaten.
+export const HB_KEY_RE = /^[A-Za-z0-9]{20,40}$/;
+// undefined = nicht erreichbar oder (noch) nicht erlaubt, null = das Buch hat keinen Auszug
+export const hbKitchenKey = async (code) => { const k=await hbRead("kitchenKeys/"+code); if(k===undefined) return undefined; return k&&HB_KEY_RE.test(String(k.key||""))?k.key:null; };
+export const hbKitchen = (key) => hbRead("kitchen/"+key);
+// Einkäufe zu einer Verknüpfung {key?, code?, cat} laden: erst der Auszug, sonst (Übergang) das Buch über den Code.
+// Liefert {book, key?, cat?} oder {err:"offline"|"missing"}. key ist gesetzt, wenn der Auszug gelesen wurde.
+export const hbLoad = async (link, io) => {
+  const f=io||{hbGet,hbKitchenKey,hbKitchen}, l=link||{};
+  let key=HB_KEY_RE.test(String(l.key||""))?l.key:"";
+  if(!key&&l.code){ const k=await f.hbKitchenKey(l.code); if(k) key=k; }
+  if(key){
+    const ex=await f.hbKitchen(key);
+    if(ex&&typeof ex==="object") return {book:ex,key,cat:typeof ex.cat==="string"?ex.cat:""};
+    if(!l.code) return {err:ex===undefined?"offline":"missing"};
+  }
+  if(!l.code) return {err:"missing"};
+  const bk=await f.hbGet(l.code);
+  if(bk===undefined) return {err:"offline"};
+  return bk?{book:bk}:{err:"missing"};
+};

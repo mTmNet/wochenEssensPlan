@@ -16,7 +16,8 @@ Schalter: Die Anmeldung ist nur aktiv, wenn die Vercel-Variable `VITE_FB_API_KEY
 
 - Seit 18.11.2026: „Anonym“ ist in der Firebase Console aktiviert, `VITE_FB_API_KEY` ist in Vercel für Production gesetzt, in der Console gilt **Stand 1**. Geprüft an der Live-App: Unter *Authentication → Nutzer* erscheint ein anonymer Nutzer, unter `members/<CODE>` der passende Eintrag.
 - Für den Schlüssel wurde in den Projekteinstellungen eine Web-App „Wochenplan“ eingetragen (ohne Firebase Hosting); vorher gab es keinen Web-API-Schlüssel.
-- Nächster Handgriff: Stand 2, sobald auch das Haushaltsbuch die Anmeldung hat und der Wochenplan die Einkäufe nicht mehr über den Buch-Code liest.
+- Brücke zum Haushaltsbuch (seit 18.11.2026 im Code): Der Wochenplan liest den Einkaufsauszug `kitchen/<Schlüssel>` und merkt sich unter `plans/<CODE>/hb/key` nur den Schlüssel. Neue Verknüpfungen speichern keinen Buch-Code mehr; alte behalten ihn als Rückfall, bis er vor Stand 2 entfernt wird. Wirkt, sobald Kevin im Haushaltsbuch-Projekt die Regeln für den Auszug veröffentlicht hat (dort `docs/ANMELDUNG.md`).
+- Nächster Handgriff: Stand 2, sobald alle verknüpften Pläne den Schlüssel haben.
 
 ## Stand 1: heutige Regeln plus Knoten `members`
 
