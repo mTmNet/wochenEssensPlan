@@ -361,8 +361,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
     check(!!kid && k0.src==='manuell' && await grp.isVisible() && await grp.locator('button:text-is("Fertig")').isVisible(), 'Einkauf: "Käse" steht sofort in der Liste, Mengenauswahl geht auf', k0);
     await grp.locator('button:text-is("2")').click(); await page.waitForTimeout(400);
     check(plan().shopping[kid].text==='2 Käse' && plan().shopping[kid].cat==='Milch & Käse', 'Mengenauswahl: Tipp auf 2 macht "2 Käse"', plan().shopping[kid]);
-    await grp.locator('button:text-is("g")').click(); await page.waitForTimeout(400);
-    check(plan().shopping[kid].text==='200 g Käse' && await grp.locator('button:text-is("500")').isVisible(), 'Mengenauswahl: Tipp auf g macht "200 g Käse", Zahlen wechseln auf Gramm', plan().shopping[kid]);
+    await grp.locator('button:text-is("Gramm")').click(); await page.waitForTimeout(400);
+    check(plan().shopping[kid].text==='200 g Käse' && await grp.locator('button:text-is("500")').isVisible(), 'Mengenauswahl: Tipp auf "Gramm" macht "200 g Käse" (Text bleibt kurz), Zahlen wechseln auf Gramm', plan().shopping[kid]);
     await shot('06d-einkauf-mengenauswahl');
     await grp.locator('button:text-is("Packung")').click(); await page.waitForTimeout(300);
     await grp.locator('button:text-is("3")').click(); await page.waitForTimeout(400);

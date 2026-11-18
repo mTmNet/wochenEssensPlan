@@ -181,11 +181,12 @@ export const splitQty = (text) => {
 export const joinQty = (name, qty) => { const n=String(name||"").trim(), q=String(qty||"").trim(); return q&&n?q+" "+n:n; };
 
 // Einheiten zur Auswahl; "" = Stück (nur die Zahl). many = Mehrzahl, nums = Zahlen zum Antippen
+// label ist nur die Beschriftung zum Antippen; im Text des Postens steht weiter die kurze Einheit ("200 g Käse"), die der Zutaten-Abgleich kennt
 const NUMS_ST=["1","2","3","4","5","6","8","10","12"];
 export const QTY_UNITS = {
   "":        {label:"Stück",   nums:NUMS_ST},
-  "g":       {label:"g",       nums:["100","150","200","250","300","400","500","750"]},
-  "kg":      {label:"kg",      nums:["0,5","1","1,5","2","2,5","3","5"]},
+  "g":       {label:"Gramm",   nums:["100","150","200","250","300","400","500","750"]},
+  "kg":      {label:"Kilo",    nums:["0,5","1","1,5","2","2,5","3","5"]},
   "ml":      {label:"ml",      nums:["100","200","250","330","500","750"]},
   "l":       {label:"Liter",     nums:["0,5","1","1,5","2","3","6"]},
   "Packung": {label:"Packung", many:"Packungen", nums:NUMS_ST},
