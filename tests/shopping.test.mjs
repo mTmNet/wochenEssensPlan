@@ -201,3 +201,46 @@ test("onlyNeeded: Vorhandenes kommt nicht neu auf die Liste; Grundvorrat und sch
   assert.equal(next.x1.checked, true);
   assert.deepEqual(onlyNeeded(null, null, inStock), {});
 });
+
+// Mengenauswahl im Einkauf
+import { splitQty, joinQty, qtyUnits, readQty, applyQty } from "../src/logic/shopping.js";
+import { ingKey, parseIng, shopCat } from "../src/logic/ingredients.js";
+test("Mengenauswahl: Posten in Name und Menge trennen und wieder zusammensetzen", () => {
+  assert.deepEqual(splitQty("Käse"), {name:"Käse",qty:""});
+  assert.deepEqual(splitQty("200 g Käse"), {name:"Käse",qty:"200 g"});
+  assert.deepEqual(splitQty("2 Käse"), {name:"Käse",qty:"2"});
+  assert.deepEqual(splitQty("Zucchini 750 g"), {name:"Zucchini",qty:"750 g"});
+  assert.deepEqual(splitQty("1,5 l Milch"), {name:"Milch",qty:"1,5 l"});
+  assert.equal(joinQty("Käse","200 g"), "200 g Käse");
+  assert.equal(joinQty("Käse",""), "Käse");
+  assert.equal(joinQty("","2"), "");
+  ["Käse","200 g Käse","2 Packungen Käse","1,5 l Milch","3 Dosen Tomaten","2 Gläser Pesto","1 Bund Petersilie"].forEach(t=>{ const s=splitQty(t); assert.equal(joinQty(s.name,s.qty), t); });
+});
+test("Mengenauswahl: Zahl und Einheit antippen", () => {
+  assert.equal(applyQty("",{num:"2"}), "2");
+  assert.equal(applyQty("2",{num:"3"}), "3");
+  assert.equal(applyQty("2",{unit:"Packung"}), "2 Packungen");
+  assert.equal(applyQty("2 Packungen",{num:"1"}), "1 Packung");
+  assert.equal(applyQty("",{unit:"g"}), "200 g");
+  assert.equal(applyQty("2",{unit:"g"}), "200 g");
+  assert.equal(applyQty("200 g",{num:"500"}), "500 g");
+  assert.equal(applyQty("500 g",{unit:"kg"}), "1 kg");
+  assert.equal(applyQty("500 g",{unit:"ml"}), "500 ml");
+  assert.equal(applyQty("200 g",{unit:""}), "1");
+  assert.equal(applyQty("3 Dosen",{unit:"Glas"}), "3 Gläser");
+  assert.equal(applyQty("Bio",{num:"2"}), "2");
+  assert.deepEqual(readQty("2 Pck."), {num:"2",unit:"Packung"});
+  assert.equal(readQty("2 große"), null);
+  assert.equal(readQty("Bio"), null);
+});
+test("Mengenauswahl: Einheiten je Abteilung, Posten mit Menge bleibt dieselbe Zutat in derselben Abteilung", () => {
+  assert.equal(qtyUnits("Käse")[0], "");
+  assert.ok(qtyUnits("Käse").includes("g")&&qtyUnits("Käse").includes("Scheiben"));
+  assert.ok(qtyUnits("Tomaten Dose").includes("Dose"));
+  assert.ok(qtyUnits("Wasser").includes("l"));
+  assert.ok(qtyUnits("Klopapier").includes("Packung"));
+  // jede angebotene Einheit wird vom Zutaten-Parser als Einheit erkannt (Name bleibt "Käse")
+  ["","g","kg","ml","l","Packung","Dose","Glas","Becher","Bund","Scheiben"].forEach(u=>{
+    ["1","2"].forEach(n=>{ const t=joinQty("Käse",applyQty(n,{unit:u}).replace(/^\S+/,n)); const p=parseIng(t); assert.equal(p.name,"Käse",t); if(u!=="Dose"&&u!=="Glas") assert.equal(shopCat(t),"Milch & Käse",t); assert.equal(ingKey(t).split("|")[0],ingKey("Käse").split("|")[0],t); });
+  });
+});

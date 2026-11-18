@@ -457,10 +457,11 @@ export default function App() {
     setShopping(prev=>{const n={...prev};delete n[id];return n;});
     writePlan({["shopping/"+id]:null},"shopping");
   };
-  const editShopItem=async(id,text)=>{
+  // cat (optional): Abteilung vorgeben, damit eine gewaehlte Menge ("1 Glas Honig") den Posten nicht in eine andere Abteilung schiebt
+  const editShopItem=async(id,text,cat)=>{
     const txt=String(text||"").trim();
     if(!txt){ removeShopItem(id); return; }                           // leerer Text = Eintrag loeschen
-    const fields={text:txt,cat:shopCat(txt),key:ingKey(txt)};
+    const fields={text:txt,cat:cat||shopCat(txt),key:ingKey(txt)};
     setShopping(prev=>prev[id]?{...prev,[id]:{...prev[id],...fields}}:prev);
     if(await shopItemGone(id)) return;
     writePlan({["shopping/"+id+"/text"]:txt,["shopping/"+id+"/cat"]:fields.cat,["shopping/"+id+"/key"]:fields.key},"shopping");
@@ -484,6 +485,7 @@ export default function App() {
     const id=newShopId(), item=makeShopItem(txt,{src:"manuell",order:nextOrder(shoppingRef.current)});
     setShopping(prev=>({...prev,[id]:item}));
     writePlan({["shopping/"+id]:item},"shopping");
+    return id;                                                        // die Ansicht oeffnet dazu die Mengenauswahl
   };
 
   // REZEPTE - einzeln unter recipes/<recKey>; Felder (Bewertung, Notiz, Kochdatum) als Feld-PATCH.

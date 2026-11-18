@@ -165,3 +165,66 @@ export const onlyNeeded = (items, shopping, inStock) => {
 
 // Klartext zum Teilen (Abteilungen als Ueberschriften); nimmt ein Objekt oder eine fertige Liste
 export const shoppingText = (shopping) => groupShopping(shopping).map(g=>g.cat.toUpperCase()+"\n"+g.items.map(i=>(i.checked?"[x] ":"[ ] ")+i.text).join("\n")).join("\n\n");
+
+// MENGENAUSWAHL im Einkauf: Die Menge steht wie bei Rezept-Zutaten vorn im Text des Postens ("200 g Käse", "2 Käse"), kein eigenes Feld.
+// Posten in Name und Menge trennen ("Zucchini 750 g" -> {name:"Zucchini", qty:"750 g"})
+const qtyNum = (a) => { const r=Math.round(a*100)/100; return Number.isInteger(r)?String(r):String(r).replace(".",","); };
+export const splitQty = (text) => {
+  const t=String(text||"").trim();
+  const p=parseIng(t);
+  if(p.amount===null) return {name:t,qty:""};
+  return {name:p.name,qty:qtyNum(p.amount)+(p.unit?" "+p.unit:"")};
+};
+// Name und Menge wieder zum Text des Postens zusammensetzen (Menge vorn)
+export const joinQty = (name, qty) => { const n=String(name||"").trim(), q=String(qty||"").trim(); return q&&n?q+" "+n:n; };
+
+// Einheiten zur Auswahl; "" = Stück (nur die Zahl). many = Mehrzahl, nums = Zahlen zum Antippen
+const NUMS_ST=["1","2","3","4","5","6","8","10","12"];
+export const QTY_UNITS = {
+  "":        {label:"Stück",   nums:NUMS_ST},
+  "g":       {label:"g",       nums:["100","150","200","250","300","400","500","750"]},
+  "kg":      {label:"kg",      nums:["0,5","1","1,5","2","2,5","3","5"]},
+  "ml":      {label:"ml",      nums:["100","200","250","330","500","750"]},
+  "l":       {label:"Liter",     nums:["0,5","1","1,5","2","3","6"]},
+  "Packung": {label:"Packung", many:"Packungen", nums:NUMS_ST},
+  "Dose":    {label:"Dose",    many:"Dosen",     nums:NUMS_ST},
+  "Glas":    {label:"Glas",    many:"Gläser",    nums:NUMS_ST},
+  "Becher":  {label:"Becher",  nums:NUMS_ST},
+  "Bund":    {label:"Bund",    nums:NUMS_ST},
+  "Scheiben":{label:"Scheiben",nums:NUMS_ST},
+};
+// Welche Einheiten zu welcher Abteilung passen (Stück steht immer vorn)
+const QTY_BY_CAT = {
+  "Obst & Gemüse":["g","kg","Bund","Packung"],
+  "Kräuter & Frisches":["Bund","Packung"],
+  "Fleisch & Fisch":["g","kg","Packung","Scheiben"],
+  "Milch & Käse":["g","Packung","Scheiben","Becher","l"],
+  "Kühlregal":["g","Packung","Becher"],
+  "Tiefkühl":["g","kg","Packung"],
+  "Backwaren":["g","kg","Packung","Scheiben"],
+  "Trockenwaren":["g","kg","Packung"],
+  "Konserven & Gläser":["Dose","Glas","g","ml"],
+  "Gewürze & Öle":["g","ml","l","Glas","Packung"],
+  "Getränke":["l","ml","Packung"],
+  "Sonstiges":["g","kg","ml","l","Packung"],
+};
+export const qtyUnits = (name) => { const c=shopCat(name); const cat=SHOP_CAT_ALIAS[c]||c; return ["",...(QTY_BY_CAT[cat]||QTY_BY_CAT.Sonstiges)]; };
+// Menge lesen: {num, unit} mit unit als Schluessel aus QTY_UNITS; null, wenn die Menge freier Text ist ("Bio", "2 große")
+const UNIT_READ = {"":"","st":"","stk":"","stueck":"","g":"g","gramm":"g","kg":"kg","kilo":"kg","ml":"ml","l":"l","liter":"l","pck":"Packung","packung":"Packung","packungen":"Packung","dose":"Dose","dosen":"Dose","glas":"Glas","glaeser":"Glas","becher":"Becher","bund":"Bund","scheibe":"Scheiben","scheiben":"Scheiben"};
+const foldU = (u) => String(u||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/\./g,"").trim();
+export const readQty = (qty) => {
+  const m=String(qty||"").trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+  if(!m) return null;
+  const unit=UNIT_READ[foldU(m[2])];
+  return unit===undefined?null:{num:m[1].replace(".",","),unit};
+};
+const fmtQty = (num, unit) => { const u=QTY_UNITS[unit]; const word=unit===""?"":(u.many&&num!=="1"?u.many:unit); return word?num+" "+word:num; };
+// Tipp auf eine Zahl: Einheit bleibt. Tipp auf eine Einheit: Zahl bleibt, wenn sie zur Einheit passt, sonst der uebliche Startwert
+export const applyQty = (qty, chip) => {
+  const cur=readQty(qty)||{num:"",unit:""};
+  if(chip.num!==undefined) return fmtQty(chip.num,cur.unit);
+  const unit=chip.unit, nums=QTY_UNITS[unit].nums;
+  const fits = cur.num && (nums.includes(cur.num) || (QTY_UNITS[cur.unit].nums===nums));
+  const start = {g:"200",ml:"500"}[unit]||"1";
+  return fmtQty(fits?cur.num:start,unit);
+};
