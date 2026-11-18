@@ -352,6 +352,39 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const stocked = firstMissing.replace(/: ist da$/,'');
   check(!(await page.isVisible('text=Wahrscheinlich da (')) && (await page.locator('span[data-level]').count())===0 && await page.isVisible('span:text-is("'+stocked+'")'), 'Einkauf: kein Block "Wahrscheinlich da", Posten bleibt trotz Vorrat in der Liste', stocked);
   await shot('06c-einkauf-ohne-wahrscheinlich-da');
+  // MENGENAUSWAHL: Eingetipptes landet sofort in der Liste, darunter geht die Auswahl auf; jede Auswahl schreibt nur den Text des Postens
+  {
+    const find = (re)=>Object.entries(plan().shopping).find(([,v])=>re.test(v.text));
+    await page.fill('input[aria-label="Produkt hinzufügen"]', 'Käse'); await page.press('input[aria-label="Produkt hinzufügen"]', 'Enter'); await page.waitForTimeout(400);
+    const [kid, k0] = find(/^Käse$/)||[];
+    const grp = page.locator('div[role="group"][aria-label="Menge für Käse"]');
+    check(!!kid && k0.src==='manuell' && await grp.isVisible() && await grp.locator('button:text-is("Fertig")').isVisible(), 'Einkauf: "Käse" steht sofort in der Liste, Mengenauswahl geht auf', k0);
+    await grp.locator('button:text-is("2")').click(); await page.waitForTimeout(400);
+    check(plan().shopping[kid].text==='2 Käse' && plan().shopping[kid].cat==='Milch & Käse', 'Mengenauswahl: Tipp auf 2 macht "2 Käse"', plan().shopping[kid]);
+    await grp.locator('button:text-is("g")').click(); await page.waitForTimeout(400);
+    check(plan().shopping[kid].text==='200 g Käse' && await grp.locator('button:text-is("500")').isVisible(), 'Mengenauswahl: Tipp auf g macht "200 g Käse", Zahlen wechseln auf Gramm', plan().shopping[kid]);
+    await shot('06d-einkauf-mengenauswahl');
+    await grp.locator('button:text-is("Packung")').click(); await page.waitForTimeout(300);
+    await grp.locator('button:text-is("3")').click(); await page.waitForTimeout(400);
+    const k1 = plan().shopping[kid];
+    check(k1.text==='3 Packungen Käse' && k1.cat==='Milch & Käse' && Object.keys(k1).sort().join()===Object.keys(k0).sort().join(), 'Mengenauswahl: "3 Packungen Käse", Abteilung bleibt, kein neues Feld am Posten', k1);
+    await grp.locator('button:text-is("Fertig")').click(); await page.waitForTimeout(300);
+    check(!(await grp.isVisible()) && await page.isVisible('span:text-is("3 Packungen Käse")'), 'Mengenauswahl: "Fertig" schliesst, Zeile zeigt die Menge');
+    // bestehender Posten: Tipp auf die Zeile oeffnet dieselbe Auswahl unter der Zeile, freie Eingabe und Umbenennen gehen weiter
+    await page.click('span:text-is("3 Packungen Käse")'); await page.waitForTimeout(300);
+    check((await grp.locator('input[aria-label="Menge"]').inputValue())==='3 Packungen', 'Mengenauswahl: Tipp auf die Zeile oeffnet die Auswahl mit der bisherigen Menge');
+    await grp.locator('input[aria-label="Menge"]').fill('2 große'); await grp.locator('input[aria-label="Posten bearbeiten"]').fill('Bergkäse');
+    await page.locator('div[role="group"] button:text-is("Fertig")').click(); await page.waitForTimeout(400);
+    check(plan().shopping[kid].text==='2 große Bergkäse' && plan().shopping[kid].checked===false, 'Mengenauswahl: freie Menge und neuer Name werden gespeichert', plan().shopping[kid]);
+    // Menge gleich mitgetippt: keine Auswahl
+    await page.fill('input[aria-label="Produkt hinzufügen"]', '500 g Quark'); await page.press('input[aria-label="Produkt hinzufügen"]', 'Enter'); await page.waitForTimeout(400);
+    check(!!find(/^500 g Quark$/) && (await page.locator('div[role="group"]').count())===0, 'Einkauf: mit getippter Menge geht keine Auswahl auf');
+    await page.click('button[aria-label="Entfernen"]:right-of(span:text-is("500 g Quark"))'); await page.waitForTimeout(300);
+    await page.click('span:text-is("2 große Bergkäse")'); await page.waitForTimeout(200);
+    await shot('06e-einkauf-menge-in-zeile');
+    await page.locator('div[role="group"] button:text-is("Fertig")').click(); await page.waitForTimeout(200);
+    await page.locator('span:text-is("2 große Bergkäse")').locator('xpath=..').locator('button[aria-label="Entfernen"]').click(); await page.waitForTimeout(300);
+  }
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
   await page.click('button:has-text("Vormerken")'); await page.waitForTimeout(200);
