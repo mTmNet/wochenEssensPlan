@@ -74,7 +74,7 @@ plans/<CODE>
   shopping: {
     "<id>": { text, checked, cat, src: "plan" | "manuell", key, order, addedAt,
               basic: true,                    nur bei Grundvorrat (Block „Vorrat prüfen“)
-              forceBuy: true,                 trotzdem kaufen (holt basic/„Wahrscheinlich da“ in die Liste)
+              forceBuy: true,                 trotzdem kaufen (holt Grundvorrat in die Liste)
               slots: { "<wk>|<Tag>|<Slot>|<recKey>": true } }   Plan-Zellen, deren Zutaten per „+“ hier gelandet sind („+“-Sperre liegt im Plan)
   }
   recipes: {
@@ -122,7 +122,7 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
 - `src: "plan"` entsteht aus „Einkaufsliste aus dem Plan“, `"manuell"` aus Handeingabe oder „+“ am Rezept. Das „+“ merkt sich die Plan-Zelle am Posten (`slots`), daraus leitet die Plan-Ansicht die „+“-Sperre ab (auf allen Geräten).
 - `basic: true` kennzeichnet Grundvorrat (Salz, Öl, Mehl …), wird in einem eingeklappten Block „Vorrat prüfen“ gezeigt und zählt nicht im Fortschritt.
 - **Abhaken ohne Haushaltsbuch** (`plans/<CODE>/hb` fehlt): Der Posten gilt als heute gekauft. Im selben PATCH wie der Haken entsteht `stock/items/ek_<Posten-Id> = {name, sub, date, src: "einkauf", createdAt}` (`shopStockItem`, `shopStockId` in `src/logic/stock.js`; Name ohne Menge, Grundvorrat ausgenommen). Die Id hängt am Posten, zwei Geräte schreiben also denselben Eintrag. Wird der Haken am selben Tag entfernt, wird der Eintrag gelöscht; ältere Einträge verblassen von selbst. Abgehakte Posten bleiben in der Liste stehen. Mit verbundenem Haushaltsbuch ist das abgeschaltet (keine Doppelzählung).
-- `stockP` (0..1, nur lokal berechnet, nicht gespeichert) = Wahrscheinlichkeit laut Vorrat (Haushaltsbuch, Einkauf, Foto, Hand); ab 0,6 landet der Posten im eingeklappten Block „Wahrscheinlich da“, ein Tipp holt ihn in die Liste (`forceBuy: true` wird gespeichert).
+- Der Vorrat sortiert die Einkaufsliste nicht mehr um (früher Block „Wahrscheinlich da“ ab `stockP ≥ 0,6`). `forceBuy: true` holt nur noch Grundvorrat aus „Vorrat prüfen“ in die Liste.
 
 ## 4. Synchronisation
 
@@ -183,7 +183,7 @@ Reihenfolge der Quellen:
 - „Einkaufsliste aus dem Plan“ führt zusammen statt zu ersetzen (`mergeShopping(shopping, planItems(...))` liefert `{next, patch}` mit gezielten Pfaden): Posten mit `src: "plan"`, die nicht mehr gebraucht werden, verschwinden (`shopping/<id>: null`); Mengen werden neu berechnet (bei gleicher Menge bleibt ein von Hand ergänzter Zusatz stehen); `checked` und Id bleiben, wenn der `key` gleich bleibt; `src: "manuell"` bleibt immer. `ingKey` ignoriert Zusätze in Klammern („(Bio)“).
 - Portionen: Rezeptmengen werden mit `servings` des Plans skaliert (Standard: Haushaltsgröße = Anzahl `participants`, mindestens 2; überschreibbar pro Rezept beim Hinzufügen).
 - `aggregateIngs` führt über `ingKey` zusammen: Name per `normKey` (Synonyme, Plural, Stoppwörter), Einheitenklasse (`g/kg` → Gramm, `ml/l` → Milliliter, `St./Stück/leer` → Stück, sonst Einheit wörtlich), Mengen werden auf die Basiseinheit umgerechnet und beim Anzeigen passend formatiert (1 500 g → 1,5 kg).
-- Grundvorrat (`isBasic`) kommt in den Block „Vorrat prüfen“. Posten mit `stockP ≥ 0,6` kommen in den Block „Wahrscheinlich da“.
+- Grundvorrat (`isBasic`) kommt in den Block „Vorrat prüfen“. Einen Block „Wahrscheinlich da“ gibt es nicht mehr: Was auf der Liste steht, bleibt dort bis zum Abhaken oder Entfernen. „Einkaufsliste aus dem Vorgemerkten“ legt neue Posten nur an, wenn sie laut Vorrat fehlen (`onlyNeeded`, Schwelle 0,6 wie „Nur Fehlendes“ am Rezept).
 - Eingabefeld oben, Liste darunter; abgehakte Posten rutschen ans Ende ihrer Abteilung.
 - `SHOP_CATS` erweitert um „Kühlregal“ (Spätzle, Maultaschen, Tofu, Feta, Frischkäse, Schupfnudeln, Gnocchi …), „Tiefkühl“, „Kräuter & Frisches“; „Konserven & Gläser“ wird vor „Obst & Gemüse“ geprüft (Dose, Glas, passiert, Mark, Kokosmilch); Ausnahmeliste für Komposita (Kokosmilch, Hafermilch, Mandelmilch, Erdnussbutter, Kartoffelchips, Apfelsaft).
 - „Teilen“ erzeugt Klartext (Abteilungen als Überschriften) für `navigator.share` oder die Zwischenablage.

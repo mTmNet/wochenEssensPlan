@@ -1,7 +1,7 @@
 // Einkaufsliste: Migration, Posten aus dem Plan, Zutaten hinzufuegen, Zusammenfuehren (mergeShopping), Gruppierung, Teilen-Text
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { migrateShopping, addIngredients, mergeShopping, groupShopping, shoppingText, makeShopItem, shoppingList, uncheckedCount, orphanIds, addedSlotKeys, scaledIngredients, isListed, nextOrder } from "../src/logic/shopping.js";
+import { migrateShopping, addIngredients, mergeShopping, groupShopping, shoppingText, makeShopItem, shoppingList, uncheckedCount, orphanIds, addedSlotKeys, scaledIngredients, isListed, nextOrder, onlyNeeded } from "../src/logic/shopping.js";
 import { normalizeRecipe } from "../src/logic/recipes.js";
 import { pickItems } from "../src/logic/picks.js";
 import { SHOP_ORDER } from "../src/data.js";
@@ -184,4 +184,20 @@ test("fmtIng und scaleIng schreiben Dezimalzahlen einheitlich mit Komma", () => 
   assert.deepEqual(Object.values(next).map(i=>i.text), ["Honig 1 EL"]);
   const r = addIngredients({}, ["Zitrone 0,5 St.","Zitrone 1 St."], { now:0 });
   assert.deepEqual(Object.values(r.next).map(i=>i.text), ["Zitrone 1,5 St."]);
+});
+
+test("onlyNeeded: Vorhandenes kommt nicht neu auf die Liste; Grundvorrat und schon gelistete Posten bleiben", () => {
+  const items = pickItems(picks(), recipes, 0, { servings:4, today:T });
+  const inStock = (text) => /^(Pasta|Speck)/.test(text);
+  const texts = (o) => Object.values(o).map(i=>i.text);
+  const fresh = onlyNeeded(items, {}, inStock);
+  assert.ok(!texts(fresh).some(t=>/^(Pasta|Speck)/.test(t)), "Pasta und Speck sind da und fallen weg");
+  assert.ok(texts(fresh).some(t=>/^Hackfleisch/.test(t)) && texts(fresh).some(t=>/^Salz/.test(t)), "Fehlendes und Grundvorrat bleiben");
+  // Pasta steht schon auf der Liste: bleibt im Satz, damit mergeShopping den Posten nicht entfernt
+  const pasta = Object.values(items).find(i=>/^Pasta/.test(i.text));
+  const kept = onlyNeeded(items, { x1:{ ...pasta, checked:true } }, inStock);
+  assert.ok(texts(kept).some(t=>/^Pasta/.test(t)) && !texts(kept).some(t=>/^Speck/.test(t)));
+  const { next } = mergeShopping({ x1:{ ...pasta, checked:true } }, kept);
+  assert.equal(next.x1.checked, true);
+  assert.deepEqual(onlyNeeded(null, null, inStock), {});
 });

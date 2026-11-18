@@ -1,17 +1,13 @@
 import { useState } from "react";
 import { C, SF, SER, micro, btn, iconBtn, input } from "../theme.js";
 import { BASIC_LABEL } from "../data.js";
-import { stockLevel } from "../logic/stock.js";
 
-// EINKAUFSLISTE - Eingabe oben, Fortschritt, Abteilungen (abgehakte ans Ende), Bloecke "Wahrscheinlich da" und "Vorrat pruefen", Teilen
+// EINKAUFSLISTE - Eingabe oben, Fortschritt, Abteilungen (abgehakte ans Ende), Block "Vorrat pruefen", Teilen
 export default function Shopping({state,api}){
-  const {shopMain,shopLikely,shopBasics,unchecked,shopGroups,editShopId,editShopText,hbLink}=state;
+  const {shopMain,shopBasics,unchecked,shopGroups,editShopId,editShopText,hbLink}=state;
   const {setView,toggleShopItem,setEditShopText,saveShopEdit,setEditShopId,removeShopItem,addShopItem,clearShopping,forceBuy,shareShopping}=api;
   const [customItem,setCustomItem]=useState("");
-  const [showLikely,setShowLikely]=useState(false);
   const [showBasics,setShowBasics]=useState(false);
-  // Stufe in Worten wie in der Vorratsliste (stockLevel), gleiche Farben
-  const TONE={ok:C.ok,warn:C.warn,muted:C.muted};
   const total=shopMain.length;
   const addCustom=()=>{ if(customItem.trim()){ addShopItem(customItem); setCustomItem(""); } };
   const header=(label,count,open,toggle)=>(
@@ -40,7 +36,7 @@ export default function Shopping({state,api}){
               <button onClick={addCustom} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",borderRadius:"6px"}}>+</button>
             </div>
 
-            {total===0&&shopLikely.length===0&&shopBasics.length===0?(
+            {total===0&&shopBasics.length===0?(
               <div style={{textAlign:"center",padding:"48px 24px",color:C.muted}}>
                 <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"10px"}}>Die Einkaufsliste ist leer.</div>
                 <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Trag oben etwas ein, erzeuge die Liste aus dem Vorgemerkten oder füge an einem Rezept „Auf die Einkaufsliste“ die Zutaten hinzu.</div>
@@ -72,21 +68,6 @@ export default function Shopping({state,api}){
                   </div>
                 ))}
 
-                {/* WAHRSCHEINLICH DA (laut Vorrat) */}
-                {shopLikely.length>0&&(
-                  <div style={{marginBottom:"10px"}}>
-                    {header("Wahrscheinlich da",shopLikely.length,showLikely,()=>setShowLikely(v=>!v))}
-                    {showLikely&&(
-                      <div style={{background:C.white,border:"1px solid "+C.border}}>
-                        <div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Vorrat noch da, deshalb nicht in der Liste. Rechts steht, wie sicher. Ist etwas doch aufgebraucht, streich es im Reiter „Vorrat“ mit ×, dann steht es wieder in der Liste.</div>
-                        {shopLikely.map((item,gi)=>{ const lv=stockLevel(item.stockP); return row(item,gi,shopLikely.length,(
-                          <span data-level={lv.label} style={{fontSize:"13px",fontWeight:"700",color:TONE[lv.tone],flexShrink:0,textAlign:"right",whiteSpace:"nowrap"}}>{lv.label}</span>
-                        )); })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* VORRAT PRUEFEN (Grundvorrat) */}
                 {shopBasics.length>0&&(
                   <div style={{marginBottom:"10px"}}>
@@ -101,7 +82,7 @@ export default function Shopping({state,api}){
                     )}
                   </div>
                 )}
-                {!hbLink&&<div style={{fontSize:"13px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“). Was laut Vorrat noch da ist, wandert in einen eigenen Block.</div>}
+                {!hbLink&&<div style={{fontSize:"13px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“).</div>}
                 <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px",borderRadius:"6px"}}>Einkaufsliste komplett löschen</button>
               </div>
             )}
