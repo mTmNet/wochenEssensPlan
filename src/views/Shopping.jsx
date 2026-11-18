@@ -34,10 +34,10 @@ function QtyPanel({item,onSave,onClose,framed}){
         <button onClick={done} style={btn("primary")}>Fertig</button>
       </div>
       <input value={qty} onChange={e=>setQty(e.target.value)} onBlur={()=>save(name,qty)} onKeyDown={key} placeholder="Menge, z. B. 2 oder 500 g" aria-label="Menge" style={{...input,marginTop:"8px"}} />
-      <div style={lab}>{cur&&["g","kg","ml","l"].includes(cur.unit)?"Menge":"Anzahl"}</div>
-      <div style={chips}>{nums.map(n=><button key={n} onClick={()=>tap({num:n})} aria-pressed={!!cur&&cur.num===n} style={ch(!!cur&&cur.num===n)}>{n}</button>)}</div>
       <div style={lab}>Einheit</div>
       <div style={chips}>{units.map(u=><button key={u||"st"} onClick={()=>tap({unit:u})} aria-pressed={!!cur&&cur.unit===u} style={ch(!!cur&&cur.unit===u)}>{QTY_UNITS[u].label}</button>)}</div>
+      <div style={lab}>{cur&&["g","kg","ml","l"].includes(cur.unit)?"Menge":"Anzahl"}</div>
+      <div style={chips}>{nums.map(n=><button key={n} onClick={()=>tap({num:n})} aria-pressed={!!cur&&cur.num===n} style={ch(!!cur&&cur.num===n)}>{n}</button>)}</div>
     </div>
   );
 }
