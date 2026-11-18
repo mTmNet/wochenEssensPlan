@@ -4,7 +4,7 @@ import { CATS, CUISINE_LIST, TAGS } from "../data.js";
 import { recName, recCat, cookedLabel, recTags } from "../logic/recipes.js";
 import { dayLabel } from "../logic/picks.js";
 import { scaleIng } from "../logic/ingredients.js";
-import { ingStatus, STOCK_MIN } from "../logic/stock.js";
+import { ingStatus, STOCK_MIN, stockLevel } from "../logic/stock.js";
 import PickDay from "../components/PickDay.jsx";
 import Stars from "../components/Stars.jsx";
 import Modal from "../components/Modal.jsx";
@@ -48,7 +48,7 @@ export default function RecipeDetail({state,api}){
   };
   // Status je Zutat (da / vielleicht / fehlt); Grundvorrat ohne Markierung
   // k = Kennung (da / vielleicht / fehlt), t = Anzeige; "fehlt?" rot, weil die App es nur vermutet
-  const statusOf=(ing)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; if(!st||st.basic) return null; return st.p>=0.6?{k:"da",t:"da",c:C.ok,p:st.p}:st.p>=STOCK_MIN?{k:"vielleicht",t:"vielleicht · "+Math.round(st.p*100)+" %",c:C.accent,p:st.p}:{k:"fehlt",t:"fehlt?",c:C.err,p:st.p}; };
+  const statusOf=(ing)=>{ const st=stock&&stock.length?ingStatus(ing,stock):null; if(!st||st.basic) return null; return st.p>=0.6?{k:"da",t:"da",c:C.ok,p:st.p}:st.p>=STOCK_MIN?{k:"vielleicht",t:stockLevel(st.p).label,c:C.accent,p:st.p}:{k:"fehlt",t:"fehlt?",c:C.err,p:st.p}; };
   const missingCount=ings.filter(ing=>{ const t=statusOf(ing); return t&&t.k!=="da"; }).length;
   const toShopping=(onlyMissing)=>{
     const n=addRecipeToShopping(detailRecipe,portions,{onlyMissing});
@@ -144,12 +144,12 @@ export default function RecipeDetail({state,api}){
                   <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"5px 0",minHeight:"44px",borderBottom:i<ings.length-1?"1px solid "+C.border:"none"}}>
                     <div style={{width:"4px",height:"4px",borderRadius:"50%",background:tag?tag.c:C.accent,flexShrink:0}} />
                     <span style={{fontSize:"14px",color:C.text,flex:1,minWidth:0}}>{scaleIng(ing,factor)}</span>
-                    {tag&&<span data-stock={tag.k} style={{fontSize:"12px",fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",color:tag.c,flexShrink:0}}>{tag.t}</span>}
-                    {tag&&tag.k!=="da"&&<button onClick={()=>isPresent(ing)} aria-label={scaleIng(ing,factor)+": ist da"} title="Ist doch da – in den Vorrat" style={{...iconBtn,color:C.ok,fontSize:"18px",minWidth:"36px",padding:"6px 4px"}}>✓</button>}
+                    {tag&&<span data-stock={tag.k} style={{fontSize:"13px",fontWeight:"700",color:tag.c,flexShrink:0,whiteSpace:"nowrap"}}>{tag.t}</span>}
+                    {tag&&tag.k!=="da"&&<button onClick={()=>isPresent(ing)} aria-label={scaleIng(ing,factor)+": ist da"} title="Ist doch da – in den Vorrat" style={{...btn("ghost"),color:C.ok,padding:"6px 10px",minHeight:"36px",borderRadius:"6px",flexShrink:0,whiteSpace:"nowrap"}}>doch da</button>}
                   </div>
                   );
                 })}
-                {stock&&stock.length>0&&ings.some(ing=>{ const t=statusOf(ing); return t&&t.k!=="da"; })&&<div style={{fontSize:"13px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}><span style={{color:C.err,fontWeight:"700"}}>fehlt?</span> = laut Vorrat vermutlich nicht da. ✓ = ist doch da, kommt in den Vorrat. Grundvorrat wie Salz und Öl zählt immer als da.</div>}
+                {stock&&stock.length>0&&ings.some(ing=>{ const t=statusOf(ing); return t&&t.k!=="da"; })&&<div style={{fontSize:"13px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}><span style={{color:C.err,fontWeight:"700"}}>fehlt?</span> = laut Vorrat vermutlich nicht da. „doch da“ = ist vorhanden, kommt in den Vorrat. Grundvorrat wie Salz und Öl zählt immer als da.</div>}
                 {household!==base&&portions===base&&<button onClick={()=>setPortions(household)} style={{...btn("ghost"),marginTop:"10px",padding:"8px 12px",letterSpacing:"0.5px",borderRadius:"6px"}}>Auf {household} Personen umrechnen</button>}
               </div>
               {steps.length>0&&(
