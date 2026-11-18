@@ -346,19 +346,29 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const missingAfter = await page.locator('button[aria-label$=": ist da"]').count();
   check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("Nur Fehlendes auf die Liste ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
   check(await page.isVisible('button:has-text("Alles auf die Liste")') || await page.isVisible('button:has-text("✓ Auf der Liste")'), 'Rezeptdetail: geteilter Knopf "Alles auf die Liste | Nur Fehlendes"');
-  // EINKAUF: Block "Wahrscheinlich da" zeigt die Stufe in Worten, ohne Prozent und ohne "Kaufen"; im Rezept heisst der Knopf "doch da"
+  // EINKAUF: kein Block "Wahrscheinlich da" mehr - ein Posten bleibt in der Liste, auch wenn er inzwischen im Vorrat steht
   await page.goBack(); await page.waitForTimeout(300);
   await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(400);
-  await page.click('button:has-text("Wahrscheinlich da (")'); await page.waitForTimeout(300);
-  check((await page.locator('span[data-level]').count())>=1 && !(await page.isVisible('text=/^\\d+ %$/')), 'Einkauf: "Wahrscheinlich da" mit Stufe in Worten, ohne Prozent');
-  check((await page.locator('div:has(> span[data-level]) button:text-is("Kaufen")').count())===0, 'Einkauf: kein "Kaufen" im Block "Wahrscheinlich da"');
-  await shot('06c-einkauf-wahrscheinlich-da');
+  const stocked = firstMissing.replace(/: ist da$/,'');
+  check(!(await page.isVisible('text=Wahrscheinlich da (')) && (await page.locator('span[data-level]').count())===0 && await page.isVisible('span:text-is("'+stocked+'")'), 'Einkauf: kein Block "Wahrscheinlich da", Posten bleibt trotz Vorrat in der Liste', stocked);
+  await shot('06c-einkauf-ohne-wahrscheinlich-da');
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
-  await shot('06d-rezeptdetail-doch-da');
   await page.click('button:has-text("Vormerken")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("Vormerken")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).some(p=>p.key==='Pasta Carbonara'), 'Rezeptdetail: Vormerken schreibt picks');
+  // "Einkaufsliste aus dem Vorgemerkten" legt nur Fehlendes neu an: Eier sind laut Vorrat da und standen nicht auf der Liste
+  {
+    const idsBefore = new Set(Object.keys(plan().shopping||{}));
+    await page.goBack(); await page.waitForTimeout(300);
+    await page.click('button:text-matches("^Plan")'); await page.waitForTimeout(300);
+    await page.click('button:has-text("Einkaufsliste aus dem Vorgemerkten")'); await page.waitForTimeout(600);
+    const added = Object.keys(plan().shopping||{}).filter(id=>!idsBefore.has(id)).map(id=>plan().shopping[id].text);
+    const all = Object.values(plan().shopping||{}).map(i=>i.text);
+    check(!all.some(t=>/^Eier/.test(t)) && await page.isVisible('span:text-is("'+stocked+'")'), 'Vorgemerkt: Liste nur mit Fehlendem (Eier sind da), Vorhandenes auf der Liste bleibt', {added, all});
+    await page.click(IN_APP); await page.waitForTimeout(300);
+    await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
+  }
   // KOCHBUCH ALS DATEI (Stufe 4): sichern (Download), laden mit Vorschau, ersetzen / ueberspringen, Fotos
   await page.goBack().catch(()=>{}); await page.waitForTimeout(200);
   if(!(await page.isVisible('button:has-text("Sichern (.json)")'))){ await page.click(IN_APP); await page.waitForTimeout(300); }

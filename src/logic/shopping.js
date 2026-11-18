@@ -153,5 +153,15 @@ export const mergeShopping = (shopping, items) => {
   return {next,patch};
 };
 
+// "Einkaufsliste aus dem Vorgemerkten" legt nur Fehlendes auf die Liste: neue Posten, die laut Vorrat da sind (inStock(text)), fallen weg.
+// Grundvorrat bleibt (Block "Vorrat pruefen"); was schon auf der Liste steht (gleicher key), bleibt ebenfalls, sonst wuerde mergeShopping es entfernen.
+export const onlyNeeded = (items, shopping, inStock) => {
+  const cur = shopping&&typeof shopping==="object"&&!Array.isArray(shopping) ? shopping : {};
+  const have = new Set(Object.values(cur).filter(o=>o&&typeof o==="object"&&o.text).map(o=>o.key||ingKey(o.text)));
+  const out={};
+  Object.keys(items||{}).forEach(id=>{ const it=items[id]; if(!it||!it.text) return; if(it.basic||have.has(it.key||ingKey(it.text))||!inStock(it.text)) out[id]=it; });
+  return out;
+};
+
 // Klartext zum Teilen (Abteilungen als Ueberschriften); nimmt ein Objekt oder eine fertige Liste
 export const shoppingText = (shopping) => groupShopping(shopping).map(g=>g.cat.toUpperCase()+"\n"+g.items.map(i=>(i.checked?"[x] ":"[ ] ")+i.text).join("\n")).join("\n\n");

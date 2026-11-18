@@ -9,7 +9,7 @@ import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } fr
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
-import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed } from "./logic/shopping.js";
+import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, onlyNeeded } from "./logic/shopping.js";
 import { shopCat, ingKey, parseIng } from "./logic/ingredients.js";
 import { exportCookbook, cookbookFileName, parseCookbook, planImport } from "./logic/cookbook.js";
 import { CLASSICS } from "./classics.js";
@@ -418,7 +418,8 @@ export default function App() {
   };
   // Einkaufsliste aus dem Vorgemerkten: ZUSAMMENFUEHREN statt ersetzen
   const buildShoppingFromPicks=()=>{
-    const items=pickItems(picks,recipes,undefined,{servings:household,today:todayISO()});
+    // nur Fehlendes: was laut Vorrat da ist (p >= 0,6), kommt nicht neu auf die Liste
+    const items=onlyNeeded(pickItems(picks,recipes,undefined,{servings:household,today:todayISO()}),shoppingRef.current,(text)=>{ const st=stock.length?ingStatus(text,stock):null; return !!st&&!st.basic&&st.p>=0.6; });
     const {next,patch}=mergeShopping(shoppingRef.current,items);
     if(Object.keys(patch).length){ setShopping(next); writePlan(patch,"shopping"); }
     setView("shopping");
@@ -1029,18 +1030,15 @@ export default function App() {
     writePlan(patch,"stock");
   };
 
-  // EINKAUFSLISTE in Bloecken (Bauplan Abschnitt 9): Liste, "Wahrscheinlich da" (stockP >= 0,6), "Vorrat pruefen" (Grundvorrat)
-  const shopList=useMemo(()=>shoppingList(shopping).map(it=>{ const st=stock.length?ingStatus(it.text,stock):null; return {...it,stockP:st&&!st.basic?st.p:0}; }),[shopping,stock]);
-  // Ohne Haushaltsbuch fuellt das Abhaken den Vorrat: ein abgehakter Posten bleibt in der Liste stehen (sonst spraenge er sofort nach "Wahrscheinlich da")
-  const keepChecked=!hbLink;
-  const shopMain=useMemo(()=>shopList.filter(it=>isListed(it)&&(it.forceBuy||(keepChecked&&it.checked)||it.stockP<0.6)),[shopList,keepChecked]);
-  const shopLikely=useMemo(()=>shopList.filter(it=>isListed(it)&&!it.forceBuy&&!(keepChecked&&it.checked)&&it.stockP>=0.6),[shopList,keepChecked]);
+  // EINKAUFSLISTE in Bloecken: Liste und "Vorrat pruefen" (Grundvorrat). Was auf der Liste steht, bleibt dort, bis es abgehakt oder entfernt wird - unabhaengig vom Vorrat.
+  const shopList=useMemo(()=>shoppingList(shopping),[shopping]);
+  const shopMain=useMemo(()=>shopList.filter(it=>isListed(it)),[shopList]);
   const shopBasics=useMemo(()=>shopList.filter(it=>it.basic&&!it.forceBuy),[shopList]);
   const shopGroups=useMemo(()=>groupShopping(shopMain),[shopMain]);
   const unchecked=shopMain.filter(x=>!x.checked).length;
   // Liste teilen: Klartext ueber navigator.share, sonst Zwischenablage
   const shareShopping=async()=>{
-    const text=shoppingText([...shopMain,...shopLikely]);
+    const text=shoppingText(shopMain);
     if(!text){ showToast("Die Einkaufsliste ist leer."); return; }
     try{
       if(navigator.share){ await navigator.share({title:"Einkaufsliste",text}); return; }
@@ -1062,7 +1060,7 @@ export default function App() {
   // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
   const state={
     code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,aliasBusy,aliasErr,settings,household,
-    picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopLikely,shopBasics,shopGroups,unchecked,classics:CLASSICS,
+    picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopBasics,shopGroups,unchecked,classics:CLASSICS,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
     importState:{importErr,extracting,extracted,savedMsg},cookbookImport,
     // Rahmen und Dialoge
