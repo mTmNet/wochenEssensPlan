@@ -34,6 +34,8 @@ export const orphanIds = (shopping) => {
   const src = shopping&&typeof shopping==="object"&&!Array.isArray(shopping) ? shopping : {};
   return Object.keys(src).filter(id=>!(src[id]&&typeof src[id]==="object"&&src[id].text));
 };
+// Ids aller abgehakten Posten (auch im Block "Vorrat pruefen") - fuer "Nur abgehakte löschen"
+export const checkedIds = (shopping) => shoppingList(shopping).filter(x=>x.checked).map(x=>x.id);
 export const nextOrder = (shopping) => shoppingList(shopping).reduce((m,x)=>Math.max(m,x.order||0),0)+1;
 // Offene Posten der eigentlichen Liste (Grundvorrat zaehlt nicht)
 export const uncheckedCount = (shopping) => shoppingList(shopping).filter(x=>isListed(x)&&!x.checked).length;

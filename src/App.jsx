@@ -9,7 +9,7 @@ import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } fr
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
-import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, onlyNeeded } from "./logic/shopping.js";
+import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, onlyNeeded, checkedIds } from "./logic/shopping.js";
 import { shopCat, ingKey, parseIng } from "./logic/ingredients.js";
 import { exportCookbook, cookbookFileName, parseCookbook, planImport } from "./logic/cookbook.js";
 import { CLASSICS } from "./classics.js";
@@ -478,6 +478,16 @@ export default function App() {
     setEditShopId(null);
     setShopping({});
     writePlan({shopping:null},"shopping");
+  };
+  // Nur die abgehakten Posten entfernen (gezielt je Posten). Der Vorrat bleibt, wie er ist: Was beim Abhaken dort eingetragen wurde, bleibt dort.
+  const clearCheckedShopping=()=>{
+    const ids=checkedIds(shoppingRef.current);
+    if(!ids.length)return;
+    if(!window.confirm(ids.length===1?"Den abgehakten Posten löschen?":"Die "+ids.length+" abgehakten Posten löschen?"))return;
+    setEditShopId(null);
+    setShopping(prev=>{const n={...prev};ids.forEach(id=>{delete n[id];});return n;});
+    const patch={}; ids.forEach(id=>{patch["shopping/"+id]=null;});
+    writePlan(patch,"shopping");
   };
   const addShopItem=(text)=>{
     const txt=String(text||"").trim();
@@ -1074,7 +1084,7 @@ export default function App() {
     // Vorgemerkt
     addPick,removePick,movePick,cookedToday,startCooking,
     // Einkauf
-    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
+    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
     openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
     // KI

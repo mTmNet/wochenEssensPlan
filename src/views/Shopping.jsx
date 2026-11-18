@@ -45,11 +45,12 @@ function QtyPanel({item,onSave,onClose,framed}){
 // EINKAUFSLISTE - Eingabe oben, Fortschritt, Abteilungen (abgehakte ans Ende), Block "Vorrat pruefen", Teilen
 export default function Shopping({state,api}){
   const {shopMain,shopBasics,unchecked,shopGroups,hbLink}=state;
-  const {setView,toggleShopItem,editShopItem,removeShopItem,addShopItem,clearShopping,forceBuy,shareShopping}=api;
+  const {setView,toggleShopItem,editShopItem,removeShopItem,addShopItem,clearShopping,clearCheckedShopping,forceBuy,shareShopping}=api;
   const [qtyOpen,setQtyOpen]=useState(null);   // {id, top}: Mengenauswahl offen; top = gerade eingetippt, steht unter der Eingabe
   const [customItem,setCustomItem]=useState("");
   const [showBasics,setShowBasics]=useState(false);
   const total=shopMain.length;
+  const checkedCount=shopMain.filter(x=>x.checked).length+shopBasics.filter(x=>x.checked).length;
   // Eingetipptes landet sofort in der Liste; dazu geht die Mengenauswahl auf (ausser die Menge wurde schon mitgetippt)
   const addCustom=()=>{ if(customItem.trim()){ const id=addShopItem(customItem); setQtyOpen(id&&!splitQty(customItem).qty?{id,top:true}:null); setCustomItem(""); } };
   const panel=(item,framed)=><QtyPanel key={item.id} item={item} framed={framed} onSave={(text,cat)=>editShopItem(item.id,text,cat)} onClose={()=>setQtyOpen(null)} />;
@@ -132,6 +133,7 @@ export default function Shopping({state,api}){
                 )}
                 {!hbLink&&<div style={{fontSize:"13px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“).</div>}
                 <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px",borderRadius:"6px"}}>Einkaufsliste komplett löschen</button>
+                <button onClick={clearCheckedShopping} disabled={!checkedCount} style={{...btn("danger"),width:"100%",marginTop:"8px",borderRadius:"6px",opacity:checkedCount?1:0.5,cursor:checkedCount?"pointer":"default"}}>Nur abgehakte Posten löschen{checkedCount?" ("+checkedCount+")":""}</button>
               </div>
             )}
           </div>
