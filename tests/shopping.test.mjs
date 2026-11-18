@@ -244,3 +244,10 @@ test("Mengenauswahl: Einheiten je Abteilung, Posten mit Menge bleibt dieselbe Zu
     ["1","2"].forEach(n=>{ const t=joinQty("Käse",applyQty(n,{unit:u}).replace(/^\S+/,n)); const p=parseIng(t); assert.equal(p.name,"Käse",t); if(u!=="Dose"&&u!=="Glas") assert.equal(shopCat(t),"Milch & Käse",t); assert.equal(ingKey(t).split("|")[0],ingKey("Käse").split("|")[0],t); });
   });
 });
+
+import { checkedIds } from "../src/logic/shopping.js";
+test("checkedIds: nur abgehakte Posten, auch aus dem Grundvorrat, ohne Waisen", () => {
+  const cur={ a:makeShopItem("Milch",{now:1,order:1}), b:makeShopItem("Brot",{now:2,order:2,checked:true}), c:{...makeShopItem("Salz",{now:3,order:3,checked:true}),basic:true}, d:{checked:true} };
+  assert.deepEqual(checkedIds(cur), ["b","c"]);
+  assert.deepEqual(checkedIds(null), []);
+});

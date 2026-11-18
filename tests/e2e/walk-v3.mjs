@@ -384,6 +384,21 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
     await shot('06e-einkauf-menge-in-zeile');
     await page.locator('div[role="group"] button:text-is("Fertig")').click(); await page.waitForTimeout(200);
     await page.locator('span:text-is("2 große Bergkäse")').locator('xpath=..').locator('button[aria-label="Entfernen"]').click(); await page.waitForTimeout(300);
+    // NUR ABGEHAKTE LOESCHEN: entfernt gezielt die abgehakten Posten, offene bleiben, der Vorrat bleibt unberuehrt
+    const delBtn = page.locator('button:has-text("Nur abgehakte Posten löschen")');
+    await page.fill('input[aria-label="Produkt hinzufügen"]', '1 Testbrot'); await page.press('input[aria-label="Produkt hinzufügen"]', 'Enter'); await page.waitForTimeout(400);
+    const [bid] = find(/^1 Testbrot$/)||[];
+    await page.locator('span:text-is("1 Testbrot")').locator('xpath=..').locator('button[aria-label="Abhaken"]').click(); await page.waitForTimeout(500);
+    const openIds = Object.entries(plan().shopping).filter(([,v])=>!v.checked).map(([k])=>k);
+    const doneN = Object.values(plan().shopping).filter(v=>v.checked).length;
+    const stockN = JSON.stringify(plan().stock?.items||{});
+    check(doneN>0 && plan().shopping[bid].checked===true && (await delBtn.textContent()).includes('('+doneN+')') && await page.isVisible('button:text-is("Einkaufsliste komplett löschen")'), 'Einkauf: beide Loeschen-Knoepfe sichtbar, der zweite zeigt die Zahl der abgehakten', doneN);
+    await shot('06f-einkauf-loeschen-knoepfe');
+    await delBtn.click(); await page.waitForTimeout(500);
+    const left = Object.keys(plan().shopping||{});
+    check(openIds.length>0 && left.sort().join()===openIds.sort().join() && !(await page.isVisible('span:text-is("1 Testbrot")')), 'Nur abgehakte loeschen: abgehakte weg, offene Posten bleiben', {left:left.length, open:openIds.length});
+    check(JSON.stringify(plan().stock?.items||{})===stockN, 'Nur abgehakte loeschen: Vorrat bleibt unveraendert');
+    check(await delBtn.isDisabled(), 'Nur abgehakte loeschen: ohne Haken ist der Knopf ausgegraut');
   }
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
