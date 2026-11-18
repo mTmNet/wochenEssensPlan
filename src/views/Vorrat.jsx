@@ -169,7 +169,7 @@ export default function Vorrat({state,api}){
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"12px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
         <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hbErr?C.err:hbBook?C.ok:C.subtle,flexShrink:0}} />
         <div style={{flex:"1 1 160px",minWidth:0}}>
-          <div style={{fontSize:"15px",color:C.text}}>Haushaltsbuch <b style={{letterSpacing:"0.5px"}}>{hbLink.code}</b></div>
+          <div style={{fontSize:"15px",color:C.text}}>Haushaltsbuch{hbLink.code?<> <b style={{letterSpacing:"0.5px"}}>{hbLink.code}</b></>:null}</div>
           <div style={{fontSize:"13px",color:hbErr?C.err:C.muted}}>{hbLoading?"Wird geladen…":hbErr?hbErr:hbBook?(hbLink.cat+(learnedCount?" · Verblassen gelernt für "+learnedCount+(learnedCount===1?" Produkt":" Produkte"):"")):"verbunden"}</div>
           {aliasBusy&&<div style={{fontSize:"13px",color:C.accent}}>KI ordnet Produktnamen zu…</div>}
           {!aliasBusy&&aliasErr&&<div style={{fontSize:"13px",color:C.err}}>{aliasErr}</div>}

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
-import { fbGet, fbPatch, hbGet, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember } from "./fb.js";
+import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem } from "./logic/stock.js";
@@ -148,7 +148,7 @@ export default function App() {
     setShopping(Array.isArray(data.shopping)?migrateShopping(data.shopping):asObj(data.shopping));
     setRecipes(normalizeRecipes(asObj(data.recipes)));
     setParticipants(asList(data.participants).filter(Boolean));
-    setHbLink(data.hb&&data.hb.code?data.hb:null);
+    setHbLink(data.hb&&(data.hb.code||data.hb.key)?data.hb:null);
     setSettings({...DEFAULT_SETTINGS,...asObj(data.settings)});
     if(imgs!==undefined) setImages(asObj(imgs));
     metaRef.current={...asObj(data.meta)};
@@ -666,21 +666,30 @@ export default function App() {
     const l=link||hbLink;
     if(!l)return;
     setHbLoading(true);setHbErr("");
-    const bk=await hbGet(l.code);
+    const r=await hbLoad(l);
     setHbLoading(false);
-    if(bk===undefined){setHbErr("Haushaltsbuch gerade nicht erreichbar.");return;}
-    if(!bk){setHbErr("Das verknüpfte Haushaltsbuch wurde nicht gefunden.");setHbBook(null);return;}
-    setHbBook(bk);
+    if(r.err==="offline"){setHbErr("Haushaltsbuch gerade nicht erreichbar.");return;}
+    if(r.err){setHbErr("Das verknüpfte Haushaltsbuch wurde nicht gefunden.");setHbBook(null);return;}
+    setHbBook(r.book);
+    // Einkaufsauszug gelesen: Schlüssel (und die Rubrik des Auszugs) im Plan merken
+    if(r.key){
+      const patch={};
+      if(l.key!==r.key) patch["hb/key"]=r.key;
+      if(r.cat&&r.cat!==l.cat) patch["hb/cat"]=r.cat;
+      if(Object.keys(patch).length){ setHbLink(prev=>prev?{...prev,key:r.key,cat:r.cat||prev.cat}:prev); writePlan(patch,"people"); }
+    }
   };
   const connectHb=async(codeArg)=>{
     const c=String(codeArg||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
     if(!HB_CODE_RE.test(c)){setHbErr("Der Code hat 6 bis 16 Zeichen (Buchstaben und Ziffern).");return false;}
     setHbLoading(true);setHbErr("");
-    const bk=await hbGet(c);
+    const r=await hbLoad({code:c});
     setHbLoading(false);
-    if(bk===undefined){setHbErr("Haushaltsbuch nicht erreichbar. Code prüfen oder später erneut versuchen.");return false;}
-    if(!bk){setHbErr("Kein Haushaltsbuch mit diesem Code gefunden.");return false;}
-    const link={code:c,cat:pickFoodCat(bk)};   // Rubrik wird automatisch gewaehlt, kein Dropdown mehr
+    if(r.err==="offline"){setHbErr("Haushaltsbuch nicht erreichbar. Code prüfen oder später erneut versuchen.");return false;}
+    if(r.err){setHbErr("Kein Haushaltsbuch mit diesem Code gefunden.");return false;}
+    const bk=r.book;
+    // Gibt es den Einkaufsauszug, merkt sich der Plan nur dessen Schlüssel, nicht den Buch-Code
+    const link=r.key?{key:r.key,cat:r.cat||pickFoodCat(bk)}:{code:c,cat:pickFoodCat(bk)};   // Rubrik wird automatisch gewaehlt, kein Dropdown mehr
     setHbLink(link);setHbBook(bk);
     writePlan({hb:link},"people");
     return true;
@@ -989,7 +998,7 @@ export default function App() {
   // HEUTE / VORRAT / EINKAUF: Buch beim Oeffnen des Reiters laden (nicht im 10s-Poll), Bestand berechnen
   useEffect(()=>{
     if((view==="heute"||view==="shopping"||view==="vorrat")&&hbLink&&!hbBook&&!hbLoading) loadHb(hbLink);
-  },[view,hbLink&&hbLink.code]);
+  },[view,hbLink&&(hbLink.key||hbLink.code)]);
   // NAMEN NORMIEREN: Vokabular aus Kochbuch + Rezept-Basis, Aufloesung Rohname -> Zutatenname (Hand > KI > Regel), s. src/logic/alias.js
   const vocab=useMemo(()=>vocabulary(recipes,CLASSICS),[recipes]);
   const aliasMap=stockRaw.alias||{};

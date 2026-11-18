@@ -24,7 +24,7 @@ src/
                            SHOP_CAT_EXCEPTIONS (Komposita), SHOP_CAT_ALIAS (alte Abteilungsnamen), SHOP_ORDER,
                            BASIC_END, BASIC_WORDS, BASIC_LABEL, KEY_STOP, KEY_SYN, HALF_LIFE, HB_SKIP_SUB, HB_DAYS, DNAMES
   auth.js                  createAuth (anonyme Anmeldung: token(), uid(), invalidate()), authedFetch (Aufruf mit Nachweis)
-  fb.js                    FB, HB_FB, fbGet (undefined bei Fehler, null wenn leer), fbPut, fbPatch (liefert ok), hbGet;
+  fb.js                    FB, HB_FB, fbGet (undefined bei Fehler, null wenn leer), fbPut, fbPatch (liefert ok), hbLoad (Einkäufe des Haushaltsbuchs: erst der Einkaufsauszug über den Schlüssel, im Übergang das Buch über den Code);
                            jeder Aufruf mit Zeitgrenze (15 s, groessere Koerper laenger), damit kein haengender Aufruf den Poll blockiert
   ai.js                    callAI({mode, system, messages}), buildExtractPrompt(), buildSuggestPrompt(), parseJsonBlock(), kiErrText()
   pdf.js                   makeRecipePDF(), makeCookbookPDF() (zunächst HTML/Druck, später jsPDF)
@@ -61,7 +61,7 @@ Die `logic/*`-Module sind reine Funktionen ohne React, ohne `window`, ohne Fireb
 ```
 plans/<CODE>
   participants: ["Anna", "Mero"]
-  hb: { code, cat, gone? } | null             Verknüpfung zum Haushaltsbuch (gilt für den Plan); gone = {schlüssel: "YYYY-MM-DD"} von Hand als „nicht mehr da“ gestrichen, gilt bis zum nächsten Einkauf nach diesem Datum
+  hb: { key?, code?, cat, gone? } | null      Verknüpfung zum Haushaltsbuch (gilt für den Plan); key = Schlüssel des Einkaufsauszugs (`kitchen/<key>` im Haushaltsbuch-Projekt, nur Lebensmittel ohne Beträge), code = Buch-Code (nur noch bei alten Verknüpfungen, als Rückfall bis zum Scharfstellen); gone = {schlüssel: "YYYY-MM-DD"} von Hand als „nicht mehr da“ gestrichen, gilt bis zum nächsten Einkauf nach diesem Datum
   settings: { aiImages: false }               KI-Symbolbilder anzeigen (Standard aus)
   meta: {
     createdAt, updatedAt,                     ms seit Epoche

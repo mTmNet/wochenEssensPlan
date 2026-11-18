@@ -28,7 +28,7 @@ Einzelheiten stehen in `README.md`, `docs/ARCHITEKTUR.md` und `docs/API.md`; hie
 - React 18 + Vite, Inline-Styles, keine UI-Bibliothek. Logik als reine Funktionen in `src/logic/` mit Tests in `tests/` (`node --test`).
 - **Firebase Realtime Database per REST, kein Firestore, kein Firebase-SDK.** Projekt `wochenessenplan-3d0e1`, Region europe-west1. Das Haushaltsbuch liegt in einem **eigenen** Firebase-Projekt (`haushaltsbuch-3cefb`).
 - Sync ist ein Abruf alle 10 Sekunden, kein Echtzeit-Listener. Geschrieben wird gezielt per PATCH, nie ganze Sammlungen.
-- Zugang: Der Plan-Code ist heute das einzige Passwort (`plans/<CODE>`). Es gibt noch keine Nutzer-IDs, nur Vornamen. Der Plan speichert unter `plans/<CODE>/hb` den Buch-Code des Haushaltsbuchs.
+- Zugang: Der Plan-Code ist heute das einzige Passwort (`plans/<CODE>`). Es gibt noch keine Nutzer-IDs, nur Vornamen. Der Plan speichert unter `plans/<CODE>/hb` die Verknüpfung zum Haushaltsbuch: neu nur den Schlüssel des Einkaufsauszugs (`key`), bei alten Verknüpfungen zusätzlich noch den Buch-Code.
 - KI: Vercel-Function `api/gemini.js`. Der Schlüssel liegt nur als Vercel-Variable `GEMINI_API_KEY` vor, nie im Client.
 - Die geltenden Datenbankregeln stehen in der Firebase Console; die Abschrift in `README.md` und `docs/API.md` muss bei jeder Regeländerung mitgepflegt werden.
 - Live: https://wochen-essens-plan.vercel.app (Vercel-Projekt `wochen-essens-plan`).
@@ -43,7 +43,7 @@ Erledigt (16.11.2026):
 Offen, in dieser Reihenfolge, jeweils als eigener Auftrag:
 
 1. **Anonymous Auth hinter dem Code-Einstieg.** Im Wochenplan seit 18.11.2026 aktiv (`src/auth.js`, Vercel-Variable `VITE_FB_API_KEY`); jedes Gerät trägt sich unter `members/<CODE>/<Nutzer-ID>` ein. Die Regeln verlangen die Anmeldung noch nicht. Ablauf, Regel-Stände und nächste Schritte: `docs/ANMELDUNG.md`. Kevin hat am 17.11. entschieden: keine Beobachtungszeit, aber zwingend erst App, dann scharfe Regeln.
-2. **Datenbankregeln pro Nutzer-ID** (Mitgliedschaft im Plan statt nur Code). Dazu gehört die Brücke zum Haushaltsbuch: Der Plan-Code darf nicht dauerhaft die Finanzdaten öffnen.
+2. **Datenbankregeln pro Nutzer-ID** (Mitgliedschaft im Plan statt nur Code). Dazu gehört die Brücke zum Haushaltsbuch: Der Plan-Code darf nicht dauerhaft die Finanzdaten öffnen. Seit 18.11.2026 liest der Wochenplan dafür den Einkaufsauszug (`hbLoad` in `src/fb.js`, Tests `tests/bridge.test.mjs`, `tests/e2e/bridge.mjs`); offen: Buch-Code aus alten Verknüpfungen entfernen, dann Stand 2.
 3. **Kostendeckel auf Nutzer-ID** umstellen (in `api/_limit.js` vorbereitet).
 4. **Messung:** eigener Zeitstempel „zuletzt aktiv“ je Nutzer-ID und Herkunft aus dem Einstiegslink (ein Parameter je QR-Code-Standort). Kein Firebase Analytics, keine Cookies, kein Consent-Banner. Auswertung: täglich aktive Nutzer und Retention nach vier Wochen.
 5. **Datenschutz-Technik:** Löschfristen, Texte in der App passend zur Datenschutzerklärung. Datenschutzerklärung, Vertrag zur Auftragsverarbeitung mit Google und Impressum erledigt Kevin.
