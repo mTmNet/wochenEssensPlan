@@ -73,6 +73,17 @@ Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je
       ".read": true,
       ".write": false
     },
+    "members": {
+      "$code": {
+        ".read": "auth != null && data.child(auth.uid).exists()",
+        ".write": "auth != null && data.child(auth.uid).exists() && !newData.exists()",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && $code.matches(/^[A-Z0-9]{6,16}$/)",
+          ".validate": "newData.hasChildren(['name', 'since']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('since').isString() && newData.child('since').val().length === 10"
+        }
+      }
+    },
     "aiUsage": {
       "$secret": {
         ".read": "$secret.length >= 32",

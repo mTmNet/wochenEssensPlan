@@ -41,11 +41,11 @@ Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetzte
 2. Umgebungsvariable `GEMINI_API_KEY` setzen (Key von aistudio.google.com/apikey), neu deployen.
 3. Firebase Realtime Database: die App nutzt das Projekt `wochenessenplan-3d0e1` (URL in `src/fb.js`).
 4. Kostendeckel der KI: Umgebungsvariable `AI_LIMIT_SECRET` setzen und den Regel-Knoten `aiUsage` ergänzen. Der vollständige Regelsatz steht in `docs/API.md`, Abschnitt „Kostendeckel“.
-5. Anonyme Anmeldung (vorbereitet, noch ohne Wirkung auf die Regeln): In der Firebase Console unter *Authentication → Anmeldemethode* „Anonym“ aktivieren und den Web-API-Schlüssel des Projekts (*Projekteinstellungen → Allgemein*) in Vercel als Umgebungsvariable `VITE_FB_API_KEY` setzen, danach neu deployen. Der Schlüssel ist öffentlich (er steht in der ausgelieferten App) und kein Geheimnis; er gehört trotzdem nicht ins Repository. Fehlt die Variable, ist die Anmeldung aus und die App läuft wie bisher.
+5. Anonyme Anmeldung (seit 18.11.2026 aktiv, die Regeln verlangen sie noch nicht): In der Firebase Console unter *Authentication → Anmeldemethode* „Anonym“ aktivieren und den Web-API-Schlüssel des Projekts (*Projekteinstellungen → Allgemein*) in Vercel als Umgebungsvariable `VITE_FB_API_KEY` setzen, danach neu deployen. Der Schlüssel ist öffentlich (er steht in der ausgelieferten App) und kein Geheimnis; er gehört trotzdem nicht ins Repository. Fehlt die Variable, ist die Anmeldung aus und die App läuft wie bisher.
 
 ## Firebase-Regeln und Datenmodell
 
-Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`. Der Code ist das einzige Passwort. Empfohlene Regeln:
+Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`. Der Code ist das einzige Passwort. Geltende Regeln seit 18.11.2026 (ohne den Knoten `aiUsage` des Kostendeckels, vollständig in `docs/API.md`):
 
 ```json
 {
@@ -67,6 +67,17 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
     "globalRecipes": {
       ".read": true,
       ".write": false
+    },
+    "members": {
+      "$code": {
+        ".read": "auth != null && data.child(auth.uid).exists()",
+        ".write": "auth != null && data.child(auth.uid).exists() && !newData.exists()",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && $code.matches(/^[A-Z0-9]{6,16}$/)",
+          ".validate": "newData.hasChildren(['name', 'since']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('since').isString() && newData.child('since').val().length === 10"
+        }
+      }
     }
   }
 }

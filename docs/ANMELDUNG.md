@@ -1,6 +1,6 @@
 # Anonyme Anmeldung und Mitglieder-Regeln
 
-Stand 17.11.2026. Dieses Dokument beschreibt den Umbau vom „Code als einzigem Passwort“ zu „Zugriff nur für eingetragene Mitglieder“ und enthält die Regelsätze zum Kopieren. Die geltenden Regeln stehen in der Firebase Console; welche das gerade sind, steht unten unter „Was gilt gerade“.
+Stand 18.11.2026. Dieses Dokument beschreibt den Umbau vom „Code als einzigem Passwort“ zu „Zugriff nur für eingetragene Mitglieder“ und enthält die Regelsätze zum Kopieren. Die geltenden Regeln stehen in der Firebase Console; welche das gerade sind, steht unten unter „Was gilt gerade“.
 
 ## Wie es funktioniert
 
@@ -14,8 +14,9 @@ Schalter: Die Anmeldung ist nur aktiv, wenn die Vercel-Variable `VITE_FB_API_KEY
 
 ## Was gilt gerade
 
-- In der Console: die Regeln aus `docs/API.md` (Code genügt, kein Knoten `members`).
-- Nächster Handgriff: Stand 1 veröffentlichen. Danach diese Zeilen und die Abschrift in `README.md` und `docs/API.md` anpassen.
+- Seit 18.11.2026: „Anonym“ ist in der Firebase Console aktiviert, `VITE_FB_API_KEY` ist in Vercel für Production gesetzt, in der Console gilt **Stand 1**. Geprüft an der Live-App: Unter *Authentication → Nutzer* erscheint ein anonymer Nutzer, unter `members/<CODE>` der passende Eintrag.
+- Für den Schlüssel wurde in den Projekteinstellungen eine Web-App „Wochenplan“ eingetragen (ohne Firebase Hosting); vorher gab es keinen Web-API-Schlüssel.
+- Nächster Handgriff: Stand 2, sobald auch das Haushaltsbuch die Anmeldung hat und der Wochenplan die Einkäufe nicht mehr über den Buch-Code liest.
 
 ## Stand 1: heutige Regeln plus Knoten `members`
 

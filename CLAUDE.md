@@ -42,7 +42,7 @@ Erledigt (16.11.2026):
 
 Offen, in dieser Reihenfolge, jeweils als eigener Auftrag:
 
-1. **Anonymous Auth hinter dem Code-Einstieg.** Der Einstieg ohne Konto bleibt für den Nutzer unverändert. Bestehende Nutzer und gemeinsame Pläne dürfen nichts verlieren: erst den Migrationsweg beschreiben, dann Kevins OK, dann bauen.
+1. **Anonymous Auth hinter dem Code-Einstieg.** Im Wochenplan seit 18.11.2026 aktiv (`src/auth.js`, Vercel-Variable `VITE_FB_API_KEY`); jedes Gerät trägt sich unter `members/<CODE>/<Nutzer-ID>` ein. Die Regeln verlangen die Anmeldung noch nicht. Ablauf, Regel-Stände und nächste Schritte: `docs/ANMELDUNG.md`. Kevin hat am 17.11. entschieden: keine Beobachtungszeit, aber zwingend erst App, dann scharfe Regeln.
 2. **Datenbankregeln pro Nutzer-ID** (Mitgliedschaft im Plan statt nur Code). Dazu gehört die Brücke zum Haushaltsbuch: Der Plan-Code darf nicht dauerhaft die Finanzdaten öffnen.
 3. **Kostendeckel auf Nutzer-ID** umstellen (in `api/_limit.js` vorbereitet).
 4. **Messung:** eigener Zeitstempel „zuletzt aktiv“ je Nutzer-ID und Herkunft aus dem Einstiegslink (ein Parameter je QR-Code-Standort). Kein Firebase Analytics, keine Cookies, kein Consent-Banner. Auswertung: täglich aktive Nutzer und Retention nach vier Wochen.
