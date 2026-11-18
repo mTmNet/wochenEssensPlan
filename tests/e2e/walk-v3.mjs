@@ -339,12 +339,23 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("NUR FEHLENDES")'); await page.waitForTimeout(500);
   const shopAfter = Object.keys(plan().shopping||{}).length;
   check(missingBefore>0 && shopAfter-shopBefore===missingBefore, 'Rezeptdetail: "Nur Fehlendes" legt genau die fehlenden Zutaten auf die Einkaufsliste', {shopBefore, shopAfter, missingBefore});
+  check((await page.locator('button[aria-label$=": ist da"]').first().textContent())==='doch da', 'Rezeptdetail: Knopf "doch da" an fehlenden Zutaten');
   const firstMissing = await page.locator('button[aria-label$=": ist da"]').first().getAttribute('aria-label');
   const itemsBefore = Object.keys(plan().stock.items).length;
   await page.locator('button[aria-label$=": ist da"]').first().click(); await page.waitForTimeout(500);
   const missingAfter = await page.locator('button[aria-label$=": ist da"]').count();
   check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("Nur Fehlendes auf die Liste ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
   check(await page.isVisible('button:has-text("Alles auf die Liste")') || await page.isVisible('button:has-text("✓ Auf der Liste")'), 'Rezeptdetail: geteilter Knopf "Alles auf die Liste | Nur Fehlendes"');
+  // EINKAUF: Block "Wahrscheinlich da" zeigt die Stufe in Worten, ohne Prozent und ohne "Kaufen"; im Rezept heisst der Knopf "doch da"
+  await page.goBack(); await page.waitForTimeout(300);
+  await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(400);
+  await page.click('button:has-text("Wahrscheinlich da (")'); await page.waitForTimeout(300);
+  check((await page.locator('span[data-level]').count())>=1 && !(await page.isVisible('text=/^\\d+ %$/')), 'Einkauf: "Wahrscheinlich da" mit Stufe in Worten, ohne Prozent');
+  check((await page.locator('div:has(> span[data-level]) button:text-is("Kaufen")').count())===0, 'Einkauf: kein "Kaufen" im Block "Wahrscheinlich da"');
+  await shot('06c-einkauf-wahrscheinlich-da');
+  await page.click(IN_APP); await page.waitForTimeout(300);
+  await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
+  await shot('06d-rezeptdetail-doch-da');
   await page.click('button:has-text("Vormerken")'); await page.waitForTimeout(200);
   await page.click('button:has-text("Morgen")'); await page.click('div[role="dialog"] button:text-is("Vormerken")'); await page.waitForTimeout(500);
   check(Object.values(plan().picks).some(p=>p.key==='Pasta Carbonara'), 'Rezeptdetail: Vormerken schreibt picks');

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { C, SF, SER, micro, btn, iconBtn, input } from "../theme.js";
 import { BASIC_LABEL } from "../data.js";
+import { stockLevel } from "../logic/stock.js";
 
 // EINKAUFSLISTE - Eingabe oben, Fortschritt, Abteilungen (abgehakte ans Ende), Bloecke "Wahrscheinlich da" und "Vorrat pruefen", Teilen
 export default function Shopping({state,api}){
@@ -9,6 +10,8 @@ export default function Shopping({state,api}){
   const [customItem,setCustomItem]=useState("");
   const [showLikely,setShowLikely]=useState(false);
   const [showBasics,setShowBasics]=useState(false);
+  // Stufe in Worten wie in der Vorratsliste (stockLevel), gleiche Farben
+  const TONE={ok:C.ok,warn:C.warn,muted:C.muted};
   const total=shopMain.length;
   const addCustom=()=>{ if(customItem.trim()){ addShopItem(customItem); setCustomItem(""); } };
   const header=(label,count,open,toggle)=>(
@@ -75,13 +78,10 @@ export default function Shopping({state,api}){
                     {header("Wahrscheinlich da",shopLikely.length,showLikely,()=>setShowLikely(v=>!v))}
                     {showLikely&&(
                       <div style={{background:C.white,border:"1px solid "+C.border}}>
-                        <div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Vorrat vermutlich noch da. Ein Tipp auf „Kaufen“ holt den Posten in die Liste.</div>
-                        {shopLikely.map((item,gi)=>row(item,gi,shopLikely.length,(
-                          <>
-                            <span style={{fontSize:"13px",color:C.ok,flexShrink:0}}>{Math.round(item.stockP*100)} %</span>
-                            <button onClick={()=>forceBuy(item.id)} style={{...btn("ghost"),color:C.accent,padding:"6px 10px",minHeight:"36px",borderRadius:"6px"}}>Kaufen</button>
-                          </>
-                        )))}
+                        <div style={{padding:"8px 14px",fontSize:"13px",color:C.muted,lineHeight:"1.5",borderBottom:"1px solid "+C.border}}>Laut Vorrat noch da, deshalb nicht in der Liste. Rechts steht, wie sicher. Ist etwas doch aufgebraucht, streich es im Reiter „Vorrat“ mit ×, dann steht es wieder in der Liste.</div>
+                        {shopLikely.map((item,gi)=>{ const lv=stockLevel(item.stockP); return row(item,gi,shopLikely.length,(
+                          <span data-level={lv.label} style={{fontSize:"13px",fontWeight:"700",color:TONE[lv.tone],flexShrink:0,textAlign:"right",whiteSpace:"nowrap"}}>{lv.label}</span>
+                        )); })}
                       </div>
                     )}
                   </div>
