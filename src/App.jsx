@@ -671,12 +671,14 @@ export default function App() {
     if(r.err==="offline"){setHbErr("Haushaltsbuch gerade nicht erreichbar.");return;}
     if(r.err){setHbErr("Das verknüpfte Haushaltsbuch wurde nicht gefunden.");setHbBook(null);return;}
     setHbBook(r.book);
-    // Einkaufsauszug gelesen: Schlüssel (und die Rubrik des Auszugs) im Plan merken
+    // Einkaufsauszug gelesen: Schlüssel (und die Rubrik des Auszugs) im Plan merken und den Buch-Code aus dem Plan entfernen.
+    // Ohne Code im Plan führt der Plan-Code nicht mehr zu den Finanzdaten.
     if(r.key){
       const patch={};
       if(l.key!==r.key) patch["hb/key"]=r.key;
       if(r.cat&&r.cat!==l.cat) patch["hb/cat"]=r.cat;
-      if(Object.keys(patch).length){ setHbLink(prev=>prev?{...prev,key:r.key,cat:r.cat||prev.cat}:prev); writePlan(patch,"people"); }
+      if(l.code) patch["hb/code"]=null;
+      if(Object.keys(patch).length){ setHbLink(prev=>{ if(!prev) return prev; const n={...prev,key:r.key,cat:r.cat||prev.cat}; delete n.code; return n; }); writePlan(patch,"people"); }
     }
   };
   const connectHb=async(codeArg)=>{
