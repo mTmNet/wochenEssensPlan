@@ -23,6 +23,7 @@ export default async function handler(req, res) {
   if (!uid) return res.status(401).json({ error: "Kein gültiger Anmelde-Nachweis." });
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const r = await recordActive({ dbUrl: process.env.AI_LIMIT_DB_URL || DB, secret: process.env.AI_LIMIT_SECRET, uid, src: body.von });
-  if (!r.ok) console.warn("Messung: nicht gespeichert:", r.grund);
-  return res.status(200).json({ ok: r.ok });
+  // Nicht gespeichert (Regel fehlt, Datenbank gestört): 503, damit das Gerät es später erneut versucht und den Tag nicht als erledigt merkt
+  if (!r.ok) { console.warn("Messung: nicht gespeichert:", r.grund); return res.status(503).json({ ok: false }); }
+  return res.status(200).json({ ok: true });
 }
