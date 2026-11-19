@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, chip, btn, iconBtn, micro as label, microMuted as lbl, input as inp } from "../theme.js";
 import Modal from "../components/Modal.jsx";
+import DishImage from "../components/DishImage.jsx";
 import { CATS, CUISINE_LIST, TAGS } from "../data.js";
 import { recName, recCat, recKey, sortRecipeKeys, cookedLabel, cookedCount, recTags, isKids, isQuick } from "../logic/recipes.js";
 import { compressImageToBase64 } from "../ai.js";
@@ -12,7 +13,7 @@ const SORTS=[{id:"cooked",label:"Zuletzt gekocht"},{id:"best",label:"Beste"},{id
 export default function Recipes({state,api}){
   const {recipes,classics,importState}=state;
   const {importErr,extracting,extracted,savedMsg}=importState;
-  const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF,exportCookbookFile,loadCookbookFile,confirmCookbookImport,cancelCookbookImport}=api;
+  const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF,exportCookbookFile,loadCookbookFile,confirmCookbookImport,cancelCookbookImport,registerBackHandler}=api;
   const cookbookImport=state.cookbookImport;
   const cbFileRef=useRef(null);
   const [cbMode,setCbMode]=useState("skip");
@@ -27,6 +28,8 @@ export default function Recipes({state,api}){
   const [sort,setSort]=useState("cooked");
   const [scope,setScope]=useState("");                   // "mine" | "all"; leer = automatisch (leeres Kochbuch: alle)
   const [adopting,setAdopting]=useState("");
+  const [preview,setPreview]=useState(null);             // angetipptes Gericht der Rezept-Basis (nur ansehen)
+  useEffect(()=>{ if(!preview||!registerBackHandler) return; return registerBackHandler(()=>{ setPreview(null); return true; }); },[preview]);
   const fileRef=useRef(null);
   useEffect(()=>()=>{ if(img&&img.previewUrl) URL.revokeObjectURL(img.previewUrl); },[img]);
 
@@ -60,6 +63,8 @@ export default function Recipes({state,api}){
     if(r===true){ setRecipeText(""); clearImg(); }
   };
   const doAdopt=async(c)=>{ setAdopting(c.name); await adoptClassic(c); setAdopting(""); };
+  // Aus der Vorschau: übernehmen und gleich das Rezept im Kochbuch öffnen
+  const adoptOpen=async(c)=>{ setAdopting(c.name); const k=await adoptClassic(c); setAdopting(""); if(k){ setPreview(null); openRecipe(k); } };
 
   // Liste: Suche ueber Name und Zutaten, Rubrik-Chip, Sortierung
   const q=search.trim().toLowerCase();
@@ -262,14 +267,34 @@ export default function Recipes({state,api}){
                 {classicList.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 4px"}}>Kein Gericht der Rezept-Basis passt zur Suche – oder alle passenden sind schon im Kochbuch.</div>}
                 {classicList.map(c=>(
                   <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,borderRadius:"6px",padding:"5px 6px 5px 12px",minHeight:"48px",marginBottom:"4px"}}>
-                    <div style={{flex:1,minWidth:0}}>
+                    <button onClick={()=>setPreview(c)} aria-label={c.name+" ansehen"} style={{flex:1,minWidth:0,background:"none",border:"none",padding:0,margin:0,textAlign:"left",cursor:"pointer",fontFamily:SF}}>
                       <div style={{fontSize:"15px",fontFamily:SER,color:C.text}}>{c.name}</div>
                       <div style={{fontSize:"13px",color:C.muted}}>{[c.category,c.cuisine,c.origin,c.minutes?c.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
-                    </div>
+                    </button>
                     <button onClick={()=>doAdopt(c)} disabled={adopting===c.name} style={{...btn("ghost"),color:C.accent,padding:"8px 10px",flexShrink:0,borderRadius:"6px"}}>{adopting===c.name?"…":"Übernehmen"}</button>
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Vorschau eines Gerichts der Rezept-Basis: nur ansehen, erst "Übernehmen" legt es ins Kochbuch */}
+            {preview&&(
+              <Modal micro="Rezept-Basis" title={preview.name} onClose={()=>setPreview(null)}>
+                <DishImage name={preview.name} rec={preview} height={170} minimal style={{margin:"-4px 0 12px",borderRadius:"6px"}} />
+                <div style={{fontSize:"13px",color:C.muted,marginBottom:"12px"}}>{[preview.category,preview.cuisine,preview.origin,preview.servings?preview.servings+" Portionen":"",preview.minutes?preview.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
+                {(preview.ingredients||[]).length>0&&<>
+                  <div style={{...lbl,marginBottom:"6px"}}>Zutaten</div>
+                  <ul style={{margin:"0 0 14px",paddingLeft:"18px",fontSize:"14px",color:C.text,lineHeight:1.5}}>{preview.ingredients.map((x,i)=><li key={i}>{x}</li>)}</ul>
+                </>}
+                {(preview.steps||[]).length>0&&<>
+                  <div style={{...lbl,marginBottom:"6px"}}>Zubereitung</div>
+                  <ol style={{margin:"0 0 16px",paddingLeft:"20px",fontSize:"14px",color:C.text,lineHeight:1.5}}>{preview.steps.map((x,i)=><li key={i} style={{marginBottom:"6px"}}>{x}</li>)}</ol>
+                </>}
+                <div style={{display:"flex",gap:"8px"}}>
+                  <button onClick={()=>adoptOpen(preview)} disabled={adopting===preview.name} style={{...btn("primary"),flex:2,borderRadius:"6px"}}>{adopting===preview.name?"…":"Ins Kochbuch übernehmen"}</button>
+                  <button onClick={()=>setPreview(null)} style={{...btn("ghost"),flex:1,borderRadius:"6px"}}>Schließen</button>
+                </div>
+              </Modal>
             )}
 
             {/* Kochbuch als PDF */}
