@@ -2,16 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { C, SF, SER, chip, btn, iconBtn, micro as label, microMuted as lbl, input as inp } from "../theme.js";
 import Modal from "../components/Modal.jsx";
 import DishImage from "../components/DishImage.jsx";
-import { CATS, CUISINE_LIST, TAGS } from "../data.js";
+import { CATS, CUISINE_LIST, TAGS, CAT_COLORS } from "../data.js";
+import { basisBild } from "../logic/basisBild.js";
 import { recName, recCat, recKey, sortRecipeKeys, cookedLabel, cookedCount, recTags, isKids, isQuick } from "../logic/recipes.js";
 import { compressImageToBase64 } from "../ai.js";
 
 const SORTS=[{id:"cooked",label:"Zuletzt gekocht"},{id:"best",label:"Beste"},{id:"new",label:"Neu"},{id:"az",label:"A–Z"}];
 
+// Vorschaubild: eigenes Foto, sonst Bild der Rezept-Basis, sonst Rubrik-Farbe mit Anfangsbuchstabe
+const Thumb=({name,rec,img})=>{ const src=img||basisBild(name); return <div style={{width:"52px",height:"52px",flexShrink:0,borderRadius:"6px",overflow:"hidden",background:CAT_COLORS[recCat(rec)]||"#4A4A5A",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:SER,fontSize:"22px",color:"rgba(255,255,255,0.9)"}}>{src?<img src={src} alt="" loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}} />:String(name||"?").trim().charAt(0).toUpperCase()}</div>; };
+
 // REZEPTE - Import (Text/Foto per KI, Foto in zwei Modi), erkanntes Rezept pruefen, Suche, Rubrik-Filter, Sortierung,
 // Rezept-Basis einblenden, Kochbuch-PDF
 export default function Recipes({state,api}){
-  const {recipes,classics,importState}=state;
+  const {recipes,classics,importState,images}=state;
   const {importErr,extracting,extracted,savedMsg}=importState;
   const {extractRecipe,saveExtracted,setExtracted,setImportErr,openRecipe,adoptStarters,adoptClassic,downloadPDF,exportCookbookFile,loadCookbookFile,confirmCookbookImport,cancelCookbookImport,registerBackHandler}=api;
   const cookbookImport=state.cookbookImport;
@@ -250,7 +254,8 @@ export default function Recipes({state,api}){
               const ings=(rec&&rec.ingredients)||[];
               const sub=[recCat(rec),rec.cuisine,ings.length+" Zutaten",rec.minutes>0?rec.minutes+" Min.":"",TAGS.filter(t=>recTags(rec).includes(t.id)).map(t=>t.label).join(" · "),cookedCount(rec)?cookedLabel(rec):""].filter(Boolean).join(" · ");
               return(
-                <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"6px 12px",minHeight:"48px",marginBottom:"4px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px",fontFamily:SF,borderRadius:"6px"}}>
+                <button key={name} onClick={()=>openRecipe(name)} style={{width:"100%",background:C.white,border:"1px solid "+C.border,padding:"6px 12px 6px 6px",minHeight:"48px",marginBottom:"4px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"12px",fontFamily:SF,borderRadius:"6px"}}>
+                  <Thumb name={dn(name)} rec={rec} img={images&&images[name]} />
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:"15px",fontFamily:SER,color:C.text}}>{dn(name)}{rec.rating?<span style={{color:C.star,fontSize:"13px",marginLeft:"8px"}}>{"★".repeat(rec.rating)}</span>:null}</div>
                     <div style={{fontSize:"13px",color:C.muted}}>{sub}</div>
@@ -266,7 +271,8 @@ export default function Recipes({state,api}){
                 <div style={{fontSize:"12px",fontWeight:"700",color:C.accent,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"8px",paddingBottom:"6px",borderBottom:"1px dashed "+C.border}}>Rezept-Basis · {classicList.length} noch nicht im Kochbuch</div>
                 {classicList.length===0&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 4px"}}>Kein Gericht der Rezept-Basis passt zur Suche – oder alle passenden sind schon im Kochbuch.</div>}
                 {classicList.map(c=>(
-                  <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,borderRadius:"6px",padding:"5px 6px 5px 12px",minHeight:"48px",marginBottom:"4px"}}>
+                  <div key={c.name} style={{display:"flex",alignItems:"center",gap:"10px",background:"transparent",border:"1px dashed "+C.border,borderRadius:"6px",padding:"5px 6px 5px 6px",minHeight:"48px",marginBottom:"4px"}}>
+                    <Thumb name={c.name} rec={c} />
                     <button onClick={()=>setPreview(c)} aria-label={c.name+" ansehen"} style={{flex:1,minWidth:0,background:"none",border:"none",padding:0,margin:0,textAlign:"left",cursor:"pointer",fontFamily:SF}}>
                       <div style={{fontSize:"15px",fontFamily:SER,color:C.text}}>{c.name}</div>
                       <div style={{fontSize:"13px",color:C.muted}}>{[c.category,c.cuisine,c.origin,c.minutes?c.minutes+" Min.":""].filter(Boolean).join(" · ")}</div>
