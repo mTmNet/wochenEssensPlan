@@ -5,6 +5,7 @@ import { recName, recCat, recKey, normalizeRecipe } from "../logic/recipes.js";
 import { rankSuggestions } from "../logic/suggest.js";
 import { picksForDay } from "../logic/picks.js";
 import DishImage from "../components/DishImage.jsx";
+import { basisBild } from "../logic/basisBild.js";
 
 // HEUTE - "Was kochen wir heute?": vorgemerkt fuer heute, bester Vorschlag mit Begruendung, Alternativen, Vorrat-Zeile, KI
 const pColor=(p)=>p>=0.6?C.ok:p>=0.25?C.accent:C.subtle;
@@ -90,7 +91,7 @@ export default function Heute({state,api}){
         {/* kurzes Einblenden bei jedem Wechsel der Hauptkachel, damit sichtbar ist, dass sich oben etwas getan hat */}
         <style>{"@keyframes heuteEin{from{opacity:0.25}to{opacity:1}}"}</style>
         <div onClick={()=>open(top)} role="button" style={{cursor:"pointer"}}>
-          <DishImage name={nameOf(top)} rec={top.rec} img={images[top.key]} height={images[top.key]?190:96} minimal />
+          <DishImage name={nameOf(top)} rec={top.rec} img={images[top.key]} height={(images[top.key]||basisBild(nameOf(top)))?190:96} minimal />
         </div>
         <div style={{padding:"14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
