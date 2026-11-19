@@ -30,8 +30,8 @@ export default function Shell({state,api,children}){
         {/* HEADER */}
         <div style={{background:C.head,borderBottom:"1px solid "+C.border}}>
           <div style={{...column,position:"relative",padding:"8px 16px 17px",display:"flex",alignItems:"center",gap:"8px 10px"}}>
-            {/* Schriftzug mittig zwischen linkem Rand und Plan-Code, der Name sitzt klein direkt ueber der Linie */}
-            <div style={{flex:"1 1 auto",minWidth:0,textAlign:"center"}}>
+            {/* Schriftzug links (mittig gefiel nicht), der Name sitzt klein direkt ueber der Linie */}
+            <div style={{flex:"1 1 auto",minWidth:0}}>
               <div style={{color:C.logo,fontSize:"clamp(26px,8.2vw,36px)",fontWeight:"700",fontFamily:"'Dancing Script',cursive",lineHeight:1.1,whiteSpace:"nowrap",WebkitTextStroke:"0.7px "+C.logoLine,paintOrder:"stroke fill"}}>Wochenplan</div>
             </div>
             <div style={{position:"absolute",left:"16px",bottom:"1px",maxWidth:"60%",color:C.headMuted,fontSize:"13px",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
