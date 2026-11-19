@@ -51,7 +51,8 @@ console.log('\nBestehende Verknüpfung mit Buch-Code, Auszug ist da (Übergang)'
 reset('beides',{code:BUCH,cat:'Lebensmittel'});
 { const a=await open(b);
   check(await listed(a.p),'Vorrat zeigt die Einkäufe');
-  check(link().key===KEY && link().code===BUCH,'Plan hat sich den Schlüssel gemerkt, der Code bleibt vorerst als Rückfall',link());
+  check(link().key===KEY && !link().code,'Plan hat sich den Schlüssel gemerkt und den Buch-Code entfernt',link());
+  check(!JSON.stringify(plans).includes(BUCH),'der Buch-Code steht nirgends mehr im Plan');
   check(!hbReads.some(x=>x.includes('/books/')),'das Buch selbst wurde nicht mehr gelesen',hbReads);
   mode='scharf'; hbReads=[]; await a.p.reload(); await a.p.waitForSelector('button:text-is("Vorrat")'); await a.p.click('button:text-is("Vorrat")'); await a.p.waitForTimeout(1500);
   check(await listed(a.p),'nach dem Scharfstellen des Haushaltsbuchs zeigt der Vorrat die Einkäufe weiter');
