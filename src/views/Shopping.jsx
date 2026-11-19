@@ -133,7 +133,7 @@ export default function Shopping({state,api}){
                 )}
                 {!hbLink&&<div style={{fontSize:"13px",color:C.subtle,margin:"4px 2px 10px",lineHeight:"1.5"}}>Abgehakte Posten gelten als gekauft und kommen in den Vorrat (Reiter „Vorrat“).</div>}
                 <button onClick={clearShopping} style={{...btn("danger"),width:"100%",marginTop:"6px",borderRadius:"6px"}}>Einkaufsliste komplett löschen</button>
-                <button onClick={clearCheckedShopping} disabled={!checkedCount} style={{...btn("danger"),width:"100%",marginTop:"8px",borderRadius:"6px",opacity:checkedCount?1:0.5,cursor:checkedCount?"pointer":"default"}}>Nur abgehakte Posten löschen{checkedCount?" ("+checkedCount+")":""}</button>
+                {checkedCount>0&&<button onClick={clearCheckedShopping} style={{...btn("danger"),width:"100%",marginTop:"8px",borderRadius:"6px"}}>Nur abgehakte Posten löschen ({checkedCount})</button>}
               </div>
             )}
           </div>
