@@ -1,13 +1,17 @@
 // PDF - HTML zum Drucken / als PDF speichern (jsPDF kommt in einer spaeteren Phase)
-// Bilder: eigenes Foto, sonst Platzhalterband (Rubrik-Farbe, Anfangsbuchstabe); KI-Symbolbilder nur bei settings.aiImages
+// Bilder: eigenes Foto, sonst Bild der Rezept-Basis ("KI-generiert"), sonst Platzhalterband (Rubrik-Farbe, Anfangsbuchstabe); KI-Symbolbilder nur bei settings.aiImages
 import { CATS, CAT_COLORS } from "./data.js";
 import { recCat, recName, foodImg } from "./logic/recipes.js";
+import { basisBild } from "./logic/basisBild.js";
 
 const esc = (s) => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 // Bild oder Platzhalterband zum Rezept
 const imgHTML = (key, rec, title, customImg, aiImages, cls) => {
   const cl = cls ? ' class="'+cls+'"' : '';
   if(customImg) return '<img'+cl+' src="'+customImg+'" alt="'+esc(title)+'" onerror="this.style.display=\'none\'">';
+  // Druckfenster hat keine eigene Adresse, deshalb absolute URL
+  const basis = basisBild(title) || basisBild(key);
+  if(basis) return '<div class="symb"><img'+cl+' src="'+esc((typeof location!=="undefined"?location.origin:"")+basis)+'" alt="'+esc(title)+'" onerror="this.parentNode.style.display=\'none\'"><span class="ki">KI-generiert</span></div>';
   if(aiImages) return '<div class="symb"><img'+cl+' src="'+foodImg(key)+'" alt="'+esc(title)+'" onerror="this.parentNode.style.display=\'none\'"><span>Symbolbild</span></div>';
   const color = CAT_COLORS[recCat(rec)]||"#4A4A5A";
   return '<div class="band" style="background:'+color+'"><span class="initial">'+esc(String(title).trim().charAt(0).toUpperCase())+'</span><span class="band-cat">'+esc(recCat(rec))+'</span></div>';
@@ -18,6 +22,7 @@ const commonCss = `
     .band .band-cat{font-family:system-ui,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:0.75}
     .symb{position:relative}
     .symb span{position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;font-family:system-ui,sans-serif;font-size:10px;letter-spacing:1px;padding:3px 7px}
+    .symb span.ki{top:4px;right:auto;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:0.5px;padding:1px 5px;background:rgba(0,0,0,0.4)}
     .src{font-size:12px;color:#8A8780;margin:-10px 0 18px}
 `;
 
