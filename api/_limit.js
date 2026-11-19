@@ -1,23 +1,32 @@
 // KOSTENDECKEL für die KI-Function: Tageszähler, die über alle Serverinstanzen hinweg gelten.
 // Gezählt wird in der eigenen Realtime Database unter aiUsage/<SHA-256 von AI_LIMIT_SECRET>/<Tag>/... Das Geheimnis steht nur
 // in den Vercel-Umgebungsvariablen und ist (wie der Plan-Code) Teil des Pfads; ohne es kommt niemand an die Zähler.
-// Drei Grenzen je Tag (UTC): insgesamt, je IP, je Code. Später kommt die Nutzer-ID als weiteres "subject" dazu
-// (kind "uid") und ersetzt den Code; an der Logik ändert sich dafür nichts.
+// Drei Grenzen je Tag (UTC): insgesamt, je IP und je Nutzer-ID (kind "uid", geprüfter Anmelde-Nachweis, siehe _token.js).
+// Schickt ein Gerät keinen gültigen Nachweis (alte App-Version, Anmeldung gestört), zählt wie früher der Code (kind "code").
 import { createHash } from "node:crypto";
 
-export const DEFAULT_LIMITS = { total: 300, ip: 60, code: 50 };
+export const DEFAULT_LIMITS = { total: 300, ip: 60, code: 50, uid: 50 };
 
 const toInt = (v, fallback) => {
   const n = parseInt(String(v ?? "").trim(), 10);
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
-// Grenzwerte aus Umgebungsvariablen (AI_LIMIT_TOTAL, AI_LIMIT_IP, AI_LIMIT_CODE), sonst die Standardwerte
-export const limitsFrom = (env = {}) => ({
-  total: toInt(env.AI_LIMIT_TOTAL, DEFAULT_LIMITS.total),
-  ip: toInt(env.AI_LIMIT_IP, DEFAULT_LIMITS.ip),
-  code: toInt(env.AI_LIMIT_CODE, DEFAULT_LIMITS.code),
-});
+// Grenzwerte aus Umgebungsvariablen (AI_LIMIT_TOTAL, AI_LIMIT_IP, AI_LIMIT_CODE, AI_LIMIT_UID), sonst die Standardwerte.
+// Ohne AI_LIMIT_UID gilt für die Nutzer-ID derselbe Wert wie für den Code.
+export const limitsFrom = (env = {}) => {
+  const code = toInt(env.AI_LIMIT_CODE, DEFAULT_LIMITS.code);
+  return {
+    total: toInt(env.AI_LIMIT_TOTAL, DEFAULT_LIMITS.total),
+    ip: toInt(env.AI_LIMIT_IP, DEFAULT_LIMITS.ip),
+    code,
+    uid: toInt(env.AI_LIMIT_UID, code),
+  };
+};
+
+// Wer zählt außer der IP: die geprüfte Nutzer-ID, sonst (ohne gültigen Nachweis) der Code
+export const limitSubjects = ({ ip, uid, code }) =>
+  [{ kind: "ip", id: ip }, uid ? { kind: "uid", id: uid } : { kind: "code", id: cleanCode(code) }];
 
 // Geheimnis gültig ab 16 Zeichen, beliebige Zeichen (Leerraum am Rand zählt nicht). Sonst gilt der Deckel als nicht eingerichtet.
 const cleanSecret = (s) => String(s ?? "").trim();
@@ -35,7 +44,7 @@ export const cleanCode = (c) => {
 
 export const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 
-// IPs und Codes stehen nie im Klartext in der Datenbank, nur als gekürzter Hash mit dem Geheimnis als Salz
+// IPs, Codes und Nutzer-IDs stehen nie im Klartext in der Datenbank, nur als gekürzter Hash mit dem Geheimnis als Salz
 export const hashId = (value, secret) =>
   createHash("sha256").update(String(secret) + "|" + String(value)).digest("hex").slice(0, 24);
 

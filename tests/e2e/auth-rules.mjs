@@ -8,7 +8,7 @@ const URL0 = process.env.APP_URL || 'http://127.0.0.1:5173/';
 const fails = []; const check = (c,msg,extra)=>{ if(c) console.log('  ok  ',msg); else { fails.push(msg); console.log('  FAIL',msg,extra!==undefined?JSON.stringify(extra).slice(0,300):''); } };
 const CODE_RE = /^[A-Z0-9]{6,16}$/;
 const META = {createdAt:1,updatedAt:1,picksUpdatedAt:1,shoppingUpdatedAt:1,recipesUpdatedAt:1,peopleUpdatedAt:1,imagesMigrated:true};
-let store, mode, uidSeq = 0, denied;
+let store, mode, uidSeq = 0, denied, aktiv = [], kiCalls = [];
 const getAt = (parts)=>{ let o=store; for(const p of parts){ if(o==null||typeof o!=='object') return null; o=o[p]; } return o===undefined?null:o; };
 const setAt = (parts,val)=>{ let o=store; for(let i=0;i<parts.length-1;i++){ if(o[parts[i]]==null||typeof o[parts[i]]!=='object') o[parts[i]]={}; o=o[parts[i]]; } if(val===null) delete o[parts[parts.length-1]]; else o[parts[parts.length-1]]=val; };
 const isMember = (code,uid)=>!!uid && !!getAt(['members',code,uid]);
@@ -46,6 +46,9 @@ const wire = async(ctx)=>{
     if(m==='PATCH') for(const [k,v] of Object.entries(body||{})) setAt([...parts,...k.split('/')],v);
     r.fulfill({contentType:'application/json',body:'{}'}); });
   await ctx.route(/pollinations|fonts\.g/, r=>r.abort());
+  // Messung und KI: nur mitschreiben, was das Gerät schickt (Prüfung des Nachweises ist in tests/token.test.mjs)
+  await ctx.route(/\/api\/aktiv$/, r=>{ const q=r.request(); aktiv.push({auth:q.headers()['authorization']||'',body:JSON.parse(q.postData()||'{}')}); r.fulfill({contentType:'application/json',body:'{"ok":true}'}); });
+  await ctx.route(/\/api\/gemini$/, r=>{ const q=r.request(); kiCalls.push({auth:q.headers()['authorization']||'',body:JSON.parse(q.postData()||'{}')}); r.fulfill({contentType:'application/json',body:JSON.stringify({text:'{"name":"Test","ingredients":["1 Ei"],"steps":["Kochen"]}'})}); });
 };
 const fresh = async(b,session)=>{ const ctx=await b.newContext(); await wire(ctx); const p=await ctx.newPage();
   if(session) await p.addInitScript(s=>{ if(!localStorage.getItem('wochenplan-session-set')){ localStorage.setItem(s.key,JSON.stringify(s.val)); localStorage.setItem('wochenplan-session-set','1'); } },session);
@@ -101,6 +104,19 @@ reset('alt',{ALTPLAN234:{participants:['Anna'],meta:META}});
   check(!store.members,'kein Mitglieder-Eintrag entstanden');
   check(denied.every(d=>d.includes('/members/')),'abgelehnt wurden nur die Versuche am Knoten members',denied);
   await a.ctx.close(); }
+
+console.log('\nMessung: Einstiegslink mit Herkunft, einmal am Tag „heute aktiv“');
+reset('stand2'); aktiv=[];
+{ const ctx=await b.newContext(); await wire(ctx); const p=await ctx.newPage(); await p.goto(URL0+'?von=Rewe-Nord');
+  await p.fill('#join-name','Dora'); await p.click('text=PLAN STARTEN');
+  check(await inApp(p),'Dora startet einen Plan');
+  await p.waitForTimeout(500);
+  check(aktiv.length===1,'genau eine Meldung „heute aktiv“',aktiv);
+  check(/^Bearer TOK-U\d+$/.test(aktiv[0]?.auth||''),'Meldung trägt den Anmelde-Nachweis',aktiv[0]);
+  check(aktiv[0]?.body?.von==='rewe-nord','Herkunft aus dem Link wird mitgeschickt',aktiv[0]);
+  await p.reload(); await inApp(p); await p.waitForTimeout(11000);
+  check(aktiv.length===1,'nach Neuladen und Abgleich keine zweite Meldung am selben Tag',aktiv.length);
+  await ctx.close(); }
 
 await b.close();
 console.log(fails.length?('\n'+fails.length+' FEHLER'):'\nalles ok'); process.exit(fails.length?1:0);

@@ -1,11 +1,14 @@
 // KI-AUFRUFE ueber die eigene Server-Function (der Schluessel bleibt auf dem Server).
 // mode "extract" = Rezept abschreiben (kaum Kreativitaet), "suggest" = bekanntes Gericht vorschlagen.
 import { CATS, CUISINE_LIST } from "./data.js";
+import { auth } from "./fb.js";
 
-// code = Plan-Code, nur für den Tageszähler des Kostendeckels auf dem Server (api/_limit.js)
+// Für den Tageszähler des Kostendeckels auf dem Server (api/_limit.js) geht der Anmelde-Nachweis mit (dann zählt die Nutzer-ID);
+// code = Plan-Code, zählt nur, wenn kein gültiger Nachweis da ist
 export const callAI = async ({mode, system, messages, code}) => {
+  const token = auth.enabled ? await auth.token() : "";
   const r = await fetch("/api/gemini", {
-    method:"POST", headers:{"Content-Type":"application/json"},
+    method:"POST", headers:{"Content-Type":"application/json", ...(token?{Authorization:"Bearer "+token}:{})},
     body:JSON.stringify({mode:mode==="suggest"?"suggest":"extract", system, messages, code:code||undefined}),
   });
   if(!r.ok) {

@@ -44,7 +44,7 @@ const run = (db, over = {}) => checkAndCount({
 
 test("limitsFrom: Standardwerte und Umgebungsvariablen", () => {
   assert.deepEqual(limitsFrom({}), DEFAULT_LIMITS);
-  assert.deepEqual(limitsFrom({ AI_LIMIT_TOTAL: "10", AI_LIMIT_IP: "x", AI_LIMIT_CODE: " 7 " }), { total: 10, ip: DEFAULT_LIMITS.ip, code: 7 });
+  assert.deepEqual(limitsFrom({ AI_LIMIT_TOTAL: "10", AI_LIMIT_IP: "x", AI_LIMIT_CODE: " 7 " }), { total: 10, ip: DEFAULT_LIMITS.ip, code: 7, uid: 7 });
 });
 
 test("cleanCode, validSecret, dayKey, hashId", () => {
@@ -147,4 +147,28 @@ test("limitStatus: nennt den Grund, wenn der Deckel nicht zählt, und verrät da
   } });
   assert.equal(ok.aktiv, true);
   for (const s of [none, bad, denied, down, ok]) assert.ok(!JSON.stringify(s).includes(SECRET));
+});
+
+// Umstellung auf Nutzer-ID
+import { limitSubjects } from "../api/_limit.js";
+
+test("limitSubjects: mit geprüfter Nutzer-ID zählt sie statt des Codes", () => {
+  assert.deepEqual(limitSubjects({ ip: "1.2.3.4", uid: "u1", code: "ABCDEF" }), [{ kind: "ip", id: "1.2.3.4" }, { kind: "uid", id: "u1" }]);
+  assert.deepEqual(limitSubjects({ ip: "1.2.3.4", uid: "", code: "abcdef" }), [{ kind: "ip", id: "1.2.3.4" }, { kind: "code", id: "ABCDEF" }]);
+});
+
+test("limitsFrom: Nutzer-ID-Grenze aus AI_LIMIT_UID, sonst wie Code", () => {
+  assert.equal(limitsFrom({}).uid, 50);
+  assert.equal(limitsFrom({ AI_LIMIT_CODE: "30" }).uid, 30);
+  assert.equal(limitsFrom({ AI_LIMIT_CODE: "30", AI_LIMIT_UID: "20" }).uid, 20);
+});
+
+test("Tagesgrenze je Nutzer-ID greift", async () => {
+  const db = fakeDb();
+  const go = () => checkAndCount({ dbUrl: DB, secret: SECRET, limits: { total: 100, ip: 100, code: 100, uid: 2 }, subjects: limitSubjects({ ip: "1.1.1.1", uid: "u1" }), fetchImpl: db.fetchImpl, now: () => T0 });
+  assert.equal((await go()).ok, true);
+  assert.equal((await go()).ok, true);
+  assert.deepEqual(await go(), { ok: false, reason: "uid" });
+  const other = await checkAndCount({ dbUrl: DB, secret: SECRET, limits: { total: 100, ip: 100, code: 100, uid: 2 }, subjects: limitSubjects({ ip: "1.1.1.1", uid: "u2" }), fetchImpl: db.fetchImpl, now: () => T0 });
+  assert.equal(other.ok, true);
 });

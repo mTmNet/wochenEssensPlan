@@ -3,6 +3,7 @@
 // globalRecipes nur lesbar. Wortlaut siehe README.
 // Alles Neue liegt unter plans/<CODE>/… und recipeImages/<CODE>/…; globalRecipes und recipeImages/<Name> werden nur noch gelesen.
 import { createAuth, authedFetch } from "./auth.js";
+import { createActivity } from "./aktiv.js";
 
 export const FB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
 
@@ -13,6 +14,9 @@ export const timeoutFor = (bodyLen) => Math.min(60000, FETCH_TIMEOUT_MS + Math.f
 // Anmeldung: Der Web-Schlüssel des Firebase-Projekts kommt aus der Vercel-Variable VITE_FB_API_KEY (öffentlich, kein Geheimnis).
 // Fehlt sie, bleibt die Anmeldung aus und alle Aufrufe gehen wie bisher ohne Nachweis hinaus.
 export const auth = createAuth({ apiKey: (import.meta.env && import.meta.env.VITE_FB_API_KEY) || "" });
+// Messung "zuletzt aktiv" (src/aktiv.js): Herkunft aus dem Einstiegslink gleich beim Laden merken, gemeldet wird beim Abgleich
+export const activity = createActivity({ prefix: "wochenplan", auth });
+activity.capture();
 const fetchT = async (url, init, ms) => {
   const ctl = typeof AbortController!=="undefined" ? new AbortController() : null;
   const timer = ctl ? setTimeout(()=>ctl.abort(), ms) : null;
