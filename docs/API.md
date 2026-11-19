@@ -10,8 +10,10 @@ Die App ruft die KI nie direkt auf. Alle Anfragen gehen an die Vercel-Function `
 |---|---|---|
 | `system` | string, optional | Systemanweisung (Rolle, Ausgabeformat) |
 | `messages` | Array, Pflicht | Verlauf mit `role` (`user` oder `assistant`) und `content`. `content` ist ein String oder eine Liste von Teilen: `{type:"text", text}` oder `{type:"image", source:{media_type, data}}` (Base64, ohne `data:`-Präfix) |
-| `code` | string, optional | Plan-Code, nur für den Tageszähler des Kostendeckels (siehe unten) |
+| `code` | string, optional | Plan-Code, zählt im Kostendeckel nur, wenn kein gültiger Anmelde-Nachweis mitkommt (siehe unten) |
 | `mode` | `"extract"` oder `"suggest"`, optional | Steuert die Erzeugungsparameter. `extract` (Rezept abschreiben): Temperatur 0,1, maximal 6000 Ausgabe-Token. `suggest` (bekanntes Gericht vorschlagen): Temperatur 0,3, maximal 4000 Token. Fehlt der Wert oder ist er unbekannt, gilt `extract`. |
+
+Kopf `Authorization: Bearer <Anmelde-Nachweis>` (optional): der Nachweis der anonymen Anmeldung. Der Server prüft ihn (`api/_token.js`) und zählt dann die Nutzer-ID statt des Plan-Codes.
 
 Antwort bei Erfolg: `200 {"text": "..."}`. Der Client (`src/ai.js`, `callAI`) wertet nur `text` aus.
 
@@ -39,18 +41,19 @@ Antwort bei Fehlern: `{"error": "deutsche Meldung"}` mit passendem Status.
 
 ## Kostendeckel (Tageszähler)
 
-Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag (UTC), und zwar über alle Serverinstanzen hinweg. Die Zähler liegen in der eigenen Realtime Database unter `aiUsage/<SHA-256 von AI_LIMIT_SECRET>/<Tag>/…`; IP und Plan-Code stehen dort nur als Hash. Ist eine Grenze erreicht, antwortet die Function mit 429 und ruft die KI nicht auf.
+Zusätzlich zur Drossel je Minute zählt `api/_limit.js` jede KI-Anfrage je Tag (UTC), und zwar über alle Serverinstanzen hinweg. Die Zähler liegen in der eigenen Realtime Database unter `aiUsage/<SHA-256 von AI_LIMIT_SECRET>/<Tag>/…`; IP, Nutzer-ID und Plan-Code stehen dort nur als Hash. Ist eine Grenze erreicht, antwortet die Function mit 429 und ruft die KI nicht auf.
 
 | Grenze je Tag | Standard | Umgebungsvariable |
 |---|---|---|
 | alle Anfragen zusammen | 300 | `AI_LIMIT_TOTAL` |
 | je IP | 60 | `AI_LIMIT_IP` |
-| je Plan-Code | 50 | `AI_LIMIT_CODE` |
+| je Nutzer-ID (Gerät mit gültigem Anmelde-Nachweis) | 50 | `AI_LIMIT_UID` (fehlt sie, gilt `AI_LIMIT_CODE`) |
+| je Plan-Code (nur ohne gültigen Nachweis) | 50 | `AI_LIMIT_CODE` |
 
 Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je Minute):
 
 1. Ein zufälliges Geheimnis aus mindestens 16 Zeichen (beliebige Zeichen) erzeugen und in Vercel als Umgebungsvariable `AI_LIMIT_SECRET` setzen, danach neu deployen. Das Geheimnis gehört nicht ins Repository.
-2. In der Firebase Console (Projekt `wochenessenplan-3d0e1`) unter *Realtime Database → Regeln* den Knoten `aiUsage` ergänzen. Vollständiger Regelsatz zum Kopieren (die gehärteten Regeln für `recipeImages` und `globalRecipes` aus dem README plus `aiUsage`):
+2. In der Firebase Console (Projekt `wochenessenplan-3d0e1`) unter *Realtime Database → Regeln* den Knoten `aiUsage` ergänzen. Vollständiger Regelsatz zum Kopieren (entspricht dem README, mit `aiUsage` und `activity`):
 
 ```json
 {
@@ -89,6 +92,12 @@ Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je
         ".read": "$secret.length >= 32",
         ".write": "$secret.length >= 32"
       }
+    },
+    "activity": {
+      "$secret": {
+        ".read": "$secret.length >= 32",
+        ".write": "$secret.length >= 32"
+      }
     }
   }
 }
@@ -100,7 +109,8 @@ Außerdem: nach einer KI-Anfrage steht in der Firebase Console unter `aiUsage/<6
 
 Grenzen des Deckels:
 
-- Der Plan-Code wird vom Client mitgeschickt und nicht geprüft; ein Skript kann ihn wechseln. Hart wirken deshalb die Grenze je IP und vor allem die Gesamtgrenze. Mit der Anmeldung (Nutzer-ID) kommt in `subjects` ein Eintrag `kind: "uid"` dazu und ersetzt den Code.
+- Gezählt wird je Nutzer-ID, wenn das Gerät einen gültigen Anmelde-Nachweis schickt. Der Server prüft dessen Signatur gegen Googles öffentliche Schlüssel, das Projekt und den Ablauf (`api/_token.js`, ohne zusätzliche Bibliothek). Ohne gültigen Nachweis zählt wie früher der Plan-Code; den schickt der Client mit und er wird nicht geprüft.
+- Anonyme Nutzer-IDs kosten nichts: Ein Skript kann sich viele holen. Hart wirken deshalb weiter die Grenze je IP und vor allem die Gesamtgrenze.
 - Ist die Datenbank nicht erreichbar, lässt die Function die Anfrage durch (echte Nutzer sollen nicht an einer Störung hängen). Die harte Kostengrenze bleibt die Budget-Sperre am API-Schlüssel bei Google.
 - Erreicht ein Angreifer die Gesamtgrenze, ist die KI für alle bis Mitternacht UTC gesperrt; die App selbst läuft weiter.
 
@@ -116,6 +126,7 @@ Grenzen des Deckels:
 |---|---|
 | `GEMINI_API_KEY` | Schlüssel für den KI-Dienst. Wird in den Vercel-Projekteinstellungen gesetzt; danach neu deployen. Fehlt er, antwortet die Function mit 500 und dem Text `GEMINI_API_KEY not configured`, den der Client als Konfigurationshinweis erkennt. |
 | `AI_LIMIT_SECRET` | Geheimnis für den Zählerpfad des Kostendeckels (mindestens 16 Zeichen). Fehlt es, ist der Deckel aus. |
-| `AI_LIMIT_TOTAL`, `AI_LIMIT_IP`, `AI_LIMIT_CODE` | Optionale Tagesgrenzen, Standard 300 / 60 / 50. |
+| `AI_LIMIT_TOTAL`, `AI_LIMIT_IP`, `AI_LIMIT_UID`, `AI_LIMIT_CODE` | Optionale Tagesgrenzen, Standard 300 / 60 / 50 / 50. |
+| `ZAHLEN_PASSWORT` | Passwort der Zahlen-Seite `/api/zahlen` (mindestens 12 Zeichen), siehe `docs/MESSUNG.md`. Fehlt es, ist die Seite aus. |
 
 Für lokale Entwicklung reicht `vercel dev` mit einer `.env`-Datei, die den Schlüssel enthält. Die Datei gehört nicht ins Repository.

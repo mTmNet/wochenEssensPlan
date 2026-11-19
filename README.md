@@ -41,11 +41,12 @@ Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetzte
 2. Umgebungsvariable `GEMINI_API_KEY` setzen (Key von aistudio.google.com/apikey), neu deployen.
 3. Firebase Realtime Database: die App nutzt das Projekt `wochenessenplan-3d0e1` (URL in `src/fb.js`).
 4. Kostendeckel der KI: Umgebungsvariable `AI_LIMIT_SECRET` setzen und den Regel-Knoten `aiUsage` ergänzen. Der vollständige Regelsatz steht in `docs/API.md`, Abschnitt „Kostendeckel“.
-5. Anonyme Anmeldung (seit 18.11.2026 aktiv, die Regeln verlangen sie noch nicht): In der Firebase Console unter *Authentication → Anmeldemethode* „Anonym“ aktivieren und den Web-API-Schlüssel des Projekts (*Projekteinstellungen → Allgemein*) in Vercel als Umgebungsvariable `VITE_FB_API_KEY` setzen, danach neu deployen. Der Schlüssel ist öffentlich (er steht in der ausgelieferten App) und kein Geheimnis; er gehört trotzdem nicht ins Repository. Fehlt die Variable, ist die Anmeldung aus und die App läuft wie bisher.
+5. Anonyme Anmeldung (seit 18.11.2026 aktiv, seit 19.11.2026 von den Regeln verlangt): In der Firebase Console unter *Authentication → Anmeldemethode* „Anonym“ aktivieren und den Web-API-Schlüssel des Projekts (*Projekteinstellungen → Allgemein*) in Vercel als Umgebungsvariable `VITE_FB_API_KEY` setzen, danach neu deployen. Der Schlüssel ist öffentlich (er steht in der ausgelieferten App) und kein Geheimnis; er gehört trotzdem nicht ins Repository. Fehlt die Variable, ist die Anmeldung aus und die App läuft wie bisher.
+6. Messung: Regel-Knoten `activity` ergänzen und in Vercel `ZAHLEN_PASSWORT` setzen, siehe `docs/MESSUNG.md`.
 
 ## Firebase-Regeln und Datenmodell
 
-Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`. Der Code ist das einzige Passwort. Geltende Regeln seit 18.11.2026 (ohne den Knoten `aiUsage` des Kostendeckels, vollständig in `docs/API.md`):
+Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`. Der Code ist das einzige Passwort. Geltende Regeln (Stand 2 seit 19.11.2026; der Knoten `activity` für die Messung gilt, sobald er in der Console veröffentlicht ist, siehe `docs/MESSUNG.md`):
 
 ```json
 {
@@ -84,6 +85,12 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
         ".read": "$secret.length >= 32",
         ".write": "$secret.length >= 32"
       }
+    },
+    "activity": {
+      "$secret": {
+        ".read": "$secret.length >= 32",
+        ".write": "$secret.length >= 32"
+      }
     }
   }
 }
@@ -92,6 +99,8 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
 `recipeImages` hat bewusst keine Leseregel an der Wurzel: Die Liste der Schlüssel (und damit die Plan-Codes) lässt sich nicht abrufen. Ein Unterknoten ist nur lesbar, wenn man seinen Schlüssel kennt, also den Plan-Code oder (Altbestand) den Rezeptnamen. Geschrieben wird nur unter einem Plan-Code. `globalRecipes` (Altbestand) wird nur noch für die Migration gelesen und nie geschrieben.
 
 Unter `plans/<CODE>` liegen `participants`, `hb`, `settings`, `meta`, `picks` (Vormerkungen), `stock` (eigener Vorrat: `items`, `perm`), `shopping` und `recipes`; `weeks` aus Version 2 wird nicht mehr gelesen. `globalRecipes` und `recipeImages/<Name>` sind der Altbestand von Version 1. Beim ersten Beitritt nach dem Umbau werden sie einmalig in den Plan kopiert (Migration, idempotent) und danach nur noch gelesen. Sobald alle Pläne migriert sind, kann `globalRecipes` auf `.write: false` gesetzt werden (wie oben) und `recipeImages` auf `recipeImages/$code` eingeschränkt werden.
+
+Messung (täglich aktive Geräte, 4-Wochen-Treue, Zahlen-Seite `/api/zahlen`): `docs/MESSUNG.md`.
 
 Der Umbau auf anonyme Anmeldung und Mitglieder-Regeln (samt den nächsten Regelsätzen zum Kopieren) steht in `docs/ANMELDUNG.md`.
 

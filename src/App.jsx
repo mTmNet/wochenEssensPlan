@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
-import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember } from "./fb.js";
+import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember, activity } from "./fb.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem } from "./logic/stock.js";
@@ -199,7 +199,8 @@ export default function App() {
 
   const startPolling = useCallback((code)=>{
     if(syncTimer.current)clearInterval(syncTimer.current);
-    syncTimer.current=setInterval(()=>pollMeta(code),POLL_MS);
+    syncTimer.current=setInterval(()=>{ pollMeta(code); activity.ping(); },POLL_MS);   // ping: höchstens einmal am Tag "heute aktiv" melden
+    activity.ping();
   },[pollMeta]);
 
   useEffect(()=>()=>{clearInterval(syncTimer.current);clearTimeout(toastTimer.current);},[]);
