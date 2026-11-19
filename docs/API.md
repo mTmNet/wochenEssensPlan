@@ -59,14 +59,14 @@ Einrichten (einmalig, ohne das ist der Deckel aus und es gilt nur die Drossel je
     ".write": false,
     "plans": {
       "$code": {
-        ".read": "$code.matches(/^[A-Z0-9]{6,16}$/)",
-        ".write": "$code.matches(/^[A-Z0-9]{6,16}$/)"
+        ".read": "auth != null && root.child('members/' + $code + '/' + auth.uid).exists()",
+        ".write": "auth != null && root.child('members/' + $code + '/' + auth.uid).exists()"
       }
     },
     "recipeImages": {
       "$key": {
-        ".read": true,
-        ".write": "$key.matches(/^[A-Z0-9]{6,16}$/)"
+        ".read": "!$key.matches(/^[A-Z0-9]{6,16}$/) || (auth != null && root.child('members/' + $key + '/' + auth.uid).exists())",
+        ".write": "auth != null && root.child('members/' + $key + '/' + auth.uid).exists()"
       }
     },
     "globalRecipes": {
