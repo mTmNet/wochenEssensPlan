@@ -40,12 +40,26 @@ export const suggestable = (rec, cat, hour) => {
   return true;
 };
 
+// Spitzengruppe: alles, was hoechstens TOP_BAND Punkte hinter dem Besten liegt (etwa 20 % weniger Vorrat), hoechstens TOP_MAX Gerichte
+export const TOP_BAND = 20, TOP_MAX = 5;
+// Fortlaufende Tagesnummer aus "JJJJ-MM-TT" (aufeinanderfolgende Tage unterscheiden sich um 1)
+const dayNo = (iso) => { const t = Date.parse(iso||""); return isNaN(t) ? 0 : Math.floor(t/86400000); };
+
 // Rangliste ueber Kochbuch und Rezept-Basis. pool = [{key, rec, basis}]; filters = {quick, kids}
+// Der erste Platz wechselt taeglich innerhalb der Spitzengruppe, bleibt aber den ganzen Tag gleich.
 export const rankSuggestions = (pool, stock, opts={}) => {
   const f = opts.filters||{};
-  return pool
+  const today = opts.today||todayISO();
+  const ranked = pool
     .filter(p=>suggestable(p.rec, recCat(p.rec), opts.hour))
     .filter(p=>(!f.quick||isQuick(p.rec))&&(!f.kids||isKids(p.rec)))
-    .map(p=>({...p,...suggestScore(p.rec,stock,{today:opts.today,seed:opts.seed,key:p.key})}))
+    .map(p=>({...p,...suggestScore(p.rec,stock,{today,seed:opts.seed,key:p.key})}))
     .sort((a,b)=>(b.score-a.score)||a.key.localeCompare(b.key));
+  if(ranked.length<2) return ranked;
+  // Spitzengruppe nach Name sortiert, damit die Streuung die Tagesfolge nicht durcheinanderbringt
+  const group = ranked.slice(0,TOP_MAX).filter(x=>x.score>=ranked[0].score-TOP_BAND).sort((a,b)=>a.key.localeCompare(b.key));
+  if(group.length<2) return ranked;
+  const n = dayNo(today) + (opts.seed||0);   // "Andere Vorschlaege" (seed) dreht zusaetzlich weiter
+  const lead = group[((n%group.length)+group.length)%group.length];
+  return [lead, ...ranked.filter(x=>x!==lead)];
 };

@@ -60,3 +60,20 @@ test("rankSuggestions: Filter, Grundfilter, deterministische Streuung je Tag, 'A
   const seeds = new Set([0,1,2,3,4,5].map(seed=>rankSuggestions(pool, [], { today:T, hour:12, seed }).map(x=>x.key).join(",")));
   assert.ok(seeds.size > 1, "'Andere Vorschlaege' aendert die Reihenfolge mindestens einmal");
 });
+
+test("rankSuggestions: erster Vorschlag wechselt taeglich in der Spitzengruppe, bleibt am Tag gleich, Vorrat zaehlt weiter", () => {
+  const mk = (name, ings) => ({ key:name, rec: normalizeRecipe(name, { ingredients:ings }, 0), basis:false });
+  const pool = ["A","B","C","D"].map(n=>mk(n,["Pasta 200g"]));
+  const days = ["2026-11-16","2026-11-17","2026-11-18","2026-11-19","2026-11-20"];
+  const tops = days.map(d=>rankSuggestions(pool, [], { today:d, hour:12 })[0].key);
+  for(let i=1;i<tops.length;i++) assert.notEqual(tops[i], tops[i-1], "Tag "+days[i]+": anderer erster Vorschlag als am Vortag ("+tops.join(",")+")");
+  assert.ok(new Set(tops).size >= 3, "mehrere Gerichte kommen dran: "+tops.join(","));
+  const d = "2026-11-19";
+  assert.equal(rankSuggestions(pool, [], { today:d, hour:12 })[0].key, rankSuggestions(pool, [], { today:d, hour:12 })[0].key, "gleicher Tag, gleicher Vorschlag");
+  assert.equal(rankSuggestions(pool, [], { today:d, hour:12 }).length, 4, "kein Gericht geht verloren");
+  // Gericht mit deutlich mehr Vorrat bleibt vorne, andere schieben sich nicht davor
+  const book = { entries: { e1: { date: todayISO(), category:"Lebensmittel", items:[ { name:"Rinderhack 500g", amount:1, sub:"Fleisch" }, { name:"Spaghetti", amount:1, sub:"Trockenwaren" } ] } } };
+  const stock = hbStock(book, "Lebensmittel");
+  const pool2 = [ mk("Bolognese",["Hackfleisch 300g","Pasta 200g"]), mk("Curry",["Kokosmilch 400ml","Linsen 200g"]), mk("Suppe",["Lauch 1","Karotten 300g"]) ];
+  for(const day of days) assert.equal(rankSuggestions(pool2, stock, { today:day, hour:12 })[0].key, "Bolognese", "Vorrat schlaegt Abwechslung am "+day);
+});
