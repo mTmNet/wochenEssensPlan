@@ -16,8 +16,8 @@ Schalter: Die Anmeldung ist nur aktiv, wenn die Vercel-Variable `VITE_FB_API_KEY
 
 - Seit 18.11.2026: „Anonym“ ist in der Firebase Console aktiviert, `VITE_FB_API_KEY` ist in Vercel für Production gesetzt, in der Console gilt **Stand 1**. Geprüft an der Live-App: Unter *Authentication → Nutzer* erscheint ein anonymer Nutzer, unter `members/<CODE>` der passende Eintrag.
 - Für den Schlüssel wurde in den Projekteinstellungen eine Web-App „Wochenplan“ eingetragen (ohne Firebase Hosting); vorher gab es keinen Web-API-Schlüssel.
-- Brücke zum Haushaltsbuch (seit 18.11.2026 im Code): Der Wochenplan liest den Einkaufsauszug `kitchen/<Schlüssel>` und merkt sich unter `plans/<CODE>/hb/key` nur den Schlüssel. Neue Verknüpfungen speichern keinen Buch-Code mehr; alte behalten ihn als Rückfall, bis er vor Stand 2 entfernt wird. Wirkt, sobald Kevin im Haushaltsbuch-Projekt die Regeln für den Auszug veröffentlicht hat (dort `docs/ANMELDUNG.md`).
-- Nächster Handgriff: Stand 2, sobald alle verknüpften Pläne den Schlüssel haben.
+- Brücke zum Haushaltsbuch (seit 19.11.2026 aktiv): Der Wochenplan liest den Einkaufsauszug `kitchen/<Schlüssel>` und merkt sich unter `plans/<CODE>/hb/key` nur den Schlüssel. Den Buch-Code entfernt der Plan, sobald er den Schlüssel hat.
+- **Seit 19.11.2026 gilt Stand 2** in beiden Projekten (von Kevin veröffentlicht und an der Live-App bestätigt). Die Abschrift in `README.md` und `docs/API.md` entspricht der Console.
 
 ## Stand 1: heutige Regeln plus Knoten `members`
 
@@ -65,9 +65,9 @@ Schalter: Die Anmeldung ist nur aktiv, wenn die Vercel-Variable `VITE_FB_API_KEY
 }
 ```
 
-## Stand 2: nur noch Mitglieder (Entwurf)
+## Stand 2: nur noch Mitglieder (gilt seit 19.11.2026)
 
-Erst veröffentlichen, wenn die App mit Anmeldung live ist und Stand 1 an einem echten Gerät geprüft wurde. Rückweg: in der Console unter *Realtime Database → Regeln* im Verlauf den vorherigen Stand wiederherstellen.
+Rückweg: in der Console unter *Realtime Database → Regeln* im Verlauf den vorherigen Stand wiederherstellen.
 
 Gegenüber Stand 1 ändern sich nur `plans` und `recipeImages`:
 

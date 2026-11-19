@@ -54,14 +54,14 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
     ".write": false,
     "plans": {
       "$code": {
-        ".read": "$code.matches(/^[A-Z0-9]{6,16}$/)",
-        ".write": "$code.matches(/^[A-Z0-9]{6,16}$/)"
+        ".read": "auth != null && root.child('members/' + $code + '/' + auth.uid).exists()",
+        ".write": "auth != null && root.child('members/' + $code + '/' + auth.uid).exists()"
       }
     },
     "recipeImages": {
       "$key": {
-        ".read": true,
-        ".write": "$key.matches(/^[A-Z0-9]{6,16}$/)"
+        ".read": "!$key.matches(/^[A-Z0-9]{6,16}$/) || (auth != null && root.child('members/' + $key + '/' + auth.uid).exists())",
+        ".write": "auth != null && root.child('members/' + $key + '/' + auth.uid).exists()"
       }
     },
     "globalRecipes": {
@@ -77,6 +77,12 @@ Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages
           ".write": "auth != null && auth.uid === $uid && $code.matches(/^[A-Z0-9]{6,16}$/)",
           ".validate": "newData.hasChildren(['name', 'since']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('since').isString() && newData.child('since').val().length === 10"
         }
+      }
+    },
+    "aiUsage": {
+      "$secret": {
+        ".read": "$secret.length >= 32",
+        ".write": "$secret.length >= 32"
       }
     }
   }
