@@ -14,7 +14,7 @@ export default function Join({state,api}){
       <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",fontFamily:SF}}>
         <div style={{width:"100%",maxWidth:"380px"}}>
           <div style={{textAlign:"center",marginBottom:"24px"}}>
-            <div style={{color:C.logo,fontSize:"clamp(24px,10.3vw,44px)",fontWeight:"700",fontFamily:"'Dancing Script',cursive",lineHeight:1.1,whiteSpace:"nowrap",WebkitTextStroke:"0.7px "+C.logoLine,paintOrder:"stroke fill",marginBottom:"14px"}}>{APP_NAME}</div>
+            <div style={{color:C.logo,fontSize:"clamp(24px,9.8vw,44px)",fontWeight:"700",fontFamily:"'Dancing Script',cursive",lineHeight:1.1,whiteSpace:"nowrap",WebkitTextStroke:"0.7px "+C.logoLine,paintOrder:"stroke fill",marginBottom:"14px"}}>{APP_NAME}</div>
             <div style={{color:C.text,fontSize:"34px",fontFamily:SER,marginBottom:"4px",lineHeight:"1.1"}}>Gemeinsam kochen.</div>
             <div style={{color:C.muted,fontSize:"24px",fontFamily:"'Dancing Script', 'Segoe Script', cursive",marginBottom:"8px"}}>by Mero</div>
             <div style={{color:C.muted,fontSize:"13px"}}>Planen - Einkaufen - Genießen</div>

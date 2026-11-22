@@ -65,4 +65,4 @@ export const HB_SKIP_SUB = ["reinigung","hygiene","tierbedarf","kraftstoff","pfa
 export const HB_DAYS = 90;
 
 // Name der App im Schriftzug
-export const APP_NAME = "schlauerWochenplan";
+export const APP_NAME = "schlauesKochbuch.de";
