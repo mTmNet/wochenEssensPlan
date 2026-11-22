@@ -18,7 +18,7 @@ function pngSize(file) {
 const manifest = JSON.parse(fs.readFileSync(path.join(PUB, 'manifest.json'), 'utf8'))
 
 test('manifest.json hat die Pflichtfelder', () => {
-  assert.equal(manifest.name, 'Wochenplan')
+  assert.equal(manifest.name, 'schlauerWochenplan')
   assert.equal(manifest.short_name, 'Wochenplan')
   assert.equal(manifest.lang, 'de')
   assert.equal(manifest.start_url, '/')
@@ -54,7 +54,7 @@ test('sw.js enthält keine Referenz auf firebase und nutzt den Cache-Namen woche
 
 test('index.html verweist auf Manifest, Icons und theme-color', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
-  assert.ok(html.includes('<title>Wochenplan</title>'))
+  assert.ok(html.includes('<title>schlauerWochenplan</title>'))
   assert.ok(html.includes('rel="manifest" href="/manifest.json"'))
   assert.ok(html.includes('name="theme-color" content="#13131A"'))
   assert.ok(html.includes('rel="apple-touch-icon"'))
