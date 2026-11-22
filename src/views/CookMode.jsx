@@ -50,7 +50,7 @@ export default function CookMode({state,api}){
   const minutesHere=stepMinutes(steps[cookStep]);
   const startTimer=(m)=>setTimers(ts=>[...ts,{id:Date.now()+Math.random(),step:cookStep,total:m*60,end:Date.now()+m*60000,label:fmtMin(m)+" (Schritt "+(cookStep+1)+")",done:false}]);
   const removeTimer=(id)=>setTimers(ts=>ts.filter(t=>t.id!==id));
-  const navBtn={flex:1,padding:"13px",minHeight:"48px",border:"none",borderRadius:RB,fontSize:"15px",fontWeight:"700",cursor:"pointer",fontFamily:SF};
+  const navBtn={flex:1,padding:"13px",minHeight:"56px",border:"none",borderRadius:RB,fontSize:"15px",fontWeight:"700",cursor:"pointer",fontFamily:SF};
   return(
       <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF,display:"flex",flexDirection:"column"}}>
         <Toast text={toast} />
