@@ -49,7 +49,8 @@ export const card = {background:C.white,border:"1px solid "+C.border,borderRadiu
 // Filter-Chip, an/aus (Tippflaeche mindestens 42 px hoch)
 export const chip = (on)=>({padding:"9px 12px",minHeight:"42px",border:"1px solid "+(on?C.accent:C.border),borderRadius:RB,background:on?C.abg:C.white,color:on?C.accent:C.text,fontSize:"13px",fontWeight:on?"700":"400",cursor:"pointer",fontFamily:SF});
 // Knoepfe: primary (Akzentflaeche), dark (zarte Akzentflaeche), ghost (Rahmen), danger, ok; alle mindestens 48 px hoch
-const base = {minHeight:"48px",padding:"12px 14px",fontSize:"13px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,border:"none",borderRadius:RB};
+// Einheitliche Knopfhoehe wie im Haushaltsbuch (Vorbild: "+ Neue Ausgabe" im Reiter Ausgaben); kleine Bedienelemente bleiben niedriger
+const base = {minHeight:"56px",padding:"12px 14px",fontSize:"14px",fontWeight:"700",letterSpacing:"0.5px",cursor:"pointer",fontFamily:SF,border:"none",borderRadius:RB};
 export const btn = (kind)=>{
   if(kind==="primary") return {...base,background:C.accent,color:C.onAccent};
   if(kind==="dark") return {...base,background:C.strong,color:C.onStrong};

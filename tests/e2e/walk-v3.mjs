@@ -398,7 +398,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
     const left = Object.keys(plan().shopping||{});
     check(openIds.length>0 && left.sort().join()===openIds.sort().join() && !(await page.isVisible('span:text-is("1 Testbrot")')), 'Nur abgehakte loeschen: abgehakte weg, offene Posten bleiben', {left:left.length, open:openIds.length});
     check(JSON.stringify(plan().stock?.items||{})===stockN, 'Nur abgehakte loeschen: Vorrat bleibt unveraendert');
-    check(await delBtn.isDisabled(), 'Nur abgehakte loeschen: ohne Haken ist der Knopf ausgegraut');
+    check((await delBtn.count())===0, 'Nur abgehakte loeschen: ohne Haken ist der Knopf nicht da');
   }
   await page.click(IN_APP); await page.waitForTimeout(300);
   await page.click('button:has-text("Pasta Carbonara")'); await page.waitForTimeout(400);
