@@ -87,7 +87,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const browser = await chromium.launch();
   // Design des Geraets: SCHEME=dark node tests/e2e/walk-v3.mjs prueft das dunkle Design, sonst hell
   const SCHEME = process.env.SCHEME==='dark' ? 'dark' : 'light';
-  const ctx = await browser.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:2, isMobile:true, hasTouch:true, locale:'de-DE', colorScheme:SCHEME });
+  const ctx = await browser.newContext({ viewport:{width:+process.env.W||390,height:844}, deviceScaleFactor:2, isMobile:true, hasTouch:true, locale:'de-DE', colorScheme:SCHEME });
   const page = await ctx.newPage();
   const consoleErrs = [];
   page.on('console', m=>{ if(m.type()==='error'||m.type()==='warning') consoleErrs.push(m.type()+': '+m.text().slice(0,300)); });
