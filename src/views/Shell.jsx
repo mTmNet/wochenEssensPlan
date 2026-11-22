@@ -32,7 +32,7 @@ export default function Shell({state,api,children}){
           <div style={{...column,position:"relative",padding:"8px 16px 8px",display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 10px"}}>
             {/* Schriftzug links in eigener Zeile (der Name mit .de ist lang), darunter Name, Code und Menue */}
             <div style={{flex:"1 1 100%",minWidth:0}}>
-              <div style={{color:C.logo,fontSize:"clamp(24px,11.5vw,42px)",fontWeight:"700",fontFamily:"'Dancing Script',cursive",lineHeight:1.1,whiteSpace:"nowrap",WebkitTextStroke:"0.7px "+C.logoLine,paintOrder:"stroke fill"}}>{APP_NAME}</div>
+              <div style={{color:C.logo,fontSize:"clamp(24px,11.8vw,42px)",fontWeight:"700",fontFamily:"'Dancing Script',cursive",lineHeight:1.1,whiteSpace:"nowrap",WebkitTextStroke:"0.7px "+C.logoLine,paintOrder:"stroke fill"}}>{APP_NAME}</div>
             </div>
             <div style={{flex:"1 1 auto",minWidth:0,color:C.headMuted,fontSize:"13px",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userName}</div>
             <button onClick={copyCode} aria-label="Plan-Code kopieren" title="Plan-Code kopieren" style={{display:"inline-flex",alignItems:"center",gap:"6px",background:C.abg,border:"1px solid "+C.abgBorder,borderRadius:"6px",padding:"0 8px",minHeight:"40px",cursor:"pointer",fontFamily:SF,color:C.accent,fontSize:"12px",fontWeight:"700",letterSpacing:"0.5px",flexShrink:0}}>

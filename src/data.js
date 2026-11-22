@@ -64,5 +64,5 @@ export const HALF_LIFE = [["obst",4],["gemuese",4],["fleisch",3],["wurst",4],["f
 export const HB_SKIP_SUB = ["reinigung","hygiene","tierbedarf","kraftstoff","pfand","drogerie","kosmetik","haushalt","sonstig","non-food","nonfood","elektro","garten","deko","kleidung","schreibwaren","pflanzen","blumen"];
 export const HB_DAYS = 90;
 
-// Name der App im Schriftzug (zugleich die Adresse, unter der sie erreichbar ist)
-export const APP_NAME = "schlaueskochbuch.de";
+// Name der App im Schriftzug
+export const APP_NAME = "schlauerWochenplan";
