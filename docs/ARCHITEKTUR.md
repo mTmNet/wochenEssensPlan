@@ -63,6 +63,7 @@ plans/<CODE>
   participants: ["Anna", "Mero"]
   hb: { key?, code?, cat, gone? } | null      Verknüpfung zum Haushaltsbuch (gilt für den Plan); key = Schlüssel des Einkaufsauszugs (`kitchen/<key>` im Haushaltsbuch-Projekt, nur Lebensmittel ohne Beträge), code = Buch-Code (nur noch bei alten Verknüpfungen, als Rückfall bis zum Scharfstellen); gone = {schlüssel: "YYYY-MM-DD"} von Hand als „nicht mehr da“ gestrichen, gilt bis zum nächsten Einkauf nach diesem Datum
   settings: { }                               (früher aiImages; KI-Symbolbilder eines externen Dienstes am 23.11.2026 entfernt)
+  lastOpen: "2026-11"                         (Monat, in dem der Plan zuletzt geöffnet wurde; Grundlage der Löschfrist von 24 Monaten)
   meta: {
     createdAt, updatedAt,                     ms seit Epoche
     weeksUpdatedAt, shoppingUpdatedAt, recipesUpdatedAt, peopleUpdatedAt,
