@@ -51,7 +51,7 @@ export default function Join({state,api}){
               </div>
             )}
           </div>
-          <button onClick={()=>setInfoOpen(true)} style={{display:"block",margin:"14px auto 0",background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",fontFamily:SF,padding:"8px",minHeight:"40px"}}>Datenschutz</button>
+          <button onClick={()=>setInfoOpen(true)} style={{display:"block",margin:"14px auto 0",background:"none",border:"none",color:C.accent,fontSize:"13px",cursor:"pointer",fontFamily:SF,padding:"8px",minHeight:"40px"}}>Datenschutz · Impressum</button>
         </div>
         {infoOpen&&<PrivacyModal onClose={()=>setInfoOpen(false)} />}
       </div>

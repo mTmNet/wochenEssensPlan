@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
-import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember, activity } from "./fb.js";
+import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember, activity, storePhoto, removePhoto, photoAsDataUrl, ablage } from "./fb.js";
+import { isDataUrl } from "./ablage.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem } from "./logic/stock.js";
@@ -29,7 +30,7 @@ const SESSION_KEY = "wochenplan_session";
 const ZOOM_KEY = "wochenplan_zoom";
 // Poll-Takt: nur plans/<CODE>/meta, Teile werden bei geaendertem Zeitstempel nachgeladen
 const POLL_MS = 10000;
-const DEFAULT_SETTINGS = { aiImages:false };
+const DEFAULT_SETTINGS = {};   // aiImages (KI-Symbolbilder eines externen Dienstes) entfernt; alte Werte im Plan werden ignoriert
 const asList = (p) => Array.isArray(p) ? p : (p && typeof p==="object" ? Object.values(p) : []);
 const asObj = (o) => (o && typeof o==="object" && !Array.isArray(o)) ? o : {};
 const ERR_NET = "Keine Verbindung zur Datenbank.";
@@ -62,7 +63,7 @@ export default function App() {
   const [stockRaw,setStockRaw]       = useState({});
   const [recipes,setRecipes]         = useState({});      // plans/<CODE>/recipes/<recKey>
   const [shopping,setShopping]       = useState({});      // plans/<CODE>/shopping/<id>
-  const [images,setImages]           = useState({});      // eigene Bilder (recKey -> dataUrl), recipeImages/<CODE>
+  const [images,setImages]           = useState({});      // eigene Bilder (recKey -> Link in die Ablage oder alte Data-URL), recipeImages/<CODE>
 
   const [view,setView]               = useState("heute");
 
@@ -305,10 +306,27 @@ export default function App() {
     applyPlanData(data,imgs);
     cleanupServer(data.recipes,data.shopping);
     setActiveCode(c);codeRef.current=c;setUserName(nm);setScreen("app");startPolling(c);
+    movePhotos(c,imgs);                                          // im Hintergrund: alte Fotos aus der Datenbank in die Ablage (nach codeRef, das der Umzug prüft)
     setJoinBusy(false);
     if(!joinedNow) ensureMember(c,nm);                           // im Hintergrund: Eintrag anlegen oder Namen nachziehen
     try{ localStorage.setItem(SESSION_KEY,JSON.stringify({code:c,name:nm})); }catch(e){}
     return true;
+  };
+  // UMZUG DER FOTOS: Fotos, die noch als Base64 in der Datenbank liegen, einzeln in die Ablage (Cloud Storage) legen.
+  // Erst wenn die Datei hochgeladen und ihre Größe bestätigt ist UND der Wert in der Datenbank noch derselbe ist,
+  // ersetzt der Link die Bilddaten. Ist die Ablage nicht eingerichtet, passiert nichts. Einmal je Plan und Sitzung.
+  const movedRef=useRef({});
+  const movePhotos=async(c,imgs)=>{
+    if(movedRef.current[c]||!ablage.ready()) return;
+    movedRef.current[c]=true;
+    for(const [k,v] of Object.entries(imgs||{})){
+      if(!isDataUrl(v)||codeRef.current!==c) continue;
+      const url=await storePhoto(c,v);
+      if(!url) { if(!ablage.ready()) break; continue; }
+      const cur=await fbGet("recipeImages/"+c+"/"+k);
+      if(cur!==v) continue;                                      // inzwischen geändert: nicht überschreiben
+      if(await fbPatch("recipeImages/"+c,{[k]:url})) setImages(prev=>prev[k]===v?{...prev,[k]:url}:prev);
+    }
   };
   const startPlan=()=>handleJoin(myCode,undefined,{create:true});
   const joinPlan=()=>handleJoin(joinInput);
@@ -349,8 +367,10 @@ export default function App() {
     const typed=window.prompt("Der ganze Plan "+code+" wird endgültig bei Firebase gelöscht – für alle Mitglieder, mit Rezepten, Fotos und Einkaufsliste. Vorher das Kochbuch als PDF sichern!\n\nZum Bestätigen den Plan-Code eingeben:");
     if(typed===null) return false;
     if(normCode(typed)!==code){ window.alert("Der Code stimmt nicht. Es wurde nichts gelöscht."); return false; }
+    const photos=Object.values(images||{});   // Links in die Ablage merken, bevor der Plan weg ist
     const ok=await fbDelete("plans/"+code);
     if(!ok){ window.alert("Löschen fehlgeschlagen – keine Verbindung zur Datenbank. Bitte später erneut versuchen."); return false; }
+    for(const v of photos) await removePhoto(v);   // Fotodateien in der Ablage
     await fbDelete("recipeImages/"+code);   // Fotos; schlaegt das fehl, bleiben nur Bilddaten ohne Bezug zurueck
     await fbDelete("members/"+code);        // Mitgliederliste zuletzt: bis hierher braucht das Loeschen die Mitgliedschaft
     resetSession();
@@ -571,8 +591,10 @@ export default function App() {
     setDetailRecipe(null);setEditMode(false);setEditData(null);
     writePlan({["recipes/"+key]:null},"recipes");
     if(images[key]){
+      const old=images[key];
       setImages(prev=>{const n={...prev};delete n[key];return n;});
       if(!(await fbPatch("recipeImages/"+codeRef.current,{[key]:null}))) failWrite("Bild konnte nicht gelöscht werden.");
+      else removePhoto(old);
     }
   };
 
@@ -771,7 +793,7 @@ export default function App() {
     setHbLink(null);setHbBook(null);setHbErr("");
     writePlan({hb:null},"people");
   };
-  // EINSTELLUNGEN des Plans (z. B. aiImages)
+  // EINSTELLUNGEN des Plans
   const setSetting=(name,value)=>{
     setSettings(prev=>({...prev,[name]:value}));
     writePlan({["settings/"+name]:value},"people");
@@ -886,20 +908,27 @@ export default function App() {
       if(c.previewUrl) URL.revokeObjectURL(c.previewUrl);
       const dataUrl="data:"+(c.mimeType||"image/jpeg")+";base64,"+c.base64;
       if(dataUrl.length>1500000){window.alert("Das Bild ist auch komprimiert noch zu groß. Bitte ein kleineres Foto wählen.");return false;}
+      const code=codeRef.current, old=images[key];
       setImages(prev=>({...prev,[key]:dataUrl}));
-      const ok=await fbPatch("recipeImages/"+codeRef.current,{[key]:dataUrl});
+      // Datei in die Ablage (Cloud Storage); geht das nicht, bleibt das Foto wie bisher in der Datenbank
+      const url=await storePhoto(code,dataUrl), value=url||dataUrl;
+      if(url) setImages(prev=>prev[key]===dataUrl?{...prev,[key]:url}:prev);
+      const ok=await fbPatch("recipeImages/"+code,{[key]:value});
+      if(ok&&old&&old!==value) removePhoto(old);
       if(!ok){ failWrite("Bild konnte nicht in der Cloud gespeichert werden."); window.alert("Das Bild wird angezeigt, konnte aber NICHT in der Cloud gespeichert werden (nach Neuladen weg)."); }
       return ok;
     }catch(e){window.alert("Bild konnte nicht verarbeitet werden.");return false;}
   };
   const resetImage=async(key)=>{
     if(!key)return;
+    const old=images[key];
     setImages(prev=>{const n={...prev};delete n[key];return n;});
     const ok=await fbPatch("recipeImages/"+codeRef.current,{[key]:null});
     if(!ok) failWrite("Zurücksetzen des Bilds konnte nicht gespeichert werden.");
+    else if(old) removePhoto(old);
   };
 
-  // PDF (Druckdialog -> "Als PDF speichern"); Bilder nur eigene Fotos oder - bei aiImages - Symbolbilder
+  // PDF (Druckdialog -> "Als PDF speichern"); Bilder: eigene Fotos, sonst die mitgelieferten Bilder der Rezept-Basis
   const openPrint=(html)=>{
     const w=window.open("","_blank");
     if(!w){ showToast("Das Druckfenster wurde blockiert. Bitte Pop-ups für diese Seite erlauben."); return; }
@@ -909,8 +938,11 @@ export default function App() {
   };
   // KOCHBUCH ALS DATEI (Stufe 4): sichern als JSON (Rezepte mit Bewertung, Notizen, Kochdaten, Fotos) und aus einer Datei laden
   const [cookbookImport,setCookbookImport]=useState(null);   // {recipes, images, exportedAt, count, added, existing, err, busy}
-  const exportCookbookFile=()=>{
-    const data=exportCookbook(recipes,images);
+  const exportCookbookFile=async()=>{
+    // Fotos aus der Ablage als Data-URL in die Datei schreiben, damit sie auch ohne diesen Plan lesbar bleibt
+    const imgs={};
+    for(const k of Object.keys(images||{})) if(recipes[k]){ const d=await photoAsDataUrl(images[k]); if(d) imgs[k]=d; }
+    const data=exportCookbook(recipes,imgs);
     const blob=new Blob([JSON.stringify(data,null,1)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a"); a.href=url; a.download=cookbookFileName(); document.body.appendChild(a); a.click(); a.remove();
@@ -937,14 +969,15 @@ export default function App() {
     await writePlan(patch,"recipes");
     let imgFail=0;
     for(const k of Object.keys(plan.images)){
-      setImages(prev=>({...prev,[k]:plan.images[k]}));
-      if(!(await fbPatch("recipeImages/"+codeRef.current,{[k]:plan.images[k]}))) imgFail++;
+      const url=await storePhoto(codeRef.current,plan.images[k]), value=url||plan.images[k];
+      setImages(prev=>({...prev,[k]:value}));
+      if(!(await fbPatch("recipeImages/"+codeRef.current,{[k]:value}))) imgFail++;
     }
     setCookbookImport(null);
     showToast(plan.added.length+" neu"+(plan.replaced.length?", "+plan.replaced.length+" ersetzt":"")+(plan.skipped.length?", "+plan.skipped.length+" übersprungen":"")+(imgFail?" · "+imgFail+" Foto(s) nicht gespeichert":"")+".",4000);
   };
-  const downloadRecipePDF=(key)=>{ const rec=recipes[key]; if(rec) openPrint(makeRecipePDF(key,rec,images[key],settings.aiImages)); };
-  const downloadPDF=()=>openPrint(makeCookbookPDF(recipes,images,settings.aiImages));
+  const downloadRecipePDF=(key)=>{ const rec=recipes[key]; if(rec) openPrint(makeRecipePDF(key,rec,images[key])); };
+  const downloadPDF=()=>openPrint(makeCookbookPDF(recipes,images));
 
   // Notiz-Entwurf laden, wenn ein Rezept geoeffnet wird; Detail schliessen, wenn das Rezept (anderswo) verschwunden ist
   useEffect(()=>{

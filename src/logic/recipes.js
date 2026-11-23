@@ -110,13 +110,6 @@ export const sortRecipeKeys = (recipes, mode) => {
   return keys.sort(byName);
 };
 
-// Symbolbild zum Rezept (externer Bilddienst, fester Seed je Name) - nur bei settings.aiImages
-export const foodImg = (name) => {
-  const seed = name.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
-  const prompt = dn(name)+", food photography, professional, appetizing, natural light, minimal background";
-  return "https://image.pollinations.ai/prompt/"+encodeURIComponent(prompt)+"?width=800&height=480&nologo=true&seed="+seed;
-};
-
 // DROPDOWN: Rezepte nach Kategorie (Rubrik) gruppieren
 export const recipesByCat = (recipes) => {
   const byCat={}; CATS.forEach(c=>byCat[c]=[]);

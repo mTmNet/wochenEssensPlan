@@ -1,18 +1,17 @@
 // PDF - HTML zum Drucken / als PDF speichern (jsPDF kommt in einer spaeteren Phase)
-// Bilder: eigenes Foto, sonst Bild der Rezept-Basis ("KI-generiert"), sonst Platzhalterband (Rubrik-Farbe, Anfangsbuchstabe); KI-Symbolbilder nur bei settings.aiImages
+// Bilder: eigenes Foto, sonst Bild der Rezept-Basis ("KI-generiert"), sonst Platzhalterband (Rubrik-Farbe, Anfangsbuchstabe)
 import { CATS, CAT_COLORS } from "./data.js";
-import { recCat, recName, foodImg } from "./logic/recipes.js";
+import { recCat, recName } from "./logic/recipes.js";
 import { basisBild } from "./logic/basisBild.js";
 
 const esc = (s) => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 // Bild oder Platzhalterband zum Rezept
-const imgHTML = (key, rec, title, customImg, aiImages, cls) => {
+const imgHTML = (key, rec, title, customImg, cls) => {
   const cl = cls ? ' class="'+cls+'"' : '';
   if(customImg) return '<img'+cl+' src="'+customImg+'" alt="'+esc(title)+'" onerror="this.style.display=\'none\'">';
   // Druckfenster hat keine eigene Adresse, deshalb absolute URL
   const basis = basisBild(title) || basisBild(key);
   if(basis) return '<div class="symb"><img'+cl+' src="'+esc((typeof location!=="undefined"?location.origin:"")+basis)+'" alt="'+esc(title)+'" onerror="this.parentNode.style.display=\'none\'"><span class="ki">KI-generiert</span></div>';
-  if(aiImages) return '<div class="symb"><img'+cl+' src="'+foodImg(key)+'" alt="'+esc(title)+'" onerror="this.parentNode.style.display=\'none\'"><span>Symbolbild</span></div>';
   const color = CAT_COLORS[recCat(rec)]||"#4A4A5A";
   return '<div class="band" style="background:'+color+'"><span class="initial">'+esc(String(title).trim().charAt(0).toUpperCase())+'</span><span class="band-cat">'+esc(recCat(rec))+'</span></div>';
 };
@@ -26,7 +25,7 @@ const commonCss = `
     .src{font-size:12px;color:#8A8780;margin:-10px 0 18px}
 `;
 
-export const makeRecipePDF = (name, rec, customImg, aiImages) => {
+export const makeRecipePDF = (name, rec, customImg) => {
   const title = recName(rec, name);
   const ings = (rec.ingredients||[]).map(i=>"<li>"+esc(i)+"</li>").join("");
   const steps = (rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+'</span><p>'+esc(s)+'</p></div>').join("");
@@ -50,7 +49,7 @@ export const makeRecipePDF = (name, rec, customImg, aiImages) => {
   return '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>'+esc(title)+'</title><style>'+css+'</style></head><body>'+
     '<div class="meta">'+esc(meta)+'</div>'+
     '<h1>'+esc(title)+'</h1>'+
-    imgHTML(name, rec, title, customImg, aiImages)+
+    imgHTML(name, rec, title, customImg)+
     (src?'<p class="src">'+esc(src)+'</p>':'')+
     desc+
     '<div class="tag">Zutaten</div><ul>'+ings+'</ul>'+
@@ -59,7 +58,7 @@ export const makeRecipePDF = (name, rec, customImg, aiImages) => {
 };
 
 // KOCHBUCH-PDF
-export const makeCookbookPDF = (recipes, customImgs, aiImages) => {
+export const makeCookbookPDF = (recipes, customImgs) => {
   const sections = [];
   CATS.forEach(cat=>{
     const items = Object.entries(recipes).filter(([k,v])=>recCat(v)===cat);
@@ -72,7 +71,7 @@ export const makeCookbookPDF = (recipes, customImgs, aiImages) => {
     const steps=(rec.steps||[]).map((s,i)=>'<div class="step"><span class="num">'+(i+1)+"</span><p>"+esc(s)+"</p></div>").join("");
     const desc=rec.description?'<p class="desc">'+esc(rec.description)+'</p>':'';
     const meta=[rec.cuisine,rec.origin,(rec.servings>0?rec.servings:4)+" Portionen",rec.minutes>0?rec.minutes+" Min.":"",rec.sourceNote?"Quelle: "+rec.sourceNote:""].filter(Boolean).join(" · ");
-    return '<div class="recipe"><h2>'+esc(name)+'</h2><div class="rmeta">'+esc(meta)+'</div>'+imgHTML(key, rec, name, customImgs&&customImgs[key], aiImages)+desc+'<div class="tag">Zutaten</div><ul>'+ings+'</ul><div class="tag">Zubereitung</div>'+steps+'</div>';
+    return '<div class="recipe"><h2>'+esc(name)+'</h2><div class="rmeta">'+esc(meta)+'</div>'+imgHTML(key, rec, name, customImgs&&customImgs[key])+desc+'<div class="tag">Zutaten</div><ul>'+ings+'</ul><div class="tag">Zubereitung</div>'+steps+'</div>';
   };
 
   const sectionsHTML = sections.map(sec=>'<div class="section"><h1 class="section-title">'+esc(sec.title)+'</h1>'+sec.items.map(recipeHTML).join("")+'</div>').join("");
