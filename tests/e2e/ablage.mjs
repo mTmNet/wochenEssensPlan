@@ -59,6 +59,7 @@ reset(false);
   check(await p.locator('text=PLAN STARTEN').count()===0,'Plan öffnet');
   check(getAt(['recipeImages','ALTPLAN234','testrezept'])===PNG,'altes Foto unverändert in der Datenbank');
   check(storageCalls.length<=1,'höchstens ein Versuch beim Speicher, danach Pause',storageCalls);
+  check(getAt(['plans','ALTPLAN234','lastOpen'])===new Date().toISOString().slice(0,7),'Plan trägt den Monat „zuletzt geöffnet“',getAt(['plans','ALTPLAN234','lastOpen']));
   await ctx.close(); }
 
 console.log('\n2. Speicher eingerichtet: Umzug');

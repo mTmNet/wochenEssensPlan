@@ -308,7 +308,11 @@ export default function App() {
     setActiveCode(c);codeRef.current=c;setUserName(nm);setScreen("app");startPolling(c);
     movePhotos(c,imgs);                                          // im Hintergrund: alte Fotos aus der Datenbank in die Ablage (nach codeRef, das der Umzug prüft)
     setJoinBusy(false);
-    if(!joinedNow) ensureMember(c,nm);                           // im Hintergrund: Eintrag anlegen oder Namen nachziehen
+    const member=joinedNow?Promise.resolve(true):ensureMember(c,nm);   // im Hintergrund: Eintrag anlegen oder Namen nachziehen
+    // ZULETZT GEÖFFNET - Monat ("2026-11") für die Löschfrist unbenutzter Pläne (Datenschutzerklärung, Abschnitt 6);
+    // höchstens ein Schreibzugriff je Plan und Monat, nach dem Mitglieds-Eintrag, weil nur Mitglieder schreiben dürfen
+    const month=new Date().toISOString().slice(0,7);
+    if(data.lastOpen!==month) member.then(()=>fbPatch("plans/"+c,{lastOpen:month})).catch(()=>{});
     try{ localStorage.setItem(SESSION_KEY,JSON.stringify({code:c,name:nm})); }catch(e){}
     return true;
   };
