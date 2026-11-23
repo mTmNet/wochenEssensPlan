@@ -1,6 +1,6 @@
 {
   "name": "schlauesKochbuch.de",
-  "short_name": "Wochenplan",
+  "short_name": "Kochbuch",
   "description": "Gemeinsamer Essensplaner mit Einkaufsliste und Rezepten",
   "lang": "de",
   "start_url": "/",

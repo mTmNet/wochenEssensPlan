@@ -19,7 +19,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(PUB, 'manifest.json'), 'ut
 
 test('manifest.json hat die Pflichtfelder', () => {
   assert.equal(manifest.name, 'schlauesKochbuch.de')
-  assert.equal(manifest.short_name, 'Wochenplan')
+  assert.equal(manifest.short_name, 'Kochbuch')
   assert.equal(manifest.lang, 'de')
   assert.equal(manifest.start_url, '/')
   assert.equal(manifest.display, 'standalone')

@@ -107,11 +107,11 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const T = iso(today);
 
   await page.goto('http://127.0.0.1:5173/');
-  await page.waitForSelector('text=Plan starten', {timeout:15000});
+  await page.waitForSelector('text=Kochbuch starten', {timeout:15000});
   await page.fill('input[placeholder="z.B. Anna"]', 'Claude');
   const code = (await page.textContent('span[style*="letter-spacing: 6px"]')).trim();
   await shot('00-einstieg');
-  await page.click('text=Plan starten');
+  await page.click('text=Kochbuch starten');
   await page.waitForSelector(IN_APP, {timeout:10000});
   await page.waitForTimeout(600);
   const plan = ()=>db.wochen.plans[code];
@@ -470,7 +470,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await dctx.route(/fonts\.(googleapis|gstatic)\.com/, route=>route.abort());
   const dp = await dctx.newPage();
   await dp.goto('http://127.0.0.1:5173/');
-  await dp.waitForSelector('text=Plan starten');
+  await dp.waitForSelector('text=Kochbuch starten');
   await dp.fill('input[placeholder="z.B. Anna"]', 'Mero');
   await dp.fill('input[placeholder="CODE"]', code);
   await dp.click('button:has-text("Beitreten")');

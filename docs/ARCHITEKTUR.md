@@ -151,7 +151,7 @@ recipeImages/<Name>                             ALT: nur lesen (Migration)
    - Alte Bilder einzeln lesen (`recipeImages/<Name>` je Rezeptname aus `globalRecipes`, nie die Wurzel); Werte, die mit `data:` beginnen und zu einem übernommenen Rezept gehören, einzeln (ein PATCH je Bild) nach `recipeImages/<CODE>/<key>` kopieren – vor dem meta-PATCH. Nur wenn alle Kopien gelangen, steht `meta/imagesMigrated`; sonst holt der nächste Beitritt die fehlenden nach.
    - Unmittelbar vor dem Schreiben `meta` noch einmal lesen: ist es inzwischen da (anderes Gerät war schneller), wird nur geladen.
    - `meta` schreiben. `plan`, `updatedAt` (alt) und `globalRecipes` bleiben unverändert stehen.
-3. Weder `meta` noch `plan` → der Code existiert nicht. Beitreten meldet „Kein Plan mit diesem Code“. Nur „Plan starten“ legt einen Plan an (`participants`, `meta`, `settings`, leere `weeks`).
+3. Weder `meta` noch `plan` → der Code existiert nicht. Beitreten meldet „Kein Kochbuch mit diesem Code“. Nur „Kochbuch starten“ legt einen Plan an (`participants`, `meta`, `settings`, leere `weeks`).
 4. Sitzung wiederherstellen (localStorage) darf nie einen Plan anlegen.
 
 Neue Codes: 10 Zeichen aus `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` mit `crypto.getRandomValues`. Eingabe akzeptiert 6 bis 16 Zeichen, normalisiert Groß-/Kleinschreibung und Bindestriche. Alte 6-stellige Codes bleiben gültig.

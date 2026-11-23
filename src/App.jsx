@@ -43,9 +43,9 @@ export default function App() {
   const [myCode]                     = useState(()=>randCode(10));
   const [joinInput,setJoinInput]     = useState("");
   const [nameInput,setNameInput]     = useState("");
-  const [nameHint,setNameHint]       = useState(false);   // "Plan starten" ohne Namen
+  const [nameHint,setNameHint]       = useState(false);   // "Kochbuch starten" ohne Namen
   const [joinErr,setJoinErr]         = useState("");      // Meldung unter dem Beitritt
-  const [joinOffer,setJoinOffer]     = useState("");      // Code, fuer den "Neuen Plan anlegen" angeboten wird
+  const [joinOffer,setJoinOffer]     = useState("");      // Code, fuer den "Neues Kochbuch anlegen" angeboten wird
   const [joinBusy,setJoinBusy]       = useState(false);
   const [activeCode,setActiveCode]   = useState("");
   const [userName,setUserName]       = useState("");
@@ -255,7 +255,7 @@ export default function App() {
     return {...pd,shopping:shoppingNew||{},recipes:recipesNew,meta,settings:settingsNew,_imgs:imgs};
   };
 
-  // BEITRITT - nur bestehende Plaene; create = "Plan starten" / "Neuen Plan mit diesem Code anlegen";
+  // BEITRITT - nur bestehende Plaene; create = "Kochbuch starten" / "Neues Kochbuch mit diesem Code anlegen";
   // restore = Sitzung wiederherstellen (legt NIE einen Plan an)
   const handleJoin = async(code,name,opts)=>{
     const o=opts||{};
@@ -283,7 +283,7 @@ export default function App() {
         if(!(await fbPatch("plans/"+c,data))) return fail(ERR_NET);
       }else{
         if(joinedNow) dropMember(c);                             // Tippfehler im Code: eigenen Eintrag wieder entfernen
-        return fail("Kein Plan mit diesem Code.",o.restore?"":c);
+        return fail("Kein Kochbuch mit diesem Code.",o.restore?"":c);
       }
     }
     // Teilnehmer per PATCH ergaenzen (nie PUT), nur wenn der Name fehlt

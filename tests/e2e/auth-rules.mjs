@@ -75,7 +75,7 @@ reset('stand2');
   check(Object.keys(getAt(['members',code])).length===2,'zwei Mitglieder',getAt(['members',code]));
   check((getAt(['plans',code,'participants'])||[]).includes('Ben'),'Ben steht in der Teilnehmerliste');
   const c3=await fresh(b); await c3.p.fill('#join-name','Cem'); await c3.p.fill('[aria-label="Plan-Code"]','FALSCH2345'); await c3.p.click('button:has-text("BEITRETEN")'); await c3.p.waitForTimeout(1800);
-  check(await c3.p.locator('text=Kein Plan mit diesem Code').count()===1,'falscher Code: Meldung „Kein Plan mit diesem Code“');
+  check(await c3.p.locator('text=Kein Kochbuch mit diesem Code').count()===1,'falscher Code: Meldung „Kein Kochbuch mit diesem Code“');
   check(Object.keys(getAt(['members','FALSCH2345'])||{}).length===0,'falscher Code hinterlässt keinen Mitglieder-Eintrag',getAt(['members']));
   const before=denied.length; const r=await c3.p.evaluate(async(c)=>{ const x=await fetch('https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app/plans/'+c+'.json'); return x.status; },code);
   check(r===401 && denied.length===before+1,'ohne Nachweis und ohne Mitgliedschaft bleibt der Plan zu');
