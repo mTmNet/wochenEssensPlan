@@ -46,7 +46,7 @@ Die KI-Funktionen (`/api/gemini`) laufen lokal nur mit `vercel dev` und gesetzte
 
 ## Firebase-Regeln und Datenmodell
 
-Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`. Der Code ist das einzige Passwort. Geltende Regeln (Stand 2 seit 19.11.2026; der Knoten `activity` für die Messung gilt, sobald er in der Console veröffentlicht ist, siehe `docs/MESSUNG.md`):
+Alle Daten einer Familie liegen unter `plans/<CODE>`; Bilder unter `recipeImages/<CODE>`, seit 23.11.2026 dort nur noch als Link auf eine Datei im Dateispeicher (`fotos/<fileKey>/…`, Regeln und Einrichtung in `docs/ABLAGE.md`; ohne Dateispeicher wie früher als Base64). Der Code ist das einzige Passwort. Geltende Regeln (Stand 2 seit 19.11.2026; der Knoten `activity` für die Messung gilt, sobald er in der Console veröffentlicht ist, siehe `docs/MESSUNG.md`):
 
 ```json
 {

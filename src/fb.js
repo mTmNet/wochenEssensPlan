@@ -4,6 +4,7 @@
 // Alles Neue liegt unter plans/<CODE>/… und recipeImages/<CODE>/…; globalRecipes und recipeImages/<Name> werden nur noch gelesen.
 import { createAuth, authedFetch } from "./auth.js";
 import { createActivity } from "./aktiv.js";
+import { createAblage, FILE_KEY_RE, randFileKey, parseDataUrl, isDataUrl } from "./ablage.js";
 
 export const FB = "https://wochenessenplan-3d0e1-default-rtdb.europe-west1.firebasedatabase.app";
 
@@ -61,6 +62,57 @@ export const ensureMember = async (code, name) => {
 export const dropMember = async (code) => {
   if(!auth.enabled || !auth.uid()) return false;
   return fbDelete("members/"+code+"/"+auth.uid());
+};
+
+// DATEIABLAGE (src/ablage.js) - eigene Rezeptfotos als Dateien in Cloud Storage (EU) statt als Base64 in der Datenbank.
+// recipeImages/<CODE>/<Rezept> enthält dann einen Link mit Download-Token statt der Bilddaten; <img> zeigt beides an.
+// Bucket aus der Vercel-Variable VITE_FB_BUCKET, sonst der Standard-Bucket des Projekts. Ist der Speicher in Firebase
+// nicht eingerichtet, bleiben Fotos wie bisher in der Datenbank (nichts geht verloren).
+export const BUCKET = (import.meta.env && import.meta.env.VITE_FB_BUCKET) || "wochenessenplan-3d0e1.firebasestorage.app";
+export const ablage = createAblage({ bucket: BUCKET, auth });
+// Geheimer Ordnername des Plans unter plans/<CODE>/fileKey (nur Mitglieder lesen den Plan); beim ersten Foto angelegt
+const fileKeys = {};
+export const planFileKey = async (code) => {
+  if (fileKeys[code]) return fileKeys[code];
+  let k = await fbGet("plans/"+code+"/fileKey");
+  if (k === undefined) return "";
+  if (!FILE_KEY_RE.test(String(k || ""))) {
+    if (!(await fbPut("plans/"+code+"/fileKey", randFileKey()))) return "";
+    k = await fbGet("plans/"+code+"/fileKey");   // legen zwei Geräte gleichzeitig an, gilt der gespeicherte Name
+    if (!FILE_KEY_RE.test(String(k || ""))) return "";
+  }
+  return (fileKeys[code] = k);
+};
+// Fester Dateiname aus dem Inhalt: dasselbe Foto bekommt denselben Namen, auch wenn zwei Geräte es gleichzeitig umziehen
+export const contentName = (s) => {
+  let h = 0x811c9dc5; const t = String(s || "");
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0") + "-" + t.length.toString(36);
+};
+const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+// Foto (Data-URL) ablegen. Liefert den Link zur Datei oder "" (dann bleibt das Foto wie bisher in der Datenbank).
+export const storePhoto = async (code, dataUrl) => {
+  if (!ablage.ready() || !isDataUrl(dataUrl)) return "";
+  const p = parseDataUrl(dataUrl);
+  if (!p || !EXT[p.mime]) return "";
+  const key = await planFileKey(code);
+  if (!key) return "";
+  const path = "fotos/" + key + "/" + contentName(dataUrl) + "." + EXT[p.mime];
+  const up = await ablage.uploadOnce(path, p.bytes, p.mime);
+  return up.ok && up.token ? ablage.url(path, up.token) : "";
+};
+// Foto-Datei löschen, falls der Wert ein Link in die Ablage ist (Data-URLs liegen nur in der Datenbank)
+export const removePhoto = async (value) => { const path = ablage.pathOf(value); return path ? ablage.remove(path) : true; };
+// Für die Kochbuch-Datei: Link wieder in eine Data-URL verwandeln (die Datei soll ohne Konto lesbar bleiben)
+export const photoAsDataUrl = async (value) => {
+  if (isDataUrl(value)) return value;
+  if (!ablage.pathOf(value)) return "";
+  try {
+    const r = await fetchT(value, {}, FETCH_TIMEOUT_MS);
+    if (!r.ok) return "";
+    const blob = await r.blob();
+    return await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result || "")); fr.onerror = () => res(""); fr.readAsDataURL(blob); });
+  } catch (e) { return ""; }
 };
 
 // PLAN-CODES: 10 Zeichen ohne verwechselbare O/0/I/1, Eingabe 6 bis 16 Zeichen (alte 6-stellige Codes bleiben gueltig)

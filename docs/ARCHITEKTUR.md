@@ -62,7 +62,7 @@ Die `logic/*`-Module sind reine Funktionen ohne React, ohne `window`, ohne Fireb
 plans/<CODE>
   participants: ["Anna", "Mero"]
   hb: { key?, code?, cat, gone? } | null      Verknüpfung zum Haushaltsbuch (gilt für den Plan); key = Schlüssel des Einkaufsauszugs (`kitchen/<key>` im Haushaltsbuch-Projekt, nur Lebensmittel ohne Beträge), code = Buch-Code (nur noch bei alten Verknüpfungen, als Rückfall bis zum Scharfstellen); gone = {schlüssel: "YYYY-MM-DD"} von Hand als „nicht mehr da“ gestrichen, gilt bis zum nächsten Einkauf nach diesem Datum
-  settings: { aiImages: false }               KI-Symbolbilder anzeigen (Standard aus)
+  settings: { }                               (früher aiImages; KI-Symbolbilder eines externen Dienstes am 23.11.2026 entfernt)
   meta: {
     createdAt, updatedAt,                     ms seit Epoche
     weeksUpdatedAt, shoppingUpdatedAt, recipesUpdatedAt, peopleUpdatedAt,
@@ -200,10 +200,10 @@ Reihenfolge der Quellen:
 ## 11. Shell und Gestaltung
 
 - Vier Tabs: `Heute · Woche · Einkauf · Rezepte`. Einkauf zeigt die Zahl offener Posten.
-- Kopf: Titel in Akzentfarbe (nicht in der Fehlerfarbe), Name, Code-Knopf, Menü „⋯“ mit A−/A+, „KI-Symbolbilder“, „Haushaltsbuch“, „Plan verlassen“, Version. Sync-Leiste schmal, bei Fehlern rot mit Text.
+- Kopf: Titel in Akzentfarbe (nicht in der Fehlerfarbe), Name, Code-Knopf, Menü „⋯“ mit A−/A+, „Haushaltsbuch“, „Plan verlassen“, Version. Sync-Leiste schmal, bei Fehlern rot mit Text.
 - Inhalt auf dem Desktop zentriert, maximal 920 px breit.
 - Farben: `subtle` wird `#7A7A86`; Mikrolabels mindestens 11 px; Tipp-Flächen mindestens 40 px hoch; Icon-Knöpfe mit `aria-label`; sichtbarer Fokus.
-- Bilder: ohne eigenes Foto eine ruhige Platzhalterkachel (`DishImage`: Rubrik-Farbe, Anfangsbuchstabe, Name). KI-Symbolbilder nur, wenn `settings.aiImages` an ist, dann mit Hinweis „Symbolbild“.
+- Bilder: ohne eigenes Foto eine ruhige Platzhalterkachel (`DishImage`: Rubrik-Farbe, Anfangsbuchstabe, Name). Bilder eines externen Bilddienstes gibt es nicht mehr (entfernt am 23.11.2026); eigene Fotos liegen in der Dateiablage (Cloud Storage), siehe `docs/ABLAGE.md`.
 
 ## 12. Vertrag zwischen App und Ansichten
 

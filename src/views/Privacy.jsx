@@ -1,18 +1,22 @@
 import { C, SF, btn } from "../theme.js";
+import { useState } from "react";
 import Modal from "../components/Modal.jsx";
+import Rechtstext from "../Rechtstext.jsx";
 
 // DATENSCHUTZ & DATEN - Hinweistext; in der App mit Export (Kochbuch-PDF) und "Plan endgültig löschen", auf dem Start ohne
 const PRIVACY = [
-  ["Was das ist", "Ein privates Projekt für Familie und Freunde. Keine Konten, keine Werbung, kein Tracking, keine Cookies. Auf diesem Gerät merkt sich die App nur Code, Namen, Schriftgröße und den zuletzt gewählten Filter."],
-  ["Was gespeichert wird", "Plan-Code, Namen der Mitglieder, Wochenpläne (wer kocht was), Einkaufsliste, Rezepte mit Bewertung, Notizen und Kochhistorie, eigene Rezeptfotos sowie der Code des verknüpften Haushaltsbuchs. Das Haushaltsbuch wird nur gelesen."],
-  ["Wo", "Google Firebase Realtime Database, Rechenzentrum europe-west1 (Belgien). Verschlüsselt bei Übertragung und Speicherung; für Google und für jeden, der den Code kennt, lesbar. Der Code ist das Passwort – nur an Mitglieder weitergeben."],
-  ["Hosting", "Vercel. Beim Aufruf entstehen technische Server-Protokolle mit IP-Adresse, die nach kurzer Zeit gelöscht werden."],
-  ["KI-Funktionen", "Nur wenn du den Rezeptimport (Text oder Foto) oder „Bekanntes Gericht finden“ nutzt, gehen Text, Foto oder die Liste der wahrscheinlich vorhandenen Lebensmittel an die Google Gemini API, auch außerhalb der EU. Die App speichert das Foto nicht. KI-Symbolbilder werden bei pollinations.ai erzeugt (nur der Gerichtname wird gesendet) und lassen sich im Menü abschalten."],
-  ["Deine Rechte", "Das Kochbuch kannst du als PDF speichern. Mit „Plan endgültig löschen“ entfernst du alle Daten dieses Plans inklusive Fotos bei Firebase. Fragen und Auskunft: über das Code-Repository des Betreibers."],
+  ["Kurz gesagt", "Kein Konto, keine Werbung, keine Cookies, kein Tracking durch Dritte. Dein Gerät bekommt beim ersten Öffnen eine zufällige Nutzer-ID ohne Namen oder E-Mail-Adresse; nur eingetragene Mitglieder eines Plans sehen seine Daten."],
+  ["Was gespeichert wird", "Plan-Code, Vornamen der Mitglieder, Wochenpläne, Einkaufsliste, Rezepte mit Bewertung, Notizen, Kochhistorie und eigene Rezeptfotos. Vom verknüpften Haushaltsbuch liest das Kochbuch nur einen Auszug der Lebensmittel-Einkäufe ohne Beträge."],
+  ["Wo", "Bei Google (Firebase) im Rechenzentrum in Belgien, Rezeptfotos als Dateien im Dateispeicher. Der Code ist der Schlüssel zum Beitreten: nur an Menschen weitergeben, die mitplanen sollen."],
+  ["KI-Funktionen", "Nur beim Rezeptimport (Text oder Foto) und bei „Bekanntes Gericht finden“ gehen Text, Foto oder die Liste der vorhandenen Lebensmittel an eine KI-Schnittstelle von Google, auch außerhalb der EU. Dein Name und dein Code gehen nicht mit."],
+  ["Deine Rechte", "Das Kochbuch kannst du als PDF speichern. „Plan endgültig löschen“ entfernt alle Daten dieses Plans samt Fotos. Alles Weitere, auch Kontakt und Fristen, steht in der Datenschutzerklärung."],
 ];
 
 export default function PrivacyModal({onClose,onExport,onDelete,hasRecipes}){
+  const [text,setText]=useState(null);   // "datenschutz" | "impressum" | null
+  const link={...btn("ghost"),flex:1,color:C.accent,borderColor:C.border,borderRadius:"6px"};
   return(
+    <>
     <Modal title="Datenschutz & deine Daten" onClose={onClose}>
       {PRIVACY.map(([h,t])=>(
         <div key={h} style={{marginBottom:"10px"}}>
@@ -20,6 +24,10 @@ export default function PrivacyModal({onClose,onExport,onDelete,hasRecipes}){
           <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.55"}}>{t}</div>
         </div>
       ))}
+      <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
+        <button onClick={()=>setText("datenschutz")} style={link}>Datenschutzerklärung</button>
+        <button onClick={()=>setText("impressum")} style={link}>Impressum</button>
+      </div>
       {onDelete&&(
         <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
           <button onClick={onExport} disabled={!hasRecipes} style={{...btn("ghost"),flex:1,color:C.accent,borderColor:C.accent,opacity:hasRecipes?1:0.4,borderRadius:"6px"}}>Kochbuch-PDF</button>
@@ -28,5 +36,7 @@ export default function PrivacyModal({onClose,onExport,onDelete,hasRecipes}){
       )}
       <button onClick={onClose} style={{...btn("ghost"),width:"100%",marginTop:"8px",letterSpacing:"0.5px",borderRadius:"6px"}}>Schließen</button>
     </Modal>
+    {text&&<Rechtstext art={text} onClose={()=>setText(null)} />}
+    </>
   );
 }
