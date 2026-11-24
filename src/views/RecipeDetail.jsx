@@ -41,6 +41,8 @@ export default function RecipeDetail({state,api}){
   // "Vormerken": Tag waehlen (Heute, Morgen, ..., Demnaechst)
   const [picker,setPicker]=useState(false);
   const [shopDone,setShopDone]=useState(false);
+  const [shopOpen,setShopOpen]=useState(false);   // Auswahl "alles / nur Fehlendes" erst nach Antippen
+  const [moreOpen,setMoreOpen]=useState(false);   // Menue "⋯": Bearbeiten, Als PDF, Rezept loeschen
   const confirmPicker=async(day)=>{
     setPicker(false);
     await addPick(detailRecipe,day);
@@ -96,21 +98,31 @@ export default function RecipeDetail({state,api}){
         <div style={{padding:"16px 16px 60px"}}>
           {!editMode?(
             <div>
-              {/* AKTIONEN */}
+              {/* AKTIONEN: Kochmodus und Vormerken vorne, Seltenes im Menue "⋯" */}
               <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
                 {steps.length>0&&<button onClick={()=>{setCookStep(0);setCookMode(true);}} style={{...btn("dark"),flex:"2 1 0",letterSpacing:"0.5px",borderRadius:"6px"}}>Kochmodus</button>}
                 <button onClick={()=>setPicker(true)} style={{...btn("ghost"),flex:"1 1 0",color:C.accent,borderRadius:"6px"}}>Vormerken</button>
+                <button onClick={()=>setMoreOpen(v=>!v)} aria-expanded={moreOpen} aria-label="Weitere Aktionen" style={{...btn("ghost"),flex:"0 0 56px",padding:"12px 0",color:C.text,fontSize:"18px",letterSpacing:"1px"}}>⋯</button>
               </div>
-              {/* Einkaufsliste: geteilter Knopf - alles oder nur, was laut Vorrat fehlt */}
-              <div role="group" aria-label="Auf die Einkaufsliste" style={{display:"flex",flexDirection:"column",marginBottom:"8px",border:"1px solid "+(shopDone?C.ok:C.border)}}>
-                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),border:"none",color:shopDone?C.ok:C.accent,padding:"11px 8px",borderRadius:"6px"}}>{shopDone?"✓ Auf der Liste":"Alles auf die Liste"}</button>
+              {moreOpen&&(
+                <div role="menu" style={{display:"flex",flexDirection:"column",marginBottom:"8px",border:"1px solid "+C.border,borderRadius:"6px",background:C.white}}>
+                  <button role="menuitem" onClick={()=>{setMoreOpen(false);startEdit(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.text,textAlign:"left"}}>Bearbeiten</button>
+                  <div style={{height:"1px",background:C.border}} />
+                  <button role="menuitem" onClick={()=>{setMoreOpen(false);downloadRecipePDF(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.accent,textAlign:"left"}}>Als PDF</button>
+                  <div style={{height:"1px",background:C.border}} />
+                  <button role="menuitem" onClick={()=>{setMoreOpen(false);deleteRecipe(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.err,textAlign:"left"}}>Rezept löschen</button>
+                </div>
+              )}
+              {/* Einkaufsliste: ein Knopf, darunter die Wahl - alles oder nur, was laut Vorrat fehlt */}
+              <button onClick={()=>setShopOpen(v=>!v)} aria-expanded={shopOpen} style={{...btn("ghost"),width:"100%",marginBottom:"8px",color:shopDone?C.ok:C.accent,borderColor:shopDone?C.ok:C.border}}>{shopDone?"✓ Auf der Liste":"Auf die Einkaufsliste"} {shopOpen?"▴":"▾"}</button>
+              {shopOpen&&(
+              <div role="group" aria-label="Auf die Einkaufsliste" style={{display:"flex",flexDirection:"column",marginBottom:"8px",border:"1px solid "+(shopDone?C.ok:C.border),borderRadius:"6px"}}>
+                <button onClick={()=>toShopping(false)} style={{...btn("ghost"),border:"none",color:C.accent,padding:"11px 8px",borderRadius:"6px"}}>Alles auf die Liste</button>
                 <div style={{height:"1px",background:shopDone?C.ok:C.border,flexShrink:0}} />
                 <button onClick={()=>toShopping(true)} disabled={!stock||!stock.length} title={!stock||!stock.length?"Ohne Vorrat ist unbekannt, was fehlt":""} style={{...btn("ghost"),border:"none",color:C.err,padding:"11px 8px",opacity:!stock||!stock.length?0.45:1,borderRadius:"6px"}}>Nur Fehlendes auf die Liste{stock&&stock.length?" ("+missingCount+")":""}</button>
               </div>
-              <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
-                <button onClick={()=>startEdit(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.text,borderRadius:"6px"}}>Bearbeiten</button>
-                <button onClick={()=>downloadRecipePDF(detailRecipe)} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>Als PDF</button>
-              </div>
+              )}
+              <div style={{height:"6px"}} />
               {curRec.description&&(
                 <div style={{background:C.white,border:"1px solid "+C.border,padding:"16px",marginBottom:"14px"}}>
                   <div style={cardTitle}>Beschreibung</div>
@@ -169,7 +181,6 @@ export default function RecipeDetail({state,api}){
                 <div style={{fontSize:"14px",color:C.text}}>{cookedLabel(curRec)}</div>
                 {cooked.length>0&&<div style={{fontSize:"13px",color:C.muted,marginTop:"6px"}}>{cooked.slice(-6).reverse().map(fmtDate).join(" · ")}{cooked.length>6?" · …":""}</div>}
               </div>
-              <button onClick={()=>deleteRecipe(detailRecipe)} style={{...btn("danger"),width:"100%",borderRadius:"6px"}}>Rezept löschen</button>
             </div>
           ):(
             <div>

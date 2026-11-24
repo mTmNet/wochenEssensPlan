@@ -241,6 +241,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("So funktioniert der Vorrat")'); await page.waitForTimeout(200);
   check(await page.isVisible('text=Verblasst nach:'), 'Vorrat: Verblassen-Hinweis im Abschnitt "So funktioniert der Vorrat"');
   // Eigene Positionen: Hand, Dauervorrat (Pin), Foto, x
+  await shot('05a-vorrat-eingeklappt');
+  await page.click('button:has-text("+ Hinzufügen")'); await page.waitForTimeout(200);
   await page.fill('input[placeholder="Lebensmittel, z. B. Linsen"]', 'Zwiebeln');
   await page.click('button[aria-label="Hinzufügen"]'); await page.waitForTimeout(500);
   const own = Object.values(plan().stock?.items||{});
@@ -336,6 +338,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // "Nur Fehlendes" auf die Einkaufsliste, dann "Ist da" aus dem Rezept: erste fehlende Zutat in den Vorrat
   const missingBefore = await page.locator('button[aria-label$=": ist da"]').count();
   const shopBefore = Object.keys(plan().shopping||{}).length;
+  await page.click('button:has-text("Auf die Einkaufsliste")'); await page.waitForTimeout(200);
   await page.click('button:has-text("NUR FEHLENDES")'); await page.waitForTimeout(500);
   const shopAfter = Object.keys(plan().shopping||{}).length;
   check(missingBefore>0 && shopAfter-shopBefore===missingBefore, 'Rezeptdetail: "Nur Fehlendes" legt genau die fehlenden Zutaten auf die Einkaufsliste', {shopBefore, shopAfter, missingBefore});
@@ -345,7 +348,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.locator('button[aria-label$=": ist da"]').first().click(); await page.waitForTimeout(500);
   const missingAfter = await page.locator('button[aria-label$=": ist da"]').count();
   check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("Nur Fehlendes auf die Liste ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
-  check(await page.isVisible('button:has-text("Alles auf die Liste")') || await page.isVisible('button:has-text("✓ Auf der Liste")'), 'Rezeptdetail: geteilter Knopf "Alles auf die Liste | Nur Fehlendes"');
+  check(await page.isVisible('button:has-text("Alles auf die Liste")'), 'Rezeptdetail: Knopf "Auf die Einkaufsliste" mit Wahl "Alles | Nur Fehlendes"');
   // EINKAUF: kein Block "Wahrscheinlich da" mehr - ein Posten bleibt in der Liste, auch wenn er inzwischen im Vorrat steht
   await page.goBack(); await page.waitForTimeout(300);
   await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(400);

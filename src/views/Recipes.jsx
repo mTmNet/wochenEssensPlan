@@ -33,6 +33,7 @@ export default function Recipes({state,api}){
   const [scope,setScope]=useState("");                   // "mine" | "all"; leer = automatisch (leeres Kochbuch: alle)
   const [adopting,setAdopting]=useState("");
   const [preview,setPreview]=useState(null);             // angetipptes Gericht der Rezept-Basis (nur ansehen)
+  const [addOpen,setAddOpen]=useState(false);            // Import-Bereich eingeklappt, bis "+ Rezept hinzufügen" getippt wird
   useEffect(()=>{ if(!preview||!registerBackHandler) return; return registerBackHandler(()=>{ setPreview(null); return true; }); },[preview]);
   const fileRef=useRef(null);
   useEffect(()=>()=>{ if(img&&img.previewUrl) URL.revokeObjectURL(img.previewUrl); },[img]);
@@ -83,6 +84,13 @@ export default function Recipes({state,api}){
 
   return(
           <div style={{padding:"12px",paddingBottom:"80px"}}>
+            {/* Rezept hinzufuegen: Import erst nach Antippen zeigen, damit die Rezepte oben stehen */}
+            {!addOpen&&<button onClick={()=>setAddOpen(true)} aria-expanded="false" style={{...btn("ghost"),width:"100%",marginBottom:"12px"}}>+ Rezept hinzufügen</button>}
+            {addOpen&&<>
+            <div style={{display:"flex",alignItems:"center",margin:"0 2px 8px"}}>
+              <span style={{...label,marginBottom:0,flex:1}}>Rezept hinzufügen</span>
+              <button onClick={()=>{setAddOpen(false);setImportErr("");}} aria-label="Rezept hinzufügen schließen" style={iconBtn}>×</button>
+            </div>
             {/* Importmodus */}
             <div style={{display:"flex",marginBottom:"12px",border:"1px solid "+C.border,background:C.white}}>
               {[{id:"text",label:"Text"},{id:"photo",label:"Foto"}].map(m=>(
@@ -119,6 +127,7 @@ export default function Recipes({state,api}){
                 {extracting?(importMode==="photo"&&photoMode==="dish"?"KI erkennt das Gericht…":"KI liest das Rezept…"):(importMode==="photo"&&photoMode==="dish"?"Gericht erkennen":"Rezept mit KI extrahieren")}
               </button>
             </div>
+            </>}
 
             {/* Ergebnis */}
             {extracted&&(
@@ -234,17 +243,18 @@ export default function Recipes({state,api}){
               ); })}
             </div>
             {/* Rubrik-Filter */}
-            <div style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap"}}>
+            {/* eine Zeile zum Wischen statt mehrerer umbrechender Reihen */}
+            <div style={{display:"flex",gap:"6px",margin:"0 -12px 10px",padding:"0 12px",overflowX:"auto",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
               {[{id:"all",label:"Alle"},...CATS.map(c=>({id:c,label:c})),...TAGS.map(t=>({id:"tag:"+t.id,label:t.label}))].map(f=>(
-                <button key={f.id} onClick={()=>setFilterCat(f.id)} aria-pressed={filterCat===f.id} style={chip(filterCat===f.id)}>{f.label}</button>
+                <button key={f.id} onClick={()=>setFilterCat(f.id)} aria-pressed={filterCat===f.id} style={{...chip(filterCat===f.id),flexShrink:0,whiteSpace:"nowrap"}}>{f.label}</button>
               ))}
             </div>
-            {/* Sortierung + Klassiker-Schalter */}
-            <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"12px",flexWrap:"wrap"}}>
-              <span style={{fontSize:"12px",color:C.muted,fontWeight:"700",letterSpacing:"1px",textTransform:"uppercase",marginRight:"2px"}}>Sortieren</span>
-              {SORTS.map(s=>(
-                <button key={s.id} onClick={()=>setSort(s.id)} aria-pressed={sort===s.id} style={{...chip(sort===s.id),padding:"7px 10px",minHeight:"32px"}}>{s.label}</button>
-              ))}
+            {/* Sortierung als kleines Auswahlfeld */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:"8px",marginBottom:"10px"}}>
+              <label htmlFor="rezepte-sort" style={{fontSize:"13px",color:C.muted}}>Sortieren</label>
+              <select id="rezepte-sort" value={sort} onChange={e=>setSort(e.target.value)} style={{...inp,width:"auto",minHeight:"36px",padding:"6px 10px",fontSize:"13px"}}>
+                {SORTS.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
             </div>
 
             {/* Rezeptliste */}
