@@ -3,7 +3,8 @@ import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember, activity, storePhoto, removePhoto, photoAsDataUrl, ablage } from "./fb.js";
 import { isDataUrl } from "./ablage.js";
-import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, buildShoppingVoicePrompt, audioMessage, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { spokenItems } from "./logic/voice.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem, cookUse, goneUse, staleUsed } from "./logic/stock.js";
 import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } from "./logic/alias.js";
@@ -545,6 +546,23 @@ export default function App() {
     setShopping(prev=>({...prev,[id]:item}));
     writePlan({["shopping/"+id]:item},"shopping");
     return id;                                                        // die Ansicht oeffnet dazu die Mengenauswahl
+  };
+  // EINKAUFSLISTE PER SPRACHE: Aufnahme -> KI schreibt die Posten -> wie eingetippt in die Liste (ein PATCH fuer alle)
+  const dictateShopping=async(audio)=>{
+    let texts;
+    try{
+      texts=spokenItems(parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildShoppingVoicePrompt(),messages:audioMessage(audio,"Schreibe die Einkaufsliste aus dieser Aufnahme. Antworte ausschließlich mit dem JSON-Objekt.")})));
+    }catch(e){
+      const msg=(e&&e.message)?e.message:"";
+      throw new Error(kiErrText(msg)||"Die KI hat die Aufnahme nicht verstanden. Bitte erneut versuchen oder eintippen.");
+    }
+    if(!texts.length) throw new Error("Nichts verstanden. Bitte deutlich sprechen, z. B. „zwei Liter Milch, Zwiebeln, Butter“.");
+    let order=nextOrder(shoppingRef.current);
+    const patch={}, add={};
+    texts.forEach(txt=>{ const id=newShopId(), item=makeShopItem(txt,{src:"manuell",order:order++}); add[id]=item; patch["shopping/"+id]=item; });
+    setShopping(prev=>({...prev,...add}));
+    writePlan(patch,"shopping");
+    return texts;
   };
 
   // REZEPTE - einzeln unter recipes/<recKey>; Felder (Bewertung, Notiz, Kochdatum) als Feld-PATCH.
@@ -1160,7 +1178,7 @@ export default function App() {
     // Vorgemerkt
     addPick,removePick,movePick,cookedToday,startCooking,undoCookUse,
     // Einkauf
-    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
+    buildShoppingFromPicks,addShopItem,dictateShopping,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
     openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
     // KI

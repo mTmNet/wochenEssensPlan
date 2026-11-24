@@ -58,7 +58,14 @@ export function makeRateLimiter({ max = 20, windowMs = 60000, now = Date.now } =
   };
 }
 
-// Nachrichten (Rollen user/assistant, Inhalt Text oder Teile mit text/image) in das Format des KI-Dienstes umwandeln
+// Tonformate, die Browser beim Aufnehmen liefern (Android/Chrome: webm, iPhone/Safari: mp4) und die die KI versteht
+const AUDIO_TYPES = ["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac"];
+export function audioMime(type) {
+  const t = String(type || "").split(";")[0].trim().toLowerCase();
+  return AUDIO_TYPES.includes(t) ? t : "";
+}
+
+// Nachrichten (Rollen user/assistant, Inhalt Text oder Teile mit text/image/audio) in das Format des KI-Dienstes umwandeln
 export function toGeminiContents(messages) {
   if (!Array.isArray(messages)) return [];
   return messages.map((msg) => {
@@ -66,6 +73,11 @@ export function toGeminiContents(messages) {
     if (Array.isArray(msg.content)) {
       const parts = msg.content.map((part) => {
         if (part.type === "text") return { text: part.text };
+        if (part.type === "audio") {
+          // Sprachaufnahme (Einkaufsliste, Vorrat): nur bekannte Tonformate, Codec-Zusatz wie ";codecs=opus" fällt weg
+          const mimeType = audioMime(part.source?.media_type);
+          return mimeType ? { inlineData: { mimeType, data: part.source?.data || "" } } : { text: "" };
+        }
         if (part.type === "image") {
           return {
             inlineData: {

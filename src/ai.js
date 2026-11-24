@@ -64,6 +64,21 @@ export const buildAliasPrompt = (vocabNames) =>
   "3. Kein Lebensmittel (Reinigung, Drogerie, Tierbedarf, Pfand): null. "+
   "Antworte NUR mit JSON ohne Markdown: {\"zuordnung\":[{\"roh\":\"Bezeichnung wie angefragt\",\"name\":\"Tomaten\"},{\"roh\":\"Spülmittel\",\"name\":null}]}";
 
+// EINKAUFSLISTE PER SPRACHE: aus der Aufnahme die Posten in der Schreibweise der Liste ("Menge zuerst")
+export const buildShoppingVoicePrompt = () =>
+  "Du hörst eine kurze Sprachaufnahme auf Deutsch: Jemand diktiert, was auf die Einkaufsliste soll. Schreibe daraus die Posten. "+
+  "Ein Posten je Produkt, kurzer deutscher Name wie auf einer Einkaufsliste (\"Milch\", \"Zwiebeln\", \"Klopapier\"). "+
+  "Nennt die Person eine Menge, steht sie vorn, Zahlen als Ziffern und Einheiten kurz: \"2 l Milch\", \"500 g Hackfleisch\", \"3 Paprika\". Ohne Menge nur der Name. "+
+  "Füllwörter, Selbstkorrekturen und Nebenbemerkungen weglassen (\"Milch, nein, zwei Milch\" -> \"2 Milch\"). Nichts dazuerfinden. "+
+  "Ist nichts Verständliches zu hören, gib eine leere Liste zurück. "+
+  "Antworte NUR mit JSON ohne Markdown: {\"items\":[\"2 l Milch\",\"Zwiebeln\"]}";
+
+// Aufnahme als Nachricht an die KI (Teil "audio", siehe api/_shared.js)
+export const audioMessage = (audio, text) => [{role:"user",content:[
+  {type:"audio",source:{type:"base64",media_type:audio.mimeType||"audio/webm",data:audio.base64}},
+  {type:"text",text},
+]}];
+
 // Verstaendliche Fehlermeldung fuer KI-Aufrufe (Extrahieren + Vorschlagen); die Servertexte werden nur erkannt, nie angezeigt
 export const kiErrText = (msg) => {
   if(msg.includes("404")) return "Die KI ist gerade nicht erreichbar (404). Bitte das Server-Protokoll prüfen.";
