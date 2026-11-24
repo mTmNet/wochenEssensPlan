@@ -22,6 +22,7 @@ const saveMode=(m)=>{ try{ localStorage.setItem(MODE_KEY,m); }catch(e){} };
 export default function Vorrat({state,api}){
   const {stock,stockRaw,hbLink,hbLoading,hbErr,hbBook,learned,vocab,unmapped,aliasBusy,aliasErr}=state;
   const {connectHb,reloadHb,disconnectHb,clearGone,addStockItem,addStockItems,refreshStock,setPermanent,removeStock,scanPantry,showToast,setAlias,clearAlias,mapNamesAI}=api;
+  const [addOpen,setAddOpen]=useState(false);   // Bereich "Hinzufügen" aufgeklappt
   const [help,setHelp]=useState(false);         // Abschnitt "So funktioniert der Vorrat" aufgeklappt
   const [menu,setMenu]=useState("");            // Schluessel der Zeile mit offenem Menue "⋯"
   const [rename,setRename]=useState(null);      // {item, value} - Dialog "Name zuordnen"
@@ -136,9 +137,15 @@ export default function Vorrat({state,api}){
     )}
     {mode==="graph"&&<VorratGraph state={state} api={api} onPhoto={()=>fileRef.current&&fileRef.current.click()} onList={()=>setMode("list")} />}
 
-    {/* HINZUFUEGEN: Hand + Foto */}
-    {mode==="list"&&<div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"12px"}}>
-      <div style={label}>Hinzufügen</div>
+    {/* HINZUFUEGEN: Hand + Foto; eingeklappt, bis man es braucht (offen, solange ein Foto ausgewertet wird) */}
+    {mode==="list"&&!(addOpen||scan)&&(
+      <button onClick={()=>setAddOpen(true)} aria-expanded="false" style={{...btn("ghost"),width:"100%",marginBottom:"12px"}}>+ Hinzufügen (eintippen oder Foto)</button>
+    )}
+    {mode==="list"&&(addOpen||scan)&&<div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"12px"}}>
+      <div style={{display:"flex",alignItems:"center",marginBottom:"4px"}}>
+        <div style={{...label,marginBottom:0,flex:1}}>Hinzufügen</div>
+        {!scan&&<button onClick={()=>setAddOpen(false)} aria-label="Hinzufügen schließen" style={iconBtn}>×</button>}
+      </div>
       <div style={{display:"flex",gap:"6px",marginBottom:"8px"}}>
         <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doAdd();}} placeholder="Lebensmittel, z. B. Linsen" aria-label="Lebensmittel" style={{...input,flex:1,width:"auto",minWidth:0}} />
         <select value={group} onChange={e=>setGroup(e.target.value)} aria-label="Gruppe" style={sel}>
