@@ -18,7 +18,8 @@ const blobToBase64 = (blob) => new Promise((resolve, reject) => {
 
 // phase: "idle" | "starting" (Mikrofon wird geöffnet) | "rec" (Aufnahme läuft) | "busy" (KI arbeitet)
 // hint: kurzer Text für Fehler oder falsche Bedienung; onAudio({base64, mimeType}) darf werfen, dann steht die Meldung im hint
-export function useHoldToTalk({ onAudio, maxMs = 60000, minMs = 700 }) {
+// beforeStart(): false = nicht aufnehmen (z. B. erst die Einwilligung zeigen)
+export function useHoldToTalk({ onAudio, beforeStart, maxMs = 60000, minMs = 700 }) {
   const [phase, setPhase] = useState("idle");
   const [hint, setHint] = useState("");
   const s = useRef({ held: false, rec: null, stream: null, timer: null, t0: 0 });
@@ -43,6 +44,7 @@ export function useHoldToTalk({ onAudio, maxMs = 60000, minMs = 700 }) {
   const start = async () => {
     const st = s.current;
     if (st.held || st.rec || busy.current) return;
+    if (beforeStart && beforeStart() === false) return;
     st.held = true;
     setHint("");
     if (!voiceSupported()) { st.held = false; setHint("Dieser Browser kann keine Sprache aufnehmen. Bitte eintippen."); return; }
