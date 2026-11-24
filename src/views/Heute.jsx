@@ -139,12 +139,11 @@ export default function Heute({state,api}){
       </div>
     )}
     {ranked.length>4&&(
-      <button onClick={()=>setMore(m=>!m)} style={{...btn("ghost"),width:"100%",letterSpacing:"0.5px",marginBottom:"12px",borderRadius:"6px"}}>{more?"Weniger":"Mehr Vorschläge"}</button>
+      <button onClick={()=>setMore(m=>!m)} style={{background:"none",border:"none",padding:"10px 4px",minHeight:"44px",marginBottom:"14px",color:C.accent,fontSize:"14px",fontWeight:"700",cursor:"pointer",fontFamily:SF}}>{more?"Weniger":"Mehr Vorschläge"} {more?"▴":"▾"}</button>
     )}
-    {top&&<div style={{fontSize:"13px",color:C.subtle,margin:"-6px 2px 12px"}}>Alternative antippen zeigt sie als Hauptvorschlag mit ihren Zutaten.</div>}
 
     {/* VORRAT-ZEILE */}
-    <button onClick={()=>setView("vorrat")} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",background:C.white,border:"1px solid "+C.border,padding:"12px 14px",minHeight:"52px",marginBottom:"12px",cursor:"pointer",fontFamily:SF,textAlign:"left",borderRadius:"6px"}}>
+    <button onClick={()=>setView("vorrat")} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",background:"none",border:"none",borderTop:"1px solid "+C.border,padding:"14px 4px",minHeight:"52px",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
       <span style={{width:"8px",height:"8px",borderRadius:"50%",background:hasStock?C.ok:C.subtle,flexShrink:0}} />
       <span style={{flex:1,fontSize:"14px",color:C.text}}>
         {hbLink
@@ -155,12 +154,12 @@ export default function Heute({state,api}){
       </span>
       <span style={{color:C.accent,fontSize:"16px"}}>›</span>
     </button>
-    {!hbLink&&!hasStock&&top&&!emptyBook&&<div style={{fontSize:"13px",color:C.subtle,margin:"-6px 2px 12px"}}>Ohne Vorrat sortiert nach Bewertung und Abwechslung.</div>}
+    {!hbLink&&!hasStock&&top&&!emptyBook&&<div style={{fontSize:"13px",color:C.subtle,margin:"-4px 4px 12px"}}>Ohne Vorrat sortiert nach Bewertung und Abwechslung.</div>}
 
     {/* KI - bekanntes Gericht finden */}
-    <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px"}}>
+    <div style={{borderTop:"1px solid "+C.border,borderBottom:"1px solid "+C.border,padding:"8px 4px"}}>
       <button onClick={()=>setAiOpen(v=>!v)} aria-expanded={aiOpen} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",background:"none",border:"none",padding:"4px 0",cursor:"pointer",fontFamily:SF,textAlign:"left",minHeight:"36px"}}>
-        <span style={{...label,marginBottom:0,flex:1}}>Nichts dabei? Frag die KI</span>
+        <span style={{flex:1,fontSize:"14px",color:C.text}}>Nichts dabei? Frag die KI</span>
         <span style={{color:C.accent,fontSize:"13px"}}>{aiOpen?"▴":"▾"}</span>
       </button>
       {aiOpen&&(
