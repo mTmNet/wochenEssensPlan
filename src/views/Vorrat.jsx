@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { C, SF, SER, micro as label, btn, input, iconBtn, chip, groupTint } from "../theme.js";
 import { daysSince } from "../logic/weeks.js";
 import { STOCK_MIN, STOCK_GROUPS, fadeTable, guessGroup, stockLevel } from "../logic/stock.js";
+import { HB_URL } from "./Hilfe.jsx";
 import { isBasicText } from "../logic/ingredients.js";
 import { compressImageToBase64, kiErrText } from "../ai.js";
 import VorratGraph from "./VorratGraph.jsx";
@@ -171,6 +172,7 @@ export default function Vorrat({state,api}){
           <button onClick={doConnect} disabled={hbLoading||!hbInput.trim()} style={{...btn("primary"),letterSpacing:"0.5px",opacity:hbLoading||!hbInput.trim()?0.5:1,borderRadius:"6px"}}>{hbLoading?"…":"Verbinden"}</button>
         </div>
         {hbErr&&<div style={{marginTop:"8px",fontSize:"13px",color:C.err}}>{hbErr}</div>}
+        <div style={{marginTop:"10px",fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Noch kein Haushaltsbuch? <a href={HB_URL} target="_blank" rel="noopener" style={{color:C.accent,fontWeight:"700",textDecoration:"none"}}>schlauesHaushaltsbuch.de ↗</a> – Bon fotografieren, fertig.</div>
       </div>
     ):(
       <div style={{background:C.white,border:"1px solid "+C.border,padding:"12px 14px",marginBottom:"12px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
