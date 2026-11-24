@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { C, SF, column } from "../theme.js";
 import { APP_VERSION, APP_NAME } from "../data.js";
 import PrivacyModal from "./Privacy.jsx";
+import Hilfe from "./Hilfe.jsx";
 import { getThemeMode, setThemeMode } from "../themeMode.js";
 import Toast from "../components/Toast.jsx";
 
@@ -14,6 +15,7 @@ export default function Shell({state,api,children}){
   const [themeMode,setThemeModeState]=useState(getThemeMode);   // Design: system | light | dark
   const pickTheme=(m)=>{ setThemeMode(m); setThemeModeState(m); };
   const [infoOpen,setInfoOpen]=useState(false);   // Datenschutz & deine Daten
+  const [helpOpen,setHelpOpen]=useState(false);   // Hilfe & Fragen
   const menuRef=useRef(null);
   // Zurueck-Taste und Tipp daneben schliessen das Menue
   useEffect(()=>{ if(!menuOpen) return; return registerBackHandler(()=>{ setMenuOpen(false); return true; }); },[menuOpen]);
@@ -61,6 +63,7 @@ export default function Shell({state,api,children}){
                     </div>
                   </div>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);setView("plan");}} style={rowBtn}>Plan · Vorgemerkt{openPicks?" ("+openPicks+")":""}</button>
+                  <button role="menuitem" onClick={()=>{setMenuOpen(false);setHelpOpen(true);}} style={rowBtn}>Hilfe & Fragen</button>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);setInfoOpen(true);}} style={rowBtn}>Datenschutz & Daten</button>
                   <button role="menuitem" onClick={()=>{setMenuOpen(false);leavePlan();}} style={{...rowBtn,color:C.err}}>Plan verlassen</button>
                   <div style={{padding:"8px 14px",fontSize:"13px",color:C.subtle}}>Version {APP_VERSION}</div>
@@ -70,6 +73,7 @@ export default function Shell({state,api,children}){
           </div>
         </div>
 
+        {helpOpen&&<Hilfe onClose={()=>setHelpOpen(false)} />}
         {infoOpen&&<PrivacyModal onClose={()=>setInfoOpen(false)} onExport={downloadPDF} onDelete={deletePlan} hasRecipes={Object.keys(state.recipes||{}).length>0} />}
         {/* SYNC - nur bei einem Fehler sichtbar: rot mit Text (im Normalfall laeuft der Abgleich alle 10 s still im Hintergrund) */}
         {!syncOk&&(
