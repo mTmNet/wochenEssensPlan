@@ -84,7 +84,7 @@ export default function Shell({state,api,children}){
         <div style={{background:C.white,borderBottom:"1px solid "+C.border}}>
           <div style={{...column,display:"flex",padding:"0 6px",overflowX:"auto"}}>
             {[{id:"heute",label:"Heute"},{id:"vorrat",label:"Vorrat"},{id:"recipes",label:"Rezepte"},{id:"shopping",label:"Einkauf"+(unchecked>0?" ("+unchecked+")":"")},...(openPicks||view==="plan"?[{id:"plan",label:"Plan"+(openPicks?" ("+openPicks+")":"")}]:[])].map(t=>(
-              <button key={t.id} onClick={()=>setView(t.id)} aria-current={view===t.id?"page":undefined} style={{flex:"1 0 auto",padding:"12px 9px",minHeight:"44px",border:"none",borderBottom:view===t.id?"2px solid "+C.accent:"2px solid transparent",color:view===t.id?C.accent:C.muted,fontWeight:view===t.id?"700":"400",fontSize:"13px",letterSpacing:"0.3px",whiteSpace:"nowrap",background:"none",cursor:"pointer",fontFamily:SF,borderRadius:"6px"}}>
+              <button key={t.id} onClick={()=>setView(t.id)} aria-current={view===t.id?"page":undefined} style={{flex:"1 0 auto",padding:"12px 9px",minHeight:"44px",border:"none",borderBottom:view===t.id?"2px solid "+C.accent:"2px solid transparent",color:view===t.id?C.accent:C.muted,fontWeight:view===t.id?"700":"400",fontSize:"13px",letterSpacing:"0.3px",whiteSpace:"nowrap",background:"none",cursor:"pointer",fontFamily:SF,borderRadius:"6px 6px 0 0"}}>
                 {t.label}
               </button>
             ))}
