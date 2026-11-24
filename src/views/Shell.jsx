@@ -7,7 +7,7 @@ import Toast from "../components/Toast.jsx";
 
 // RAHMEN der Hauptansicht: Kopf (Titel, Name, Code, Menue), Sync-Leiste, Tabs; Inhalt auf dem Desktop zentriert (max. 920 px)
 export default function Shell({state,api,children}){
-  const {toast,userName,code,codeCopied,fontZoom,syncOk,syncErr,lastSync,view,unchecked,picks}=state;
+  const {toast,userName,code,codeCopied,fontZoom,syncOk,syncErr,view,unchecked,picks}=state;
   const {copyCode,zoom,leavePlan,deletePlan,downloadPDF,setView,registerBackHandler}=api;
   const openPicks=(picks||[]).length;
   const [menuOpen,setMenuOpen]=useState(false);
@@ -71,14 +71,15 @@ export default function Shell({state,api,children}){
         </div>
 
         {infoOpen&&<PrivacyModal onClose={()=>setInfoOpen(false)} onExport={downloadPDF} onDelete={deletePlan} hasRecipes={Object.keys(state.recipes||{}).length>0} />}
-        {/* SYNC - schmal, bei Fehlern rot mit Text */}
-        <div style={{background:syncOk?C.okBg:C.errBg,borderBottom:"1px solid "+(syncOk?C.okBorder:C.errBorder)}}>
+        {/* SYNC - nur bei einem Fehler sichtbar: rot mit Text (im Normalfall laeuft der Abgleich alle 10 s still im Hintergrund) */}
+        {!syncOk&&(
+        <div style={{background:C.errBg,borderBottom:"1px solid "+C.errBorder}}>
           <div style={{...column,padding:"4px 16px",display:"flex",alignItems:"center",gap:"6px"}}>
-            <div style={{width:"6px",height:"6px",borderRadius:"50%",background:syncOk?C.ok:C.err,flexShrink:0}} />
-            <span style={{fontSize:"13px",color:syncOk?C.ok:C.err}}>{syncOk?(lastSync?"Sync "+new Date(lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"Verbunden"):(syncErr||"Verbindungsfehler")}</span>
-            <span style={{marginLeft:"auto",fontSize:"13px",color:C.subtle,flexShrink:0}}>alle 10 Sek.</span>
+            <div style={{width:"6px",height:"6px",borderRadius:"50%",background:C.err,flexShrink:0}} />
+            <span style={{fontSize:"13px",color:C.err}}>{syncErr||"Verbindungsfehler"}</span>
           </div>
         </div>
+        )}
 
         {/* TABS */}
         <div style={{background:C.white,borderBottom:"1px solid "+C.border}}>
