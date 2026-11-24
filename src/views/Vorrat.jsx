@@ -12,7 +12,7 @@ import Modal from "../components/Modal.jsx";
 // Ohne Haushaltsbuch kommen abgehakte Posten der Einkaufsliste dazu (Herkunft "Einkauf").
 // Dauervorrat (Pin) verblasst nie; x entfernt eigene Positionen bzw. streicht Haushaltsbuch-Positionen; lernendes Verblassen je Produkt.
 const TONE={ok:C.ok,warn:C.warn,muted:C.muted};
-const SRC_LABEL={hb:"Haushaltsbuch",foto:"Foto",hand:"Hand",einkauf:"Einkauf",perm:"Dauervorrat"};
+const SRC_LABEL={hb:"Haushaltsbuch",foto:"Foto",hand:"Hand",einkauf:"Einkauf",check:"bestätigt",perm:"Dauervorrat"};
 const sel={...input,width:"118px",flexShrink:0,padding:"6px",fontSize:"13px"};
 // Umschalter Liste / Graph wird je Geraet gemerkt (reine Bequemlichkeit, kein Plan-Zustand)
 const MODE_KEY="wp.vorratMode";
@@ -59,7 +59,7 @@ export default function Vorrat({state,api}){
     const when=s.permanent?"immer da":d===null?"":d===0?"heute":d===1?"gestern":"vor "+d+" Tagen";
     const left=s.permanent?"":s.left<=0?"läuft heute aus":s.left===1?"noch 1 Tag":"noch "+s.left+" Tage";
     const src=(s.srcs||[]).filter(x=>x!=="perm").map(x=>SRC_LABEL[x]||x).join(" + ");
-    const lrn=s.learnedN?"gelernt aus "+s.learnedN+(s.learnedN===1?" Kauf":" Käufen"):"";
+    const lrn=s.learnedN?"gelernt aus "+s.learnedN+(s.learnedN===1?" Hinweis":" Hinweisen"):"";
     const rawsOther=(s.raws||[]).filter(r=>r.trim().toLowerCase()!==s.name.trim().toLowerCase());
     const aus=rawsOther.length?"aus: "+rawsOther.slice(0,3).join(", ")+(rawsOther.length>3?" …":""):"";
     const raws=s.raws&&s.raws.length?s.raws:[s.name];
@@ -217,7 +217,7 @@ export default function Vorrat({state,api}){
       {help&&<div style={{padding:"4px 14px 12px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>
         <div style={{marginBottom:"6px"}}><span style={{color:C.text,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
         <div style={{marginBottom:"6px"}}>Rechts steht, wie sicher etwas noch da ist: „ist da“, „vermutlich da“, „eventuell da“, „eher nicht mehr da“. Danach gilt es als aufgebraucht und verschwindet aus der Liste.</div>
-        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte. Wird ein Produkt erneut gekauft oder mit × gestrichen, lernt die App daraus seine echte Haltbarkeit. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen; der Haken erscheint erst, wenn ein Produkt nicht mehr sicher da ist. × heißt „aufgebraucht“. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte für Gruppen; frische Zutaten haben eigene Werte (Kartoffeln und Zwiebeln halten länger, Hackfleisch ist nach zwei bis drei Tagen fraglich). Wird ein Produkt erneut gekauft, gekocht oder mit × gestrichen, lernt die App daraus, wie schnell ihr es verbraucht. „Gekocht“ nimmt die Zutaten aus dem Vorrat: Frisches wie Hackfleisch, Fisch oder Salat ganz, Käse, Milch, Butter oder Zwiebeln zum Teil; Dauervorrat bleibt. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen; der Haken erscheint erst, wenn ein Produkt nicht mehr sicher da ist. × heißt „aufgebraucht“. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
         <div>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
       </div>}
     </div>}

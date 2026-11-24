@@ -29,7 +29,7 @@ test("groupPicks und dayLabel: Heute, Morgen, Wochentag, vorbei, Demnaechst", ()
 test("suggestScore: Vorrat und Dringlichkeit zaehlen, frisch Gekochtes wird gebremst, kein Haeufigkeitsbonus", () => {
   const T = todayISO();                 // hbStock rechnet mit dem echten Heute, darum hier kein festes Datum
   const d = (n) => addDays(T, -n);
-  const book = { entries: { e1: { date: d(4), category:"Lebensmittel", items:[ { name:"Rinderhack 500g", amount:1, sub:"Fleisch" } ] }, e2: { date: d(1), category:"Lebensmittel", items:[ { name:"Spaghetti", amount:1, sub:"Trockenwaren" } ] } } };
+  const book = { entries: { e1: { date: d(1), category:"Lebensmittel", items:[ { name:"Rinderhack 500g", amount:1, sub:"Fleisch" } ] }, e2: { date: d(1), category:"Lebensmittel", items:[ { name:"Spaghetti", amount:1, sub:"Trockenwaren" } ] } } };
   const stock = hbStock(book, "Lebensmittel");
   const bolo = normalizeRecipe("Bolognese", { ingredients:["Hackfleisch 300g","Pasta 200g","Salz"] }, 0);
   const a = suggestScore(bolo, stock, { today:T, key:"Bolognese" });

@@ -79,7 +79,7 @@ test("hbStock: gone-Markierung streicht eine Position, bis nach dem Datum neu ge
   assert.equal(goneKey("tomaten dose.1 #x/y"), "tomaten_dose1_xy", "Schluessel ohne Firebase-Sonderzeichen");
 });
 
-test("hbStock: left = Tage bis zum Verblassen (zwei Halbwertszeiten, hoechstens 90)", () => {
+test("hbStock: left = Tage bis unter 25 % (Verbrauch und Haltbarkeit, hoechstens 90)", () => {
   const d = (n) => { const x = new Date(Date.now() - n * 86400000); return x.toISOString().slice(0, 10); };
   const book = { entries: {
     a: { date: d(2), category: "Lebensmittel", items: [{ name: "Lachs", amount: 1, sub: "Fisch" }, { name: "Kokosmilch", amount: 1, sub: "Konserven" }] },
@@ -87,7 +87,7 @@ test("hbStock: left = Tage bis zum Verblassen (zwei Halbwertszeiten, hoechstens 
   const st = hbStock(book, "Lebensmittel");
   const fisch = st.find((s) => s.key.includes("lachs")), nudeln = st.find((s) => s.key.includes("kokos"));
   assert.equal(fadeDays(2), 4, "Fisch: Halbwertszeit 2 Tage -> nach 4 Tagen unter 25 %");
-  assert.equal(fisch.left, 2, "Lachs vor 2 Tagen gekauft: noch 2 Tage");
+  assert.equal(fisch.left, 1, "Lachs vor 2 Tagen gekauft: Haltbarkeit 3 Tage, morgen fraglich");
   assert.equal(fadeDays(45), 90, "uebrige Vorraete: 90 Tage (Fenster)");
   assert.equal(nudeln.left, 88);
   assert.ok(Math.abs(Math.pow(0.5, fadeDays(2) / 2) - STOCK_MIN) < 1e-9, "fadeDays trifft genau STOCK_MIN");

@@ -5,7 +5,7 @@ import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDele
 import { isDataUrl } from "./ablage.js";
 import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
-import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem } from "./logic/stock.js";
+import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem, cookUse, goneUse, staleUsed } from "./logic/stock.js";
 import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } from "./logic/alias.js";
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
@@ -55,6 +55,7 @@ export default function App() {
   const [lastSync,setLastSync]       = useState(null);
   const [syncOk,setSyncOk]           = useState(true);
   const [syncErr,setSyncErr]         = useState("");
+  const [cookInfo,setCookInfo]       = useState(null);    // nach "Gekocht": was aus dem Vorrat genommen wurde {key, names, prev, undone}
   const [toast,setToast]             = useState("");      // kurzer Hinweis unten (Zurueck-Taste, geloescht auf anderem Geraet, kopiert)
 
   // VORGEMERKT: plans/<CODE>/picks/<id> = {key, day, createdAt}
@@ -408,9 +409,32 @@ export default function App() {
     writePlan(patch,"picks");
   };
   // "Wurde heute gekocht" im Rezept: Kochdatum heute, Vormerkung fuer heute weg, Bewertungsdialog
+  // KOCHEN VERBRAUCHT: Frisches aus dem Rezept gilt als aufgebraucht, Kaese, Milch, Butter usw. als halb (stock/used/<goneKey>).
+  // Grundvorrat steht nicht im Vorrat, Dauervorrat bleibt. Der Bewertungsdialog zeigt, was abgezogen wurde, mit "Rueckgaengig".
+  const takeForCooking=(key)=>{
+    const rec=recipesRef.current[key]; setCookInfo(null); if(!rec) return;
+    const used=(stockRaw&&stockRaw.used)||{};
+    const r=cookUse(rec.ingredients,stock,used,todayISO(),Date.now());
+    if(!r.names.length) return;
+    const patch={};
+    staleUsed(used).forEach(gk=>{ if(!r.entries[gk]) patch["stock/used/"+gk]=null; });
+    Object.keys(r.entries).forEach(gk=>{ patch["stock/used/"+gk]=r.entries[gk]; });
+    setStockRaw(prev=>{ const u={...(prev.used||{})}; Object.keys(patch).forEach(pk=>{ const gk=pk.slice("stock/used/".length); if(patch[pk]===null) delete u[gk]; else u[gk]=patch[pk]; }); return {...prev,used:u}; });
+    writePlan(patch,"stock");
+    setCookInfo({key,names:r.names,prev:r.prev,undone:false});
+  };
+  const undoCookUse=()=>{
+    if(!cookInfo||cookInfo.undone) return;
+    const patch={};
+    Object.keys(cookInfo.prev||{}).forEach(gk=>{ patch["stock/used/"+gk]=cookInfo.prev[gk]||null; });
+    setStockRaw(prev=>{ const u={...(prev.used||{})}; Object.keys(cookInfo.prev||{}).forEach(gk=>{ if(cookInfo.prev[gk]) u[gk]=cookInfo.prev[gk]; else delete u[gk]; }); return {...prev,used:u}; });
+    writePlan(patch,"stock");
+    setCookInfo(prev=>prev?{...prev,undone:true}:prev);
+  };
   const cookedToday=(key)=>{
     const rec=recipesRef.current[key]; if(!rec) return;
     clearTodayPicks(key);
+    takeForCooking(key);
     markCooked(key,todayISO());
     setDetailRecipe(key);setCookStep(0);setCookMode(false);setEditMode(false);setEditData(null);
     setRatingDraft(rec.rating||0);setNoteDraft(rec.notes||"");setRateAfterCook(true);
@@ -438,7 +462,7 @@ export default function App() {
   const markIngredientPresent=(ing)=>{
     const name=parseIng(String(ing||"")).name.replace(/\([^)]*\)/g," ").split(",")[0].replace(/\s+/g," ").trim();
     if(!name) return false;
-    addStockItems([{name,src:"hand"}]);
+    addStockItems([{name,src:"check"}]);
     return name;
   };
   // Einkaufsliste aus dem Vorgemerkten: ZUSAMMENFUEHREN statt ersetzen
@@ -742,7 +766,7 @@ export default function App() {
     (list||[]).forEach((it,i)=>{
       const name=String((it&&it.name)||"").trim(); if(!name) return;
       const id=(now+i).toString(36)+Math.random().toString(36).slice(2,6);
-      const item={name,sub:STOCK_GROUPS.includes(it.sub)?it.sub:guessGroup(name),date:day,src:it.src==="foto"?"foto":"hand",createdAt:now};
+      const item={name,sub:STOCK_GROUPS.includes(it.sub)?it.sub:guessGroup(name),date:day,src:it.src==="foto"||it.src==="check"?it.src:"hand",createdAt:now};
       add[id]=item; patch["stock/items/"+id]=item;
     });
     if(!Object.keys(add).length) return false;
@@ -751,7 +775,7 @@ export default function App() {
   };
   const addStockItem=(name,sub)=>addStockItems([{name,sub,src:"hand"}]);
   // Auffrischen (Haken in der Vorratsliste): "ist heute noch da" - zaehlt wie ein Handeintrag von heute, das Verblassen beginnt neu
-  const refreshStock=(item)=>{ const gk=goneKey(item.key); const patch={}; if(hbLink&&hbLink.gone&&hbLink.gone[gk]){ patch["hb/gone/"+gk]=null; setHbLink(prev=>{ if(!prev||!prev.gone) return prev; const g={...prev.gone}; delete g[gk]; return {...prev,gone:g}; }); writePlan(patch,"people"); } return addStockItems([{name:item.name,sub:item.sub,src:"hand"}]); };
+  const refreshStock=(item)=>{ const gk=goneKey(item.key); const patch={}; if(hbLink&&hbLink.gone&&hbLink.gone[gk]){ patch["hb/gone/"+gk]=null; setHbLink(prev=>{ if(!prev||!prev.gone) return prev; const g={...prev.gone}; delete g[gk]; return {...prev,gone:g}; }); writePlan(patch,"people"); } return addStockItems([{name:item.name,sub:item.sub,src:"check"}]); };
   const setPermanent=(item,on)=>{
     const gk=(!on&&item.permKey)?item.permKey:goneKey(item.key); if(!gk) return;
     setStockRaw(prev=>{ const perm={...(prev.perm||{})}; if(on) perm[gk]={name:item.name,sub:item.sub||""}; else delete perm[gk]; return {...prev,perm}; });
@@ -764,7 +788,10 @@ export default function App() {
     if(item.permanent){ patch["stock/perm/"+(item.permKey||goneKey(item.key))]=null; if(!parts.includes("stock")) parts.push("stock"); }
     if(item.srcs&&item.srcs.includes("hb")&&hbLink){ patch["hb/gone/"+goneKey(item.key)]=todayISO(); parts.push("people"); }
     if(!parts.length) return;
-    setStockRaw(prev=>{ const items={...(prev.items||{})}, perm={...(prev.perm||{})}; (item.ownIds||[]).forEach(id=>{ delete items[id]; }); if(item.permanent) delete perm[item.permKey||goneKey(item.key)]; return {...prev,items,perm}; });
+    // Als Verbrauch merken, damit die App auch ohne Haushaltsbuch lernt, wie lange es gehalten hat (nicht beim Dauervorrat)
+    const ugk=goneKey(item.key), uEntry=!item.permanent&&ugk&&item.last?goneUse(item,todayISO()):null;
+    if(uEntry){ patch["stock/used/"+ugk]=uEntry; if(!parts.includes("stock")) parts.push("stock"); }
+    setStockRaw(prev=>{ const items={...(prev.items||{})}, perm={...(prev.perm||{})}, used={...(prev.used||{})}; (item.ownIds||[]).forEach(id=>{ delete items[id]; }); if(item.permanent) delete perm[item.permKey||goneKey(item.key)]; if(uEntry) used[ugk]=uEntry; return {...prev,items,perm,used}; });
     if(patch["hb/gone/"+goneKey(item.key)]) setHbLink(prev=>prev?{...prev,gone:{...(prev.gone||{}),[goneKey(item.key)]:todayISO()}}:prev);
     writePlan(patch,parts);
   };
@@ -1044,8 +1071,8 @@ export default function App() {
   const aliasMap=stockRaw.alias||{};
   const resolve=useMemo(()=>{ const ctx={alias:aliasMap,vocab}; const cache={}; return (raw)=>{ if(!(raw in cache)) cache[raw]=resolveName(raw,ctx); return cache[raw]; }; },[aliasMap,vocab]);
   // Gelernte Halbwertszeiten aus den Kaufabstaenden (und x-Streichungen), dann die zusammengefuehrte Vorratsliste
-  const learned=useMemo(()=>learnHalfLives(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone,undefined,resolve),[hbBook,hbLink,resolve]);
-  const stock=useMemo(()=>buildStock({book:hbBook,cat:hbLink&&hbLink.cat,gone:hbLink&&hbLink.gone,items:stockRaw.items,perm:stockRaw.perm,learned,resolve}),[hbBook,hbLink,stockRaw,learned,resolve]);
+  const learned=useMemo(()=>learnHalfLives(hbBook,hbLink&&hbLink.cat,hbLink&&hbLink.gone,undefined,resolve,{items:stockRaw.items,used:stockRaw.used}),[hbBook,hbLink,resolve,stockRaw.items,stockRaw.used]);
+  const stock=useMemo(()=>buildStock({book:hbBook,cat:hbLink&&hbLink.cat,gone:hbLink&&hbLink.gone,items:stockRaw.items,perm:stockRaw.perm,used:stockRaw.used,learned,resolve}),[hbBook,hbLink,stockRaw,learned,resolve]);
   // Rohnamen ohne Zuordnung (Haushaltsbuch + eigene Positionen) - die gehen gebuendelt an die KI, jede nur einmal je Sitzung
   const rawNames=useMemo(()=>{ const own=Object.values(stockRaw.items||{}).map(i=>i&&i.name).filter(Boolean); return [...new Set([...hbRawNames(hbBook,hbLink&&hbLink.cat),...own])]; },[hbBook,hbLink,stockRaw.items]);
   const unmapped=useMemo(()=>unmappedNames(rawNames,{alias:aliasMap,vocab}),[rawNames,aliasMap,vocab]);
@@ -1114,7 +1141,7 @@ export default function App() {
   // Rezept oeffnen: Detailansicht frisch (Schritt 0, kein Kochmodus, kein Editor)
   const openRecipe=(key)=>{setDetailRecipe(key);setCookStep(0);setCookMode(false);setEditMode(false);setEditData(null);};
   // Kochmodus "Fertig": Kochdatum eintragen, Bewertungsdialog oeffnen
-  const finishCook=()=>{clearTodayPicks(detailRecipe);markCooked(detailRecipe,todayISO());setCookMode(false);setCookStep(0);setRatingDraft((curRec&&curRec.rating)||0);setNoteDraft((curRec&&curRec.notes)||"");setRateAfterCook(true);};
+  const finishCook=()=>{clearTodayPicks(detailRecipe);takeForCooking(detailRecipe);markCooked(detailRecipe,todayISO());setCookMode(false);setCookStep(0);setRatingDraft((curRec&&curRec.rating)||0);setNoteDraft((curRec&&curRec.notes)||"");setRateAfterCook(true);};
   // Bewertungsdialog speichern (Bewertung + Notiz in einem Feld-PATCH)
   const saveRating=()=>{ patchRecipe(detailRecipe,{rating:ratingDraft,notes:noteDraft}); setRateAfterCook(false); };
 
@@ -1122,7 +1149,7 @@ export default function App() {
   const state={
     code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,aliasBusy,aliasErr,settings,household,
     picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopBasics,shopGroups,unchecked,classics:CLASSICS,
-    syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
+    syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,cookInfo,
     importState:{importErr,extracting,extracted,savedMsg},cookbookImport,
     // Rahmen und Dialoge
     view,codeCopied,editShopId,editShopText,
@@ -1131,7 +1158,7 @@ export default function App() {
   };
   const api={
     // Vorgemerkt
-    addPick,removePick,movePick,cookedToday,startCooking,
+    addPick,removePick,movePick,cookedToday,startCooking,undoCookUse,
     // Einkauf
     buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
