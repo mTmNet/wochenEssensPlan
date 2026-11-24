@@ -880,11 +880,17 @@ export default function App() {
       }
       const chosen=Array.isArray(o.ingredients)?o.ingredients.map(x=>String(x||"").trim()).filter(Boolean).slice(0,12):[];
       if(chosen.length) user+="\nAUSGEWÄHLT (im Graph angetippt): "+chosen.join(", ")+".\nDas Gericht MUSS alle ausgewählten Lebensmittel verwenden; sie gehören in \"genutzt\".\n";
+      // GESPROCHEN (Vorrat-Netz, Mikrofon gehalten): die Aufnahme geht in derselben Anfrage mit, die KI hört die Lebensmittel heraus
+      const audio=o.audio&&o.audio.base64?o.audio:null;
+      if(audio) user+="\nGESPROCHEN: In der beigefügten Sprachaufnahme sagt die Person, welche Lebensmittel da sind oder verwendet werden sollen. "+
+        "Das Gericht MUSS diese Lebensmittel verwenden; sie gehören in \"genutzt\", auch wenn sie oben nicht stehen. "+
+        "Schreibe die gehörten Lebensmittel zusätzlich als kurze Namen ins Feld \"gehoert\" (z. B. [\"Hähnchen\",\"Reis\"]). Hörst du keine Lebensmittel, bleibt \"gehoert\" leer und du wählst wie sonst.\n";
       if(wishes.length) user+="\nWünsche: "+wishes.join(" ")+"\n";
       const names=Object.keys(recipes).slice(0,80).map(k=>recName(recipes[k],k));
       if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";
-      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"suggest",system:buildSuggestPrompt(),messages:[{role:"user",content:user}]}));
+      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"suggest",system:buildSuggestPrompt(),messages:audio?audioMessage(audio,user):[{role:"user",content:user}]}));
       setExtracted(suggestionFromAnswer(parsed,{cuisine:o.cuisine,tags}));
+      if(audio){ const heard=spokenItems(parsed&&parsed.gehoert); showToast(heard.length?"Verstanden: "+heard.slice(0,6).join(", ")+(heard.length>6?" …":""):"Keine Lebensmittel verstanden – Vorschlag aus dem Vorrat."); }
       setImportErr("");setView("recipes");
       setTimeout(()=>{ const el=document.getElementById("ki-vorschlag"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },60);
     }catch(e){

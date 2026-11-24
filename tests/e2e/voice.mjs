@@ -23,7 +23,10 @@ const ai = async(route)=>{
   const body=JSON.parse(route.request().postData()||'{}'); aiCalls.push(body);
   const audio=(body.messages?.[0]?.content||[]).find(p=>p.type==='audio');
   if(!process.env.REAL_KI){
-    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({text: audio&&audio.source.data.length>1000 ? '{"items":["2 l Milch","1 kg Zwiebeln","Butter"]}' : '{"items":[]}' })});
+    const t = body.mode==='suggest'
+      ? JSON.stringify({name:'Hähnchen-Paprika-Pfanne',ingredients:['400 g Hähnchen','2 Paprika','200 g Reis'],steps:['Braten.'],description:'Schnell.',cuisine:'International',genutzt:['Hähnchen','Paprika','Reis'],fehlt:[],gehoert:audio?['Hähnchen','Paprika','Reis']:[]})
+      : (audio&&audio.source.data.length>1000 ? '{"items":["2 l Milch","1 kg Zwiebeln","Butter"]}' : '{"items":[]}');
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({text:t})});
   }
   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+(process.env.KI_MODEL||'gemini-2.5-flash')+':generateContent',{method:'POST',
     headers:{'Content-Type':'application/json','x-goog-api-key':process.env.GEMINI_API_KEY||'proxy'},
@@ -74,5 +77,39 @@ const ai = async(route)=>{
   console.log('  Liste:', shop.map(i=>i.text).join(' | '));
   await page.screenshot({path:OUT+'voice-03-liste.png'});
   await browser.close();
+
+  // VORRAT-NETZ: sagen, was da ist -> Gerichtvorschlag (zweite Aufnahme VOICE_WAV2, z. B. „Hähnchen, zwei Paprika und Reis“)
+  if(process.env.VOICE_WAV2){
+    const b2=await chromium.launch({args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','--use-file-for-fake-audio-capture='+process.env.VOICE_WAV2]});
+    const c2=await b2.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'de-DE',permissions:['microphone']});
+    const p2=await c2.newPage();
+    p2.on('pageerror',e=>{ fails.push('pageerror '+e.message); console.log('PAGEERROR',e.message); });
+    await c2.route(/wochenessenplan-3d0e1-default-rtdb/,mockFb); await c2.route(/\/api\/gemini/,ai); await c2.route(/fonts\.(googleapis|gstatic)\.com/,r=>r.abort());
+    await p2.goto('http://127.0.0.1:5173/'); await p2.waitForSelector('text=Kochbuch starten',{timeout:15000});
+    await p2.fill('input[placeholder="z.B. Anna"]','Test');
+    const code2=(await p2.textContent('span[style*="letter-spacing: 6px"]')).trim();
+    await p2.click('text=Kochbuch starten'); await p2.waitForSelector('button:text-is("Rezepte")',{timeout:10000});
+    const day=new Date().toISOString().slice(0,10), now=Date.now();
+    db.plans[code2].stock={items:{a1:{name:'Zwiebeln',sub:'Gemüse',date:day,src:'hand',createdAt:now},a2:{name:'Sahne',sub:'Milchprodukte',date:day,src:'hand',createdAt:now},a3:{name:'Nudeln',sub:'Trockenwaren',date:day,src:'hand',createdAt:now}}};
+    await p2.reload(); await p2.waitForSelector('button:text-is("Rezepte")',{timeout:10000});
+    await p2.click('button:text-matches("^Vorrat")'); await p2.waitForTimeout(300);
+    await p2.click('button:text-is("Netz")'); await p2.waitForTimeout(500);
+    const mic2=p2.locator('button[aria-label="Gedrückt halten und sagen, was da ist"]');
+    check(await mic2.isVisible(),'Vorrat-Netz: Knopf „Halten und sagen, was da ist“');
+    await mic2.scrollIntoViewIfNeeded(); const bb=await mic2.boundingBox(); await p2.mouse.move(bb.x+bb.width/2,bb.y+bb.height/2);
+    const n0=aiCalls.length;
+    await p2.mouse.down(); await p2.waitForTimeout(700);
+    check(await p2.isVisible('text=Ich höre zu'),'Vorrat-Netz: Aufnahme läuft');
+    await p2.screenshot({path:OUT+'voice-04-netz-aufnahme.png'});
+    await p2.waitForTimeout(+process.env.HOLD2_MS||5000); await p2.mouse.up();
+    await p2.waitForSelector('#ki-vorschlag',{timeout:60000}).catch(()=>{});
+    const call=aiCalls[n0];
+    check(aiCalls.length===n0+1 && call.mode==='suggest' && call.messages[0].content.some(p=>p.type==='audio'),'Vorrat-Netz: eine Vorschlags-Anfrage mit Aufnahme');
+    check(await p2.isVisible('#ki-vorschlag'),'Vorrat-Netz: Gerichtvorschlag erscheint unter Rezepte');
+    await p2.waitForTimeout(300);
+    console.log('  Toast:', await p2.locator('div[role="status"]').last().textContent().catch(()=>''));
+    await p2.screenshot({path:OUT+'voice-05-vorschlag.png'});
+    await b2.close();
+  }
   console.log(fails.length?'FEHLER: '+fails.length:'alles ok'); process.exit(fails.length?1:0);
 })();
