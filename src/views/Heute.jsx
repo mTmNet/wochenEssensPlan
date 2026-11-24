@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { C, SF, SER, micro as label, chip, btn } from "../theme.js";
-import { CUISINE_LIST, TAGS } from "../data.js";
+import { CUISINE_LIST, TAGS, CAT_COLORS } from "../data.js";
 import { recName, recCat, recKey, normalizeRecipe } from "../logic/recipes.js";
 import { rankSuggestions } from "../logic/suggest.js";
 import { picksForDay } from "../logic/picks.js";
@@ -87,48 +87,55 @@ export default function Heute({state,api}){
         Nichts passt zu den Filtern. Nimm einen Filter weg oder lass dir von der KI ein bekanntes Gericht nennen.
       </div>
     ):(
-      <div key={top.key} style={{background:C.white,border:"1px solid "+C.accent,marginBottom:"10px",animation:"heuteEin 0.45s ease-out"}}>
-        {/* kurzes Einblenden bei jedem Wechsel der Hauptkachel, damit sichtbar ist, dass sich oben etwas getan hat */}
+      <div key={top.key} style={{marginBottom:"22px",animation:"heuteEin 0.45s ease-out"}}>
+        {/* offen ohne Rahmen: Bild mit runden Ecken, Text direkt auf dem Hintergrund; kurzes Einblenden bei jedem Wechsel */}
         <style>{"@keyframes heuteEin{from{opacity:0.25}to{opacity:1}}"}</style>
         <div onClick={()=>open(top)} role="button" style={{cursor:"pointer"}}>
-          <DishImage name={nameOf(top)} rec={top.rec} img={images[top.key]} height={(images[top.key]||basisBild(nameOf(top)))?190:96} minimal />
+          <DishImage name={nameOf(top)} rec={top.rec} img={images[top.key]} height={(images[top.key]||basisBild(nameOf(top)))?230:110} minimal style={{borderRadius:"14px"}} />
         </div>
-        <div style={{padding:"14px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
-            <div style={{...label,marginBottom:0}}>{sel?(top.basis?"Deine Auswahl · aus der Rezept-Basis":"Deine Auswahl"):(top.basis?"Aus der Rezept-Basis":"Vorschlag")}</div>
-            {top.rec.rating>0&&<span style={{color:C.star,fontSize:"13px"}}>{"★".repeat(top.rec.rating)}</span>}
+        <div style={{padding:"14px 4px 0"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"2px",fontSize:"13px",color:C.muted}}>
+            <span>{sel?(top.basis?"Deine Auswahl · aus der Rezept-Basis":"Deine Auswahl"):(top.basis?"Vorschlag aus der Rezept-Basis":"Vorschlag für heute")}</span>
+            {top.rec.rating>0&&<span style={{color:C.star}}>{"★".repeat(top.rec.rating)}</span>}
           </div>
-          <div onClick={()=>open(top)} role="button" style={{fontFamily:SER,fontSize:"24px",color:C.text,lineHeight:1.2,marginBottom:"4px",cursor:"pointer"}}>{nameOf(top)}</div>
-          <div style={{fontSize:"13px",color:C.muted,marginBottom:top.reasons.length?"4px":"10px"}}>{meta(top)}</div>
-          {top.reasons.length>0&&<div style={{fontSize:"13px",color:C.accent,marginBottom:"10px"}}>{top.reasons.join(" · ")}</div>}
-          {hasStock&&top.core.length>0&&(
-            <div style={{display:"flex",flexWrap:"wrap",gap:"5px",marginBottom:"12px"}}>
-              {top.core.map((z,i)=>(
-                <span key={i} title={z.src?("aus Vorrat: "+z.src):"nicht im Vorrat"} style={{fontSize:"13px",padding:"4px 9px",border:"1px solid "+pColor(z.p),color:pColor(z.p)}}>{z.name}</span>
-              ))}
-            </div>
-          )}
-          <div style={{display:"flex",gap:"6px"}}>
-            <button onClick={()=>open(top)} disabled={busy===top.key} style={{...btn("primary"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"6px"}}>Zum Rezept</button>
-            {(top.rec.steps||[]).length>0&&<button onClick={()=>cook(top)} disabled={busy===top.key} style={{...btn("dark"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"6px"}}>Kochmodus</button>}
+          <div onClick={()=>open(top)} role="button" style={{fontFamily:SER,fontSize:"27px",color:C.text,lineHeight:1.15,marginBottom:"6px",cursor:"pointer"}}>{nameOf(top)}</div>
+          {(()=>{ const chips=hasStock&&top.core.length>0; const why=chips?top.reasons.filter(r=>!r.startsWith("verwendet ")):top.reasons; return(<>
+            <div style={{fontSize:"14px",color:C.muted,marginBottom:why.length?"2px":"12px"}}>{meta(top)}</div>
+            {why.length>0&&<div style={{fontSize:"14px",color:C.accent,marginBottom:"12px"}}>{why.join(" · ")}</div>}
+            {chips&&(
+              <div style={{display:"flex",flexWrap:"wrap",gap:"4px 14px",marginBottom:"16px"}}>
+                {top.core.map((z,i)=>(
+                  <span key={i} title={z.src?("aus Vorrat: "+z.src):"nicht im Vorrat"} style={{display:"inline-flex",alignItems:"center",gap:"6px",fontSize:"14px",color:C.text}}>
+                    <span style={{width:"7px",height:"7px",borderRadius:"50%",background:pColor(z.p),flexShrink:0}} />{z.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>); })()}
+          <div style={{display:"flex",gap:"8px"}}>
+            <button onClick={()=>open(top)} disabled={busy===top.key} style={{...btn("primary"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"10px"}}>Zum Rezept</button>
+            {(top.rec.steps||[]).length>0&&<button onClick={()=>cook(top)} disabled={busy===top.key} style={{...btn("dark"),flex:"1 1 50%",letterSpacing:"0.5px",borderRadius:"10px"}}>Kochmodus</button>}
           </div>
         </div>
       </div>
     )}
 
-    {/* ALTERNATIVEN */}
+    {/* ALTERNATIVEN - offen wie die Hauptkachel: kleines Bild, feine Trennlinien, kein Kasten */}
     {rest.length>0&&(
-      <div style={{background:C.white,border:"1px solid "+C.border,marginBottom:"8px"}}>
-        {rest.map((s,i)=>(
-          <button key={s.key} onClick={()=>{setSelected(s.key);window.scrollTo({top:0,behavior:"smooth"});}} title="Als Hauptvorschlag anzeigen" style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"8px 14px",minHeight:"56px",borderBottom:i<rest.length-1?"1px solid "+C.border:"none",background:"none",border:"none",borderTop:"none",borderLeft:"none",borderRight:"none",cursor:"pointer",textAlign:"left",fontFamily:SF}}>
+      <div style={{marginBottom:"8px"}}>
+        <div style={{fontSize:"13px",color:C.muted,margin:"0 4px 2px"}}>Oder lieber:</div>
+        {rest.map((s,i)=>{ const src=images[s.key]||basisBild(nameOf(s)); return(
+          <button key={s.key} onClick={()=>{setSelected(s.key);window.scrollTo({top:0,behavior:"smooth"});}} title="Als Hauptvorschlag anzeigen" style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"10px 4px",minHeight:"68px",background:"none",border:"none",borderTop:i?"1px solid "+C.border:"none",cursor:"pointer",textAlign:"left",fontFamily:SF}}>
+            <div style={{width:"52px",height:"52px",borderRadius:"10px",overflow:"hidden",flexShrink:0,background:CAT_COLORS[recCat(s.rec)]||"#4A4A5A",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:SER,fontSize:"22px",color:"rgba(255,255,255,0.9)"}}>
+              {src?<img src={src} alt="" loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />:String(nameOf(s)||"?").trim().charAt(0).toUpperCase()}
+            </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:SER,fontSize:"16px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameOf(s)}{s.basis&&<span style={{fontSize:"12px",color:C.subtle,letterSpacing:"1px",marginLeft:"8px"}}>Basis</span>}</div>
-              <div style={{fontSize:"13px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[meta(s),...s.reasons.slice(0,1)].filter(Boolean).join(" · ")}</div>
+              <div style={{fontFamily:SER,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameOf(s)}</div>
+              <div style={{fontSize:"13px",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[s.rec.minutes>0?s.rec.minutes+" Min.":"",s.rec.cuisine&&s.rec.cuisine!=="International"?s.rec.cuisine:recCat(s.rec),s.basis?"Rezept-Basis":""].filter(Boolean).join(" · ")}</div>
             </div>
             {hasStock&&<div style={{fontSize:"14px",fontWeight:"700",color:pColor(s.cov),flexShrink:0,minWidth:"42px",textAlign:"right"}}>{Math.round(s.cov*100)} %</div>}
-            <span style={{color:C.subtle,fontSize:"16px"}} aria-hidden="true">›</span>
           </button>
-        ))}
+        ); })}
       </div>
     )}
     {ranked.length>4&&(

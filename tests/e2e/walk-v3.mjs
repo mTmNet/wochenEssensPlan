@@ -134,14 +134,14 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await shot('02-rezepte-alle');
   // HEUTE: Vorschlag aus dem Kochbuch; "Neue Vorschläge" wechselt die Hauptkachel; Alternative antippen wird Hauptkachel
   await page.click('button:text-is("Heute")'); await page.waitForTimeout(400);
-  const heroName = async()=>(await page.locator('div[style*="font-size: 24px"]').first().textContent()).trim();
+  const heroName = async()=>(await page.locator('div[style*="font-size: 27px"]').first().textContent()).trim();
   const topName = await heroName();
   check(!!topName && !(await page.isVisible('text=Vorrat: ')), 'Heute: bester Vorschlag "'+topName+'"');
   await page.click('button:has-text("Neue Vorschläge")'); await page.waitForTimeout(200);
   const topAfter = await heroName();
   check(topAfter!==topName, 'Heute: "Neue Vorschläge" wechselt auch die Hauptkachel', {topName, topAfter});
-  const altName = (await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().textContent()).replace('Basis','').trim();
-  await page.locator('div[style*="font-size: 16px"][style*="white-space: nowrap"]').first().click(); await page.waitForTimeout(200);
+  const altName = (await page.locator('div[style*="font-size: 17px"][style*="white-space: nowrap"]').first().textContent()).replace('Basis','').trim();
+  await page.locator('div[style*="font-size: 17px"][style*="white-space: nowrap"]').first().click(); await page.waitForTimeout(200);
   check((await heroName())===altName, 'Heute: angetippte Alternative wird Hauptkachel', {altName, hero: await heroName()});
   await page.click('button:has-text("Schnell")'); await page.waitForTimeout(200);
   check(await page.isVisible('button[aria-pressed="true"]:has-text("Schnell")'), 'Heute: Filter Schnell aktiv');
