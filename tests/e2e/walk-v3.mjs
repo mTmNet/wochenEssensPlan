@@ -274,7 +274,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button[aria-label="Butter auffrischen: ist noch da"]'); await page.waitForTimeout(500);
   const fresh = Object.values(plan().stock.items).find(i=>i.name==='Butter');
   await openRow('Butter');
-  check(!!fresh && fresh.src==='hand' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + Hand') && (await page.locator('div:has(> div button[aria-label="Butter: Name zuordnen"]) span[data-level]').first().textContent())==='ist da', 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
+  check(!!fresh && fresh.src==='check' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + bestätigt') && (await page.locator('div:has(> div button[aria-label="Butter: Name zuordnen"]) span[data-level]').first().textContent())==='ist da', 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
   check((await page.locator('button[aria-label="Butter auffrischen: ist noch da"]').count())===0, 'Vorrat: bei "ist da" gibt es keinen Haken mehr');
   await shot('05-vorrat');
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
@@ -349,6 +349,17 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   const missingAfter = await page.locator('button[aria-label$=": ist da"]').count();
   check(missingAfter===missingBefore-1 && Object.keys(plan().stock.items).length===itemsBefore+1 && (await page.locator('button:has-text("Nur Fehlendes auf die Liste ('+missingAfter+')")').count())===1, 'Rezeptdetail: "ist da" legt die Zutat in den Vorrat, Zeile wird "da", Zaehler im geteilten Knopf sinkt', {firstMissing, missingBefore, missingAfter});
   check(await page.isVisible('button:has-text("Alles auf die Liste")'), 'Rezeptdetail: Knopf "Auf die Einkaufsliste" mit Wahl "Alles | Nur Fehlendes"');
+  // KOCHEN VERBRAUCHT: "Wurde heute gekocht" zieht Zutaten ab (Kaese/Eier zum Teil, Dauervorrat Spaghetti bleibt), Hinweis mit Rueckgaengig
+  const usedBefore = JSON.stringify(plan().stock?.used||{});
+  await page.click('button:has-text("Wurde heute gekocht")'); await page.waitForTimeout(700);
+  const usedNow = plan().stock?.used||{};
+  const ukeys = Object.keys(usedNow).filter(k=>usedNow[k].via==='koch');
+  check(ukeys.length>=1 && ukeys.every(k=>usedNow[k].d===T && typeof usedNow[k].f==='number' && usedNow[k].from) && !usedNow.pasta && await page.isVisible('text=Aus dem Vorrat:'), 'Kochen: Zutaten unter stock/used abgezogen (ohne Dauervorrat), Hinweis im Bewertungsdialog', usedNow);
+  check(!!usedNow.parmesan && usedNow.parmesan.f===0.5 && await page.isVisible('text=/Parmesan.*zum Teil/'), 'Kochen: Parmesan nur zum Teil', usedNow.parmesan);
+  await shot('06c-gekocht-vorrat');
+  await page.click('div[role="dialog"] button:text-is("Rückgängig")'); await page.waitForTimeout(500);
+  check(JSON.stringify(plan().stock?.used||{})===usedBefore && await page.isVisible('text=Vorrat bleibt unverändert.'), 'Kochen: Rueckgaengig stellt den Vorrat wieder her', plan().stock?.used);
+  await page.click('button:has-text("Überspringen")'); await page.waitForTimeout(300);
   // EINKAUF: kein Block "Wahrscheinlich da" mehr - ein Posten bleibt in der Liste, auch wenn er inzwischen im Vorrat steht
   await page.goBack(); await page.waitForTimeout(300);
   await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(400);

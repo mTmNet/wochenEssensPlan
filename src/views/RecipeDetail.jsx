@@ -24,9 +24,9 @@ const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255
 // REZEPTDETAIL - Kopfbild (DishImage), Rubrik/Kueche/Herkunft/Portionen/Zeit, Aktionen (Kochmodus, Zum Wochenplan, Auf die Einkaufsliste,
 // Bearbeiten, Als PDF), Bewertung, Notizen, Zutaten mit Portionen-Stepper, Zubereitung, Kochhistorie, Loeschen; Bearbeiten; Bewertungsdialog mit Foto
 export default function RecipeDetail({state,api}){
-  const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast,stock}=state;
+  const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast,stock,cookInfo}=state;
   const {setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,rateRecipe,noteRecipe,closeRecipe,uploadImage,resetImage,setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit,
-         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,markIngredientPresent,cookedToday,registerBackHandler,showToast}=api;
+         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,markIngredientPresent,cookedToday,undoCookUse,registerBackHandler,showToast}=api;
   const imgFileRef=useRef(null), dishPhotoRef=useRef(null);
   const name=recName(curRec,detailRecipe);
   // Portionen-Stepper: skaliert nur die Anzeige, das Rezept bleibt bei seinen servings
@@ -57,6 +57,10 @@ export default function RecipeDetail({state,api}){
     if(n){ setShopDone(true); showToast((onlyMissing?n+" fehlende Zutat"+(n===1?"":"en"):"Alle Zutaten")+" für "+portions+" Portionen auf der Einkaufsliste."); setTimeout(()=>setShopDone(false),2500); }
     else showToast(onlyMissing?"Nichts fehlt, alles ist da.":"Keine Zutaten zum Hinzufügen.");
   };
+  // Nach dem Kochen: was aus dem Vorrat genommen wurde ("Hackfleisch, Paprika aufgebraucht · Gouda zur Hälfte")
+  const used=cookInfo&&cookInfo.key===detailRecipe?cookInfo:null;
+  const usedLine=used?[used.names.filter(n=>!n.f).map(n=>n.name).join(", ")+(used.names.some(n=>!n.f)?" aufgebraucht":""),
+    used.names.filter(n=>n.f).map(n=>n.name).join(", ")+(used.names.some(n=>n.f)?" zum Teil":"")].filter(t=>t.trim()).join(" · "):"";
   const isPresent=(ing)=>{ const n=markIngredientPresent(ing); if(n) showToast("„"+n+"“ ist im Vorrat."); };
   return(
       <div style={{minHeight:"100vh",background:C.bg,fontFamily:SF}}>
@@ -65,6 +69,12 @@ export default function RecipeDetail({state,api}){
         {rateAfterCook&&(
           <Modal title={"Wie war "+name+"?"} micro="Guten Appetit!" onClose={()=>setRateAfterCook(false)}>
             <Stars value={ratingDraft} onRate={setRatingDraft} size={32} />
+            {used&&(
+              <div style={{display:"flex",alignItems:"center",gap:"8px",marginTop:"12px",padding:"8px 10px",border:"1px solid "+C.border,borderRadius:"6px",fontSize:"13px",lineHeight:"1.45",color:C.muted}}>
+                <div style={{flex:1,minWidth:0}}>{used.undone?"Vorrat bleibt unverändert.":<span><span style={{color:C.text,fontWeight:"600"}}>Aus dem Vorrat:</span> {usedLine}</span>}</div>
+                {!used.undone&&<button onClick={undoCookUse} style={{...btn("ghost"),flexShrink:0,minHeight:"36px",padding:"6px 10px",fontSize:"12px",color:C.accent,borderRadius:"6px"}}>Rückgängig</button>}
+              </div>
+            )}
             <textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notiz fürs nächste Mal... (optional)" aria-label="Notiz" style={{width:"100%",minHeight:"80px",marginTop:"14px",border:"1px solid "+C.border,padding:"10px",fontSize:"13px",outline:"none",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:"1.6",fontFamily:SF,background:C.field,borderRadius:"6px"}} />
             <input ref={dishPhotoRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={e=>{const f=e.target.files[0];if(f)uploadImage(detailRecipe,f);e.target.value="";}} />
             <button onClick={()=>dishPhotoRef.current&&dishPhotoRef.current.click()} style={{...btn("ghost"),width:"100%",marginTop:"10px",color:C.accent,borderRadius:"6px"}}>{images[detailRecipe]?"Foto vom Gericht ersetzen":"Foto vom Gericht"}</button>

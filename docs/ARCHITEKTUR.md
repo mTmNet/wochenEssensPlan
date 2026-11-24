@@ -237,3 +237,11 @@ api = {
 - `npm test` führt `node --test tests/` aus. Testfälle aus `TESTBERICHT.md` Anhang B sind Pflicht.
 - `npm run build` muss ohne Warnungen zu fehlenden Importen durchlaufen.
 - Ein Browser-Durchlauf (Playwright, simulierte Firebase/Haushaltsbuch/KI) liegt unter `tests/e2e/` und wird nach jeder größeren Änderung ausgeführt.
+
+## Vorrat schlauer (November 2026)
+
+- **Haltbarkeit je Zutat** (`src/logic/shelf.js`): rund 100 frische Zutaten mit Haltbarkeit `s` (Tage bis „zur Hälfte fraglich“), bei Bedarf eigenem Verbrauchs-Startwert `hl` (Kartoffeln, Zwiebeln, Butter, Parmesan halten länger als ihre Gruppe) und der Angabe, ob Kochen sie ganz verbraucht. Gilt nur für Frisches (Gruppenzeit bis 10 Tage); Dosen, Tiefkühlware und Trockenwaren bleiben bei der Gruppe.
+- **Wahrscheinlichkeit** = verbraucht × verdorben: `0,5^(Alter/hl) × 0,5^((Alter/s)³)` (`stockP`). `left` zählt die Tage bis unter 25 % (`goneDays`).
+- **Kochen verbraucht** (`cookUse`): „Wurde heute gekocht“ und „Fertig“ im Kochmodus schreiben `plans/<CODE>/stock/used/<goneKey> = {d, f, at, from, sub, via: "koch"}`. `f` = was noch da ist: 0 bei Fleisch, Fisch, Gemüse, Obst, Konserven, 0,5 bei Käse, Milch, Butter, Eiern, Zwiebeln usw.; zweimal halb ohne neuen Kauf ergibt ein Viertel. Grundvorrat steht nicht im Vorrat, Dauervorrat (★) bleibt. Abgezogen wird nur bei eindeutigem Treffer (gleiches Wort oder Mehrzahl, keine Zusammensetzung). Ein späterer Kauf (Datum nach `d` bzw. `createdAt` nach `at`) zählt wieder voll. Der Bewertungsdialog zeigt „Aus dem Vorrat: …“ mit „Rückgängig“ (stellt die alten Einträge wieder her). × in der Vorratsliste schreibt zusätzlich `via: "x"`, `f: 0`. Einträge älter als 90 Tage räumt der nächste Kochvorgang weg.
+- **Lernen** (`learnHalfLives`) zählt jetzt auch ohne Haushaltsbuch: Käufe aus der abgehakten Einkaufsliste (`src: "einkauf"`), Enden durch Kochen (ganz verbraucht) und ×, und „ist noch da“ (✓ und „doch da“ schreiben `src: "check"`) als „hielt mindestens so lange“. Startwert zählt wie zwei Enden.
+- Keine Regeländerung nötig: `stock/used` liegt unter `plans/<CODE>`, das nur Mitglieder lesen und schreiben.
