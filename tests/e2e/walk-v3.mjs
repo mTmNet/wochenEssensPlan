@@ -241,6 +241,7 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("So funktioniert der Vorrat")'); await page.waitForTimeout(200);
   check(await page.isVisible('text=Verblasst nach:'), 'Vorrat: Verblassen-Hinweis im Abschnitt "So funktioniert der Vorrat"');
   // Eigene Positionen: Hand, Dauervorrat (Pin), Foto, x
+  await shot('05a-vorrat-eingeklappt');
   await page.click('button:has-text("+ Hinzufügen")'); await page.waitForTimeout(200);
   await page.fill('input[placeholder="Lebensmittel, z. B. Linsen"]', 'Zwiebeln');
   await page.click('button[aria-label="Hinzufügen"]'); await page.waitForTimeout(500);
