@@ -3,7 +3,7 @@ import { C, SF, column } from "../theme.js";
 import { APP_VERSION, APP_NAME } from "../data.js";
 import PrivacyModal from "./Privacy.jsx";
 import Hilfe from "./Hilfe.jsx";
-import { getThemeMode, setThemeMode } from "../themeMode.js";
+import { getThemeMode, setThemeMode, ACCENTS, getAccent, setAccent } from "../themeMode.js";
 import Toast from "../components/Toast.jsx";
 
 // RAHMEN der Hauptansicht: Kopf (Titel, Name, Code, Menue), Sync-Leiste, Tabs; Inhalt auf dem Desktop zentriert (max. 920 px)
@@ -14,6 +14,8 @@ export default function Shell({state,api,children}){
   const [menuOpen,setMenuOpen]=useState(false);
   const [themeMode,setThemeModeState]=useState(getThemeMode);   // Design: system | light | dark
   const pickTheme=(m)=>{ setThemeMode(m); setThemeModeState(m); };
+  const [accent,setAccentState]=useState(getAccent);   // Akzentfarbe: petrol | blau | pflaume | olive | graphit
+  const pickAccent=(a)=>{ setAccent(a); setAccentState(a); };
   const [infoOpen,setInfoOpen]=useState(false);   // Datenschutz & deine Daten
   const [helpOpen,setHelpOpen]=useState(false);   // Hilfe & Fragen
   const menuRef=useRef(null);
@@ -59,6 +61,14 @@ export default function Shell({state,api,children}){
                     <div role="group" aria-label="Design" style={{display:"flex",gap:"4px"}}>
                       {[["system","System"],["light","Hell"],["dark","Dunkel"]].map(([id,lab])=>(
                         <button key={id} onClick={()=>pickTheme(id)} aria-pressed={themeMode===id} style={{flex:1,minHeight:"36px",background:themeMode===id?C.abg:C.bg,border:"1px solid "+(themeMode===id?C.accent:C.border),color:themeMode===id?C.accent:C.text,fontWeight:themeMode===id?"700":"400",cursor:"pointer",fontFamily:SF,fontSize:"13px",borderRadius:"6px"}}>{lab}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{...rowBtn,cursor:"default",flexDirection:"column",alignItems:"stretch",gap:"6px"}}>
+                    <span>Farbe <span style={{color:C.muted}}>· {(ACCENTS.find(a=>a[0]===accent)||ACCENTS[0])[1]}</span></span>
+                    <div role="group" aria-label="Farbe" style={{display:"flex",gap:"6px"}}>
+                      {ACCENTS.map(([id,lab,hell,dunkel])=>(
+                        <button key={id} onClick={()=>pickAccent(id)} aria-pressed={accent===id} aria-label={lab} title={lab} style={{flex:1,minHeight:"36px",background:document.documentElement.getAttribute("data-theme")==="dark"?dunkel:hell,border:"2px solid "+(accent===id?C.text:"transparent"),boxShadow:accent===id?"inset 0 0 0 2px "+C.white:"none",cursor:"pointer",borderRadius:"6px",padding:0}} />
                       ))}
                     </div>
                   </div>

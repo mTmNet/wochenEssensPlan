@@ -2,7 +2,7 @@
 // Firebase, Haushaltsbuch und /api/gemini sind simuliert; Screenshots landen in tests/e2e/shots/ (Praefix v3-).
 import pw from 'playwright'; const { chromium } = pw;
 import fs from 'fs';
-const OUT = new URL('./shots/', import.meta.url).pathname;
+const OUT = process.env.SHOTS || new URL('./shots/', import.meta.url).pathname;
 // Monatskuerzel koennen sich zwischen Node und Chromium unterscheiden ("Sep." / "Sept.") -> auf drei Buchstaben kuerzen
 const normLabel = (s)=>String(s||'').replace(/([A-Za-zÄÖÜäöü]+)\.?/g,(m,w)=>w.slice(0,3)).replace(/\s+/g,' ').trim();
 const log = (...a)=>console.log(...a);
@@ -88,6 +88,9 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   // Design des Geraets: SCHEME=dark node tests/e2e/walk-v3.mjs prueft das dunkle Design, sonst hell
   const SCHEME = process.env.SCHEME==='dark' ? 'dark' : 'light';
   const ctx = await browser.newContext({ viewport:{width:+process.env.W||390,height:844}, deviceScaleFactor:2, isMobile:true, hasTouch:true, locale:'de-DE', colorScheme:SCHEME });
+  // Akzentfarbe des Geraets: ACCENT=blau|pflaume|olive|graphit faehrt den Durchlauf in dieser Farbe (fuer Vorschaubilder)
+  const ACCENT = process.env.ACCENT||'';
+  if(ACCENT) await ctx.addInitScript(a=>{ try{ localStorage.setItem('wochenplan_farbe',a); }catch(e){} }, ACCENT);
   const page = await ctx.newPage();
   const consoleErrs = [];
   page.on('console', m=>{ if(m.type()==='error'||m.type()==='warning') consoleErrs.push(m.type()+': '+m.text().slice(0,300)); });
@@ -480,6 +483,13 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await shot('06c-menue');
   await page.click('div[role="menu"] button:text-is("System")'); const t3 = await themeOf();
   check(t0[0]===SCHEME && t0[1]===null && t1[0]==='dark' && t1[1]==='dark' && t2[0]==='light' && t2[1]==='light' && t3[0]===SCHEME && t3[1]===null, 'Menue: Design System/Hell/Dunkel schaltet um und wird gemerkt', {t0,t1,t2,t3});
+  // Farbe: Pflaume setzt data-accent und tauscht die Akzentfarbe, Petrol nimmt beides zurueck; danach wieder die Ausgangsfarbe
+  const accOf = ()=>page.evaluate(()=>[document.documentElement.getAttribute('data-accent'), localStorage.getItem('wochenplan_farbe'), getComputedStyle(document.documentElement).getPropertyValue('--c-accent').trim().toUpperCase()]);
+  await page.click('div[role="menu"] button[aria-label="Pflaume"]'); const a1 = await accOf();
+  await page.click('div[role="menu"] button[aria-label="Petrol"]'); const a2 = await accOf();
+  const petrolNow = SCHEME==='dark'?'#62C6C0':'#0B6466', pflaumeNow = SCHEME==='dark'?'#D99BCB':'#7A3B6E';
+  check(a1[0]==='pflaume'&&a1[1]==='pflaume'&&a1[2]===pflaumeNow && a2[0]===null&&a2[1]===null&&a2[2]===petrolNow && /Farbe/.test(menu), 'Menue: Farbe Pflaume/Petrol schaltet die Akzentfarbe um und wird gemerkt', {a1,a2});
+  if(ACCENT){ const lab={blau:'Tintenblau',pflaume:'Pflaume',olive:'Olive',graphit:'Graphit'}[ACCENT]; await page.click('div[role="menu"] button[aria-label="'+lab+'"]'); }
   check(menu.includes('Vorgemerkt')&&menu.includes('Datenschutz')&&!menu.includes('Symbolbilder')&&!menu.includes('Haushaltsbuch'), 'Menue: Vorgemerkt, Datenschutz, keine KI-Symbolbilder', menu);
   await page.click('text=Datenschutz & Daten'); await page.waitForTimeout(200);
   check(await page.isVisible('button:has-text("Plan endgültig löschen")'), 'Datenschutz-Modal offen');
