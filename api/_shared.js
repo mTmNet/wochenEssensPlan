@@ -61,7 +61,9 @@ export function makeRateLimiter({ max = 20, windowMs = 60000, now = Date.now } =
 // Tonformate, die Browser beim Aufnehmen liefern (Android/Chrome: webm, iPhone/Safari: mp4) und die die KI versteht
 const AUDIO_TYPES = ["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac"];
 export function audioMime(type) {
-  const t = String(type || "").split(";")[0].trim().toLowerCase();
+  let t = String(type || "").split(";")[0].trim().toLowerCase();
+  if (t === "video/mp4" || t === "audio/x-m4a") t = "audio/mp4";   // iPhone meldet Tonaufnahmen teils als video/mp4
+  if (t === "video/webm") t = "audio/webm";
   return AUDIO_TYPES.includes(t) ? t : "";
 }
 

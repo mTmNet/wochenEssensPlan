@@ -550,22 +550,28 @@ export default function App() {
     writePlan({["shopping/"+id]:item},"shopping");
     return id;                                                        // die Ansicht oeffnet dazu die Mengenauswahl
   };
-  // EINKAUFSLISTE PER SPRACHE: Aufnahme -> KI schreibt die Posten -> wie eingetippt in die Liste (ein PATCH fuer alle)
+  // EINKAUFSLISTE PER SPRACHE: Aufnahme -> KI schreibt die Posten; die Ansicht zeigt sie zur Bestaetigung, erst dann addShopTexts
   const dictateShopping=async(audio)=>{
     let texts;
     try{
       texts=spokenItems(parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildShoppingVoicePrompt(),messages:audioMessage(audio,"Schreibe die Einkaufsliste aus dieser Aufnahme. Antworte ausschließlich mit dem JSON-Objekt.")})));
     }catch(e){
       const msg=(e&&e.message)?e.message:"";
-      throw new Error(kiErrText(msg)||"Die KI hat die Aufnahme nicht verstanden. Bitte erneut versuchen oder eintippen.");
+      throw new Error(kiErrText(msg)||("Die KI hat die Aufnahme nicht verstanden. Bitte erneut versuchen oder eintippen."+(msg?" ("+msg.slice(0,120)+")":"")));
     }
     if(!texts.length) throw new Error("Nichts verstanden. Bitte deutlich sprechen, z. B. „zwei Liter Milch, Zwiebeln, Butter“.");
+    return texts;
+  };
+  // Bestaetigte Posten wie eingetippt in die Liste (ein PATCH fuer alle)
+  const addShopTexts=(list)=>{
+    const texts=(list||[]).map(t=>String(t||"").trim()).filter(Boolean);
+    if(!texts.length) return 0;
     let order=nextOrder(shoppingRef.current);
     const patch={}, add={};
     texts.forEach(txt=>{ const id=newShopId(), item=makeShopItem(txt,{src:"manuell",order:order++}); add[id]=item; patch["shopping/"+id]=item; });
     setShopping(prev=>({...prev,...add}));
     writePlan(patch,"shopping");
-    return texts;
+    return texts.length;
   };
 
   // REZEPTE - einzeln unter recipes/<recKey>; Felder (Bewertung, Notiz, Kochdatum) als Feld-PATCH.
@@ -1191,7 +1197,7 @@ export default function App() {
     // Vorgemerkt
     addPick,removePick,movePick,cookedToday,startCooking,undoCookUse,
     // Einkauf
-    buildShoppingFromPicks,addShopItem,dictateShopping,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
+    buildShoppingFromPicks,addShopItem,dictateShopping,addShopTexts,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
     openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
     // KI
