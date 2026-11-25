@@ -402,6 +402,13 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
     const delBtn = page.locator('button:has-text("Nur abgehakte Posten löschen")');
     await page.fill('input[aria-label="Produkt hinzufügen"]', '1 Testbrot'); await page.press('input[aria-label="Produkt hinzufügen"]', 'Enter'); await page.waitForTimeout(400);
     const [bid] = find(/^1 Testbrot$/)||[];
+    // DOPPELT EINTRAGEN: dieselbe Zutat (auch mit anderer Menge) kommt nicht noch einmal auf die Liste, es erscheint nur ein Hinweis
+    {
+      const before = Object.keys(plan().shopping).length;
+      await page.fill('input[aria-label="Produkt hinzufügen"]', '3 testbrot'); await page.press('input[aria-label="Produkt hinzufügen"]', 'Enter'); await page.waitForTimeout(400);
+      check(Object.keys(plan().shopping).length===before && await page.isVisible('text=„1 Testbrot“ steht schon auf der Liste.') && (await page.inputValue('input[aria-label="Produkt hinzufügen"]'))==='', 'Einkauf: doppelte Zutat wird nicht eingetragen, Hinweis "steht schon auf der Liste"');
+      await shot('06e2-einkauf-steht-schon-drauf');
+    }
     await page.locator('span:text-is("1 Testbrot")').locator('xpath=..').locator('button[aria-label="Abhaken"]').click(); await page.waitForTimeout(500);
     const openIds = Object.entries(plan().shopping).filter(([,v])=>!v.checked).map(([k])=>k);
     const doneN = Object.values(plan().shopping).filter(v=>v.checked).length;

@@ -38,6 +38,14 @@ export const orphanIds = (shopping) => {
 export const checkedIds = (shopping) => shoppingList(shopping).filter(x=>x.checked).map(x=>x.id);
 export const nextOrder = (shopping) => shoppingList(shopping).reduce((m,x)=>Math.max(m,x.order||0),0)+1;
 // Offene Posten der eigentlichen Liste (Grundvorrat zaehlt nicht)
+// Steht dieselbe Zutat schon offen auf der Liste? Verglichen wird nur der Name (Menge und Einheit egal, "2 l Milch" = "Milch").
+// Abgehakte Posten und der Grundvorrat-Block zaehlen nicht: dort ist erneutes Eintragen gewollt. Liefert den Posten oder null.
+const nameKey = (k) => String(k||"").split("|")[0];
+export const findOpenItem = (shopping, text) => {
+  const n=nameKey(ingKey(text));
+  if(!n) return null;
+  return shoppingList(shopping).find(x=>isListed(x)&&!x.checked&&nameKey(x.key||ingKey(x.text))===n)||null;
+};
 export const uncheckedCount = (shopping) => shoppingList(shopping).filter(x=>isListed(x)&&!x.checked).length;
 // Zellen (Altbestand), deren Zutaten schon per "+" in der Liste sind
 export const addedSlotKeys = (shopping) => {

@@ -251,3 +251,16 @@ test("checkedIds: nur abgehakte Posten, auch aus dem Grundvorrat, ohne Waisen", 
   assert.deepEqual(checkedIds(cur), ["b","c"]);
   assert.deepEqual(checkedIds(null), []);
 });
+
+import { findOpenItem } from "../src/logic/shopping.js";
+test("findOpenItem: gleiche Zutat steht schon offen auf der Liste (Menge, Schreibweise egal)", () => {
+  const cur={ a:makeShopItem("Milch",{now:1,order:1}), b:makeShopItem("Brot",{now:2,order:2,checked:true}), c:{...makeShopItem("Salz",{now:3,order:3}),basic:true}, d:makeShopItem("500 g Tomaten",{now:4,order:4}) };
+  assert.equal(findOpenItem(cur,"Milch").text, "Milch");
+  assert.equal(findOpenItem(cur,"2 l milch").text, "Milch");
+  assert.equal(findOpenItem(cur,"Tomaten").text, "500 g Tomaten");
+  assert.equal(findOpenItem(cur,"Brot"), null);      // abgehakt: darf neu auf die Liste
+  assert.equal(findOpenItem(cur,"Salz"), null);      // nur im Block "Vorrat prüfen"
+  assert.equal(findOpenItem(cur,"Butter"), null);
+  assert.equal(findOpenItem(null,"Milch"), null);
+  assert.equal(findOpenItem(cur,"  "), null);
+});
