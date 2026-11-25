@@ -209,6 +209,10 @@ test("Mengenauswahl: Posten in Name und Menge trennen und wieder zusammensetzen"
   assert.deepEqual(splitQty("Käse"), {name:"Käse",qty:""});
   assert.deepEqual(splitQty("200 g Käse"), {name:"Käse",qty:"200 g"});
   assert.deepEqual(splitQty("2 Käse"), {name:"Käse",qty:"2"});
+  assert.deepEqual(splitQty("2 x Käse"), {name:"Käse",qty:"2 x"});
+  assert.equal(joinQty("Käse","2 x"), "2 x Käse");
+  assert.equal(ingKey("2 x Käse"), ingKey("2 Käse"));      // dieselbe Zutat, mit und ohne Malzeichen
+  assert.equal(parseIng("2 Xylit").name, "Xylit");
   assert.deepEqual(splitQty("Zucchini 750 g"), {name:"Zucchini",qty:"750 g"});
   assert.deepEqual(splitQty("1,5 l Milch"), {name:"Milch",qty:"1,5 l"});
   assert.equal(joinQty("Käse","200 g"), "200 g Käse");
@@ -217,8 +221,10 @@ test("Mengenauswahl: Posten in Name und Menge trennen und wieder zusammensetzen"
   ["Käse","200 g Käse","2 Packungen Käse","1,5 l Milch","3 Dosen Tomaten","2 Gläser Pesto","1 Bund Petersilie"].forEach(t=>{ const s=splitQty(t); assert.equal(joinQty(s.name,s.qty), t); });
 });
 test("Mengenauswahl: Zahl und Einheit antippen", () => {
-  assert.equal(applyQty("",{num:"2"}), "2");
-  assert.equal(applyQty("2",{num:"3"}), "3");
+  assert.equal(applyQty("",{num:"2"}), "2 x");
+  assert.equal(applyQty("2",{num:"3"}), "3 x");
+  assert.equal(applyQty("2 x",{num:"3"}), "3 x");
+  assert.equal(applyQty("2 x",{unit:"Packung"}), "2 Packungen");
   assert.equal(applyQty("2",{unit:"Packung"}), "2 Packungen");
   assert.equal(applyQty("2 Packungen",{num:"1"}), "1 Packung");
   assert.equal(applyQty("",{unit:"g"}), "200 g");
@@ -226,9 +232,10 @@ test("Mengenauswahl: Zahl und Einheit antippen", () => {
   assert.equal(applyQty("200 g",{num:"500"}), "500 g");
   assert.equal(applyQty("500 g",{unit:"kg"}), "1 kg");
   assert.equal(applyQty("500 g",{unit:"ml"}), "500 ml");
-  assert.equal(applyQty("200 g",{unit:""}), "1");
+  assert.equal(applyQty("200 g",{unit:""}), "1 x");
   assert.equal(applyQty("3 Dosen",{unit:"Glas"}), "3 Gläser");
-  assert.equal(applyQty("Bio",{num:"2"}), "2");
+  assert.equal(applyQty("Bio",{num:"2"}), "2 x");
+  assert.deepEqual(readQty("2 x"), {num:"2",unit:""});
   assert.deepEqual(readQty("2 Pck."), {num:"2",unit:"Packung"});
   assert.equal(readQty("2 große"), null);
   assert.equal(readQty("Bio"), null);

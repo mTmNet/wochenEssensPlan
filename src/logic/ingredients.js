@@ -4,15 +4,18 @@ import { SHOP_CATS, SHOP_CAT_EXCEPTIONS, KEY_STOP, KEY_SYN, BASIC_END, BASIC_WOR
 // Zwei Formate: "Zucchini 750 g" (Name zuerst, eingebaute Rezepte)
 //          und  "750 g Zucchini" (Menge zuerst, typisch fuer KI-Import)
 export const UNIT_RE = "(?:g|kg|mg|ml|cl|dl|l|el|tl|st(?:k|ück|ueck)?\\.?|bund|prisen?|zehen?|dosen?|pck\\.?|packung(?:en)?|p(?:ä|ae)ckchen|scheiben?|becher|gl(?:a|ä)s(?:er)?|tassen?|msp\\.?|liter|gramm|kilo)";
-const ING_PRE_RE = new RegExp("^([\\d]+(?:[.,][\\d]+)?|[½¼¾⅓⅔])\\s*("+UNIT_RE+")?\\s+(.+)$","i");
+// nach der Zahl steht eine Einheit oder ein Malzeichen ("2 x Käse" = 2 Stück Käse)
+const ING_PRE_RE = new RegExp("^([\\d]+(?:[.,][\\d]+)?|[½¼¾⅓⅔])\\s*(?:("+UNIT_RE+")|([x×]))?\\s+(.+)$","i");
 export const FRACTIONS = {"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3};
 export const parseIng = (t) => {
   const s=t.trim();
-  // Format A: Menge zuerst ("750 g Zucchini", "2 Eier", "½ Bund Minze")
+  // Format A: Menge zuerst ("750 g Zucchini", "2 Eier", "2 x Käse", "½ Bund Minze")
   let m=s.match(ING_PRE_RE);
   if(m){
     const amount=FRACTIONS[m[1]]!==undefined?FRACTIONS[m[1]]:parseFloat(m[1].replace(",","."));
-    return {name:m[3].trim(),amount,unit:(m[2]||"").trim(),pre:true};
+    const r={name:m[4].trim(),amount,unit:(m[2]||"").trim(),pre:true};
+    if(m[3]) r.times=true;                                           // mit Malzeichen geschrieben
+    return r;
   }
   // Format B: Name zuerst ("Haferflocken 100g", "Eier 2 St.")
   m=s.match(/^(.*?)\s*([\d]+(?:[.,][\d]+)?)\s*(.*)$/);
