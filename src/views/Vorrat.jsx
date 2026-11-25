@@ -8,6 +8,7 @@ import { compressImageToBase64, kiErrText } from "../ai.js";
 import VorratGraph from "./VorratGraph.jsx";
 import { groupOf } from "../logic/graph.js";
 import Modal from "../components/Modal.jsx";
+import Icon from "../components/Icon.jsx";
 
 // VORRAT - eine Liste aus drei Quellen: Haushaltsbuch (automatisch), Speisekammer-Foto (KI) und Hand.
 // Ohne Haushaltsbuch kommen abgehakte Posten der Einkaufsliste dazu (Herkunft "Einkauf").
@@ -156,7 +157,7 @@ export default function Vorrat({state,api}){
         <button onClick={doAdd} disabled={!name.trim()} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",opacity:name.trim()?1:0.5,borderRadius:"6px"}}>+</button>
       </div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none",borderRadius:"6px"}} onChange={onFile} />
-      {!scan&&<button onClick={()=>fileRef.current&&fileRef.current.click()} style={{...btn("ghost"),width:"100%",color:C.accent,letterSpacing:"0.5px",borderRadius:"6px"}}>📷 Speisekammer fotografieren</button>}
+      {!scan&&<button onClick={()=>fileRef.current&&fileRef.current.click()} style={{...btn("ghost"),width:"100%",color:C.accent,letterSpacing:"0.5px",borderRadius:"6px",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"8px"}}><Icon name="cam" size={18} />Speisekammer fotografieren</button>}
       {scan&&scan.busy&&<div style={{fontSize:"13px",color:C.muted,padding:"8px 0"}}>Die KI schaut sich das Foto an…</div>}
       {scan&&!scan.busy&&scanBox}
       <div style={{fontSize:"13px",color:C.subtle,marginTop:"8px",lineHeight:"1.4"}}>Das Foto geht nur zur Erkennung an die KI und wird nicht gespeichert. Erkannte Lebensmittel gelten ab heute als gekauft.</div>
