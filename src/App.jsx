@@ -10,7 +10,7 @@ import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } fr
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
-import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, onlyNeeded, checkedIds } from "./logic/shopping.js";
+import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, onlyNeeded, checkedIds, findOpenItem } from "./logic/shopping.js";
 import { shopCat, ingKey, parseIng } from "./logic/ingredients.js";
 import { exportCookbook, cookbookFileName, parseCookbook, planImport } from "./logic/cookbook.js";
 import { CLASSICS } from "./classics.js";
@@ -541,6 +541,9 @@ export default function App() {
   const addShopItem=(text)=>{
     const txt=String(text||"").trim();
     if(!txt)return;
+    // steht die Zutat schon offen auf der Liste, kommt nur ein kurzer Hinweis (kein Doppel)
+    const dup=findOpenItem(shoppingRef.current,txt);
+    if(dup){ showToast("„"+dup.text+"“ steht schon auf der Liste."); return; }
     const id=newShopId(), item=makeShopItem(txt,{src:"manuell",order:nextOrder(shoppingRef.current)});
     setShopping(prev=>({...prev,[id]:item}));
     writePlan({["shopping/"+id]:item},"shopping");
