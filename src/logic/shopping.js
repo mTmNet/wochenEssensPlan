@@ -183,12 +183,12 @@ export const splitQty = (text) => {
   const t=String(text||"").trim();
   const p=parseIng(t);
   if(p.amount===null) return {name:t,qty:""};
-  return {name:p.name,qty:qtyNum(p.amount)+(p.unit?" "+p.unit:"")};
+  return {name:p.name,qty:qtyNum(p.amount)+(p.unit?" "+p.unit:(p.times?" x":""))};
 };
 // Name und Menge wieder zum Text des Postens zusammensetzen (Menge vorn)
 export const joinQty = (name, qty) => { const n=String(name||"").trim(), q=String(qty||"").trim(); return q&&n?q+" "+n:n; };
 
-// Einheiten zur Auswahl; "" = Stück (nur die Zahl). many = Mehrzahl, nums = Zahlen zum Antippen
+// Einheiten zur Auswahl; "" = Stück (Zahl mit "x"). many = Mehrzahl, nums = Zahlen zum Antippen
 // label ist nur die Beschriftung zum Antippen; im Text des Postens steht weiter die kurze Einheit ("200 g Käse"), die der Zutaten-Abgleich kennt
 const NUMS_ST=["1","2","3","4","5","6","8","10","12"];
 export const QTY_UNITS = {
@@ -221,7 +221,7 @@ const QTY_BY_CAT = {
 };
 export const qtyUnits = (name) => { const c=shopCat(name); const cat=SHOP_CAT_ALIAS[c]||c; return ["",...(QTY_BY_CAT[cat]||QTY_BY_CAT.Sonstiges)]; };
 // Menge lesen: {num, unit} mit unit als Schluessel aus QTY_UNITS; null, wenn die Menge freier Text ist ("Bio", "2 große")
-const UNIT_READ = {"":"","st":"","stk":"","stueck":"","g":"g","gramm":"g","kg":"kg","kilo":"kg","ml":"ml","l":"l","liter":"l","pck":"Packung","packung":"Packung","packungen":"Packung","dose":"Dose","dosen":"Dose","glas":"Glas","glaeser":"Glas","becher":"Becher","bund":"Bund","scheibe":"Scheiben","scheiben":"Scheiben"};
+const UNIT_READ = {"":"","x":"","×":"","st":"","stk":"","stueck":"","g":"g","gramm":"g","kg":"kg","kilo":"kg","ml":"ml","l":"l","liter":"l","pck":"Packung","packung":"Packung","packungen":"Packung","dose":"Dose","dosen":"Dose","glas":"Glas","glaeser":"Glas","becher":"Becher","bund":"Bund","scheibe":"Scheiben","scheiben":"Scheiben"};
 const foldU = (u) => String(u||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/\./g,"").trim();
 export const readQty = (qty) => {
   const m=String(qty||"").trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
@@ -229,7 +229,8 @@ export const readQty = (qty) => {
   const unit=UNIT_READ[foldU(m[2])];
   return unit===undefined?null:{num:m[1].replace(".",","),unit};
 };
-const fmtQty = (num, unit) => { const u=QTY_UNITS[unit]; const word=unit===""?"":(u.many&&num!=="1"?u.many:unit); return word?num+" "+word:num; };
+// Stück wird als Anzahl mit Malzeichen geschrieben ("2 x" -> "2 x Käse")
+const fmtQty = (num, unit) => { const u=QTY_UNITS[unit]; const word=unit===""?"x":(u.many&&num!=="1"?u.many:unit); return num+" "+word; };
 // Tipp auf eine Zahl: Einheit bleibt. Tipp auf eine Einheit: Zahl bleibt, wenn sie zur Einheit passt, sonst der uebliche Startwert
 export const applyQty = (qty, chip) => {
   const cur=readQty(qty)||{num:"",unit:""};
