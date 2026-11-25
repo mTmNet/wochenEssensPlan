@@ -14,6 +14,7 @@ node tests/e2e/rules-v3.mjs                       # Firebase-Regeln: recipeImage
 node tests/e2e/auth-rules.mjs                     # Anmeldung und Mitglieder-Regeln; Dev-Server dafür mit VITE_FB_API_KEY=TEST starten
 node tests/e2e/ablage.mjs                         # Dateiablage (Fotos umziehen, Rückfall ohne Speicher), Datenschutzerklärung und Impressum; mit VITE_FB_API_KEY=TEST
 node tests/e2e/race-v2.mjs                        # Zwei Geräte, Nebenläufigkeit, Beitritt mit falschem Code, Migration
+node tests/e2e/einzelexport.mjs                   # Einzelnes Rezept als Datei (Menü ⋯ der Rezept-Seite), Laden in einem neuen Plan
 ```
 
 `walk-v1.mjs` und `race-v1.mjs` beschreiben die Oberfläche von Version 1 (Selektoren, Tab-Namen, globalRecipes)

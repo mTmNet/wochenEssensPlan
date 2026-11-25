@@ -12,7 +12,7 @@ import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
 import { newShopId, makeShopItem, shoppingList, nextOrder, migrateShopping, groupShopping, addIngredients, mergeShopping, scaledIngredients, shoppingText, orphanIds, isListed, onlyNeeded, checkedIds, findOpenItem } from "./logic/shopping.js";
 import { shopCat, ingKey, parseIng } from "./logic/ingredients.js";
-import { exportCookbook, cookbookFileName, parseCookbook, planImport } from "./logic/cookbook.js";
+import { exportCookbook, cookbookFileName, recipeFileName, parseCookbook, planImport } from "./logic/cookbook.js";
 import { CLASSICS } from "./classics.js";
 import Join from "./views/Join.jsx";
 import Shell from "./views/Shell.jsx";
@@ -972,16 +972,20 @@ export default function App() {
   };
   // KOCHBUCH ALS DATEI (Stufe 4): sichern als JSON (Rezepte mit Bewertung, Notizen, Kochdaten, Fotos) und aus einer Datei laden
   const [cookbookImport,setCookbookImport]=useState(null);   // {recipes, images, exportedAt, count, added, existing, err, busy}
-  const exportCookbookFile=async()=>{
+  // key gesetzt: nur dieses eine Rezept (Rezept-Seite, Menue "⋯"); sonst das ganze Kochbuch
+  const exportCookbookFile=async(key)=>{
+    const one=typeof key==="string"&&key?key:"";
+    if(one&&!recipes[one]) return;
+    const recs=one?{[one]:recipes[one]}:recipes;
     // Fotos aus der Ablage als Data-URL in die Datei schreiben, damit sie auch ohne diesen Plan lesbar bleibt
     const imgs={};
-    for(const k of Object.keys(images||{})) if(recipes[k]){ const d=await photoAsDataUrl(images[k]); if(d) imgs[k]=d; }
-    const data=exportCookbook(recipes,imgs);
+    for(const k of Object.keys(images||{})) if(recs[k]){ const d=await photoAsDataUrl(images[k]); if(d) imgs[k]=d; }
+    const data=exportCookbook(recs,imgs);
     const blob=new Blob([JSON.stringify(data,null,1)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement("a"); a.href=url; a.download=cookbookFileName(); document.body.appendChild(a); a.click(); a.remove();
+    const a=document.createElement("a"); a.href=url; a.download=one?recipeFileName(recipes[one].name||one):cookbookFileName(); document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),4000);
-    showToast(data.count+" Rezepte als Datei gesichert.");
+    showToast(one?"Rezept als Datei gesichert.":data.count+(data.count===1?" Rezept":" Rezepte")+" als Datei gesichert.");
   };
   const loadCookbookFile=async(file)=>{
     if(!file) return;
