@@ -4,6 +4,7 @@ import { recName, recKey, normalizeRecipe } from "../logic/recipes.js";
 import { graphNodes, netLayout, netDrag, isNetManual, recipeLinks, rankForSelection } from "../logic/graph.js";
 import { goneKey } from "../logic/stock.js";
 import { useHoldToTalk } from "../voice.js";
+import Icon from "../components/Icon.jsx";
 
 // NETZ DES VORRATS - je Gruppe ein Mittelpunkt (Kreis in der Farbe der Gruppe), die Produkte haengen als lockerer Haufen daran
 // (kraeftig = wahrscheinlich da, Ring = Dauervorrat, roter Bogen = kippt bald). Keine Emojis, Farben wie am Wochenmarkt.
@@ -104,8 +105,8 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   const [spoke,setSpoke]=useState(false);
   const voice=useHoldToTalk({onAudio:async(audio)=>{ setSpoke(true); await suggestRecipe({ingredients:selNames,audio}); }});
   const micBtn=(inNet)=>(
-    <button {...voice.bind} disabled={aiBusy||voice.phase==="busy"} aria-label="Gedrückt halten und sagen, was da ist" style={{...btn(voice.phase==="rec"?"primary":"ghost"),...voice.noSelect,padding:"8px 12px",borderRadius:"6px",borderColor:C.accent,...(inNet?{minHeight:"44px",background:voice.phase==="rec"?C.accent:C.white,fontSize:"13px"}:{width:"100%",marginTop:"10px"})}}>
-      {voice.phase==="rec"?"● Ich höre zu…":voice.phase==="starting"?"Mikrofon geht an…":(voice.phase==="busy"||aiBusy)&&spoke?"KI sucht…":"🎤 Halten und sagen, was da ist"}
+    <button {...voice.bind} disabled={aiBusy||voice.phase==="busy"} aria-label="Gedrückt halten und sagen, was da ist" style={{...btn(voice.phase==="rec"?"primary":"ghost"),...voice.noSelect,padding:"8px 12px",borderRadius:"6px",borderColor:C.accent,...(inNet?{minHeight:"44px",background:voice.phase==="rec"?C.accent:C.white,fontSize:"13px"}:{width:"100%",marginTop:"10px"}),display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"8px"}}>
+      {voice.phase==="rec"?"● Ich höre zu…":voice.phase==="starting"?"Mikrofon geht an…":(voice.phase==="busy"||aiBusy)&&spoke?"KI sucht…":<><Icon name="mic" size={18} />Halten und sagen, was da ist</>}
     </button>
   );
   const voiceNote=voice.phase==="rec"
@@ -119,7 +120,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
         <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"8px"}}>Noch keine Punkte im Netz.</div>
         <div style={{fontSize:"14px",color:C.muted,lineHeight:"1.6",marginBottom:"16px"}}>Das Netz zeigt, was wahrscheinlich da ist – je Gruppe ein Mittelpunkt mit ihren Lebensmitteln. Fotografiere die Speisekammer oder trag in der Liste etwas ein.</div>
         <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-          <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px"}}>📷 Speisekammer fotografieren</button>
+          <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"8px"}}><Icon name="cam" size={18} />Speisekammer fotografieren</button>
           <button onClick={onList} style={btn("ghost")}>Zur Liste</button>
         </div>
         {micBtn(false)}
@@ -216,7 +217,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
           </div>
         </>
       ):(
-        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen oder 🎤 halten und sagen, was da ist, und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt das Netz seine Zutaten. Punkte lassen sich verschieben, ein Tipp auf den Mittelpunkt klappt die Gruppe zu.</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen oder das Mikrofon halten und sagen, was da ist, und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt das Netz seine Zutaten. Punkte lassen sich verschieben, ein Tipp auf den Mittelpunkt klappt die Gruppe zu.</div>
       )}
       {aiErr&&!recipe&&selected.size>0&&<div style={{flexBasis:"100%",fontSize:"13px",color:C.err}}>{aiErr}</div>}
     </div>
