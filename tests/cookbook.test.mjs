@@ -1,7 +1,7 @@
 // Kochbuch als Datei: Export, Pruefung einer Datei, Importplan
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exportCookbook, parseCookbook, planImport, cookbookFileName, COOKBOOK_FORMAT } from "../src/logic/cookbook.js";
+import { exportCookbook, parseCookbook, planImport, cookbookFileName, recipeFileName, COOKBOOK_FORMAT } from "../src/logic/cookbook.js";
 
 const IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 const recipes = {
@@ -52,4 +52,16 @@ test("planImport: neu, ueberspringen oder ersetzen (createdAt bleibt), Bilder nu
   assert.equal(rep.recipes["Pasta Bolognese"].rating, 3);
   assert.equal(rep.recipes["Pasta Bolognese"].createdAt, 1);
   assert.deepEqual(Object.keys(rep.images).sort(), ["Neu","Pasta Bolognese"]);
+});
+
+test("Einzelnes Rezept: Dateiname lesbar, Datei laesst sich wieder einlesen", () => {
+  assert.match(recipeFileName("Käsespätzle mit Röstzwiebeln", 1700000000000), /^rezept-kaesespaetzle-mit-roestzwiebeln-2023-11-1[45]\.json$/);
+  assert.match(recipeFileName("Crème brûlée / à la Oma!", 5), /^rezept-creme-brulee-a-la-oma-1970-01-01\.json$/);
+  assert.match(recipeFileName("???", 5), /^rezept-ohne-namen-1970-01-01\.json$/);
+  assert.ok(recipeFileName("x".repeat(200), 5).length < 80);
+  const one = exportCookbook({"Pasta Bolognese": recipes["Pasta Bolognese"]}, {"Pasta Bolognese": IMG}, {now:5});
+  assert.equal(one.count, 1);
+  const p = parseCookbook(JSON.stringify(one), 9);
+  assert.deepEqual(Object.keys(p.recipes), ["Pasta Bolognese"]);
+  assert.equal(p.images["Pasta Bolognese"], IMG);
 });

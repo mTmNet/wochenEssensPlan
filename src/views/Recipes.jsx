@@ -324,10 +324,10 @@ export default function Recipes({state,api}){
             {/* Kochbuch als Datei: sichern und laden (Plan wechseln) */}
             <div style={{marginTop:"14px",background:C.white,border:"1px solid "+C.border,padding:"12px 14px"}}>
               <div style={label}>Kochbuch als Datei</div>
-              <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Alle Rezepte mit Bewertung, Notizen, Kochdaten und Fotos in einer Datei. Damit nimmst du dein Kochbuch in einen anderen Plan mit oder hast eine Sicherung.</div>
+              <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5",marginBottom:"10px"}}>Alle Rezepte mit Bewertung, Notizen, Kochdaten und Fotos in einer Datei. Damit nimmst du dein Kochbuch in einen anderen Plan mit oder hast eine Sicherung. Ein einzelnes Rezept sicherst du auf seiner Seite unter ⋯.</div>
               <input ref={cbFileRef} type="file" accept="application/json,.json" style={{display:"none",borderRadius:"6px"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(e.target) e.target.value=""; if(f){ setCbMode("skip"); loadCookbookFile(f); } }} />
               <div style={{display:"flex",gap:"6px"}}>
-                <button onClick={exportCookbookFile} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5,borderRadius:"6px"}}>Sichern (.json)</button>
+                <button onClick={()=>exportCookbookFile()} disabled={total===0} style={{...btn("ghost"),flex:1,color:C.accent,opacity:total?1:0.5,borderRadius:"6px"}}>Sichern (.json)</button>
                 <button onClick={()=>cbFileRef.current&&cbFileRef.current.click()} style={{...btn("ghost"),flex:1,color:C.accent,borderRadius:"6px"}}>Aus Datei laden</button>
               </div>
             </div>

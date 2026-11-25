@@ -26,7 +26,7 @@ const headBtn = {background:"rgba(0,0,0,0.45)",border:"none",color:"rgba(255,255
 export default function RecipeDetail({state,api}){
   const {rateAfterCook,detailRecipe,ratingDraft,noteDraft,images,curRec,editMode,editData,household,today,toast,stock,cookInfo}=state;
   const {setRateAfterCook,setRatingDraft,setNoteDraft,saveRating,rateRecipe,noteRecipe,closeRecipe,uploadImage,resetImage,setCookStep,setCookMode,startEdit,setEditData,saveEdit,cancelEdit,
-         downloadRecipePDF,deleteRecipe,addPick,addRecipeToShopping,markIngredientPresent,cookedToday,undoCookUse,registerBackHandler,showToast}=api;
+         downloadRecipePDF,exportCookbookFile,deleteRecipe,addPick,addRecipeToShopping,markIngredientPresent,cookedToday,undoCookUse,registerBackHandler,showToast}=api;
   const imgFileRef=useRef(null), dishPhotoRef=useRef(null);
   const name=recName(curRec,detailRecipe);
   // Portionen-Stepper: skaliert nur die Anzeige, das Rezept bleibt bei seinen servings
@@ -42,7 +42,7 @@ export default function RecipeDetail({state,api}){
   const [picker,setPicker]=useState(false);
   const [shopDone,setShopDone]=useState(false);
   const [shopOpen,setShopOpen]=useState(false);   // Auswahl "alles / nur Fehlendes" erst nach Antippen
-  const [moreOpen,setMoreOpen]=useState(false);   // Menue "⋯": Bearbeiten, Als PDF, Rezept loeschen
+  const [moreOpen,setMoreOpen]=useState(false);   // Menue "⋯": Bearbeiten, Als PDF, Als Datei, Rezept loeschen
   const confirmPicker=async(day)=>{
     setPicker(false);
     await addPick(detailRecipe,day);
@@ -119,6 +119,8 @@ export default function RecipeDetail({state,api}){
                   <button role="menuitem" onClick={()=>{setMoreOpen(false);startEdit(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.text,textAlign:"left"}}>Bearbeiten</button>
                   <div style={{height:"1px",background:C.border}} />
                   <button role="menuitem" onClick={()=>{setMoreOpen(false);downloadRecipePDF(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.accent,textAlign:"left"}}>Als PDF</button>
+                  <div style={{height:"1px",background:C.border}} />
+                  <button role="menuitem" onClick={()=>{setMoreOpen(false);exportCookbookFile(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.accent,textAlign:"left"}}>Als Datei (.json)</button>
                   <div style={{height:"1px",background:C.border}} />
                   <button role="menuitem" onClick={()=>{setMoreOpen(false);deleteRecipe(detailRecipe);}} style={{...btn("ghost"),border:"none",color:C.err,textAlign:"left"}}>Rezept löschen</button>
                 </div>

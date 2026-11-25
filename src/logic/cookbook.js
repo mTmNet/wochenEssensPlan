@@ -1,4 +1,4 @@
-// KOCHBUCH ALS DATEI - Export und Import aller Rezepte (mit Bewertung, Notizen, Kochdaten, Fotos) als JSON, um Plaene zu wechseln.
+// KOCHBUCH ALS DATEI - Export und Import aller (oder einzelner) Rezepte (mit Bewertung, Notizen, Kochdaten, Fotos) als JSON, um Plaene zu wechseln.
 // Reine Funktionen: exportCookbook baut das Objekt, parseCookbook prueft eine Datei, planImport entscheidet je Rezept (neu / ersetzen / ueberspringen).
 import { APP_VERSION } from "../data.js";
 import { normalizeRecipe, normalizeRecipes, recKey, recName, isGhostRecipe } from "./recipes.js";
@@ -14,7 +14,11 @@ export const exportCookbook = (recipes, images, opts={}) => {
   Object.keys(images||{}).forEach(k=>{ if(recs[k] && isImage(images[k])) imgs[k]=images[k]; });
   return { format:COOKBOOK_FORMAT, version:1, app:APP_VERSION, exportedAt:new Date(now).toISOString(), count:Object.keys(recs).length, recipes:recs, images:imgs };
 };
-export const cookbookFileName = (now) => { const d=new Date(now===undefined?Date.now():now); const p=(n)=>String(n).padStart(2,"0"); return "wochenplan-kochbuch-"+d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+".json"; };
+const dayStamp = (now) => { const d=new Date(now===undefined?Date.now():now); const p=(n)=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); };
+export const cookbookFileName = (now) => "wochenplan-kochbuch-"+dayStamp(now)+".json";
+// Einzelnes Rezept: gleiche Datei wie das ganze Kochbuch, nur mit einem Rezept; laesst sich ueber "Aus Datei laden" wieder einlesen
+const slug = (name) => String(name||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,50).replace(/-+$/,"");
+export const recipeFileName = (name, now) => "rezept-"+(slug(name)||"ohne-namen")+"-"+dayStamp(now)+".json";
 
 // Datei pruefen: liefert {recipes, images, exportedAt, count} oder wirft einen verstaendlichen Fehler
 export const parseCookbook = (text, now) => {
