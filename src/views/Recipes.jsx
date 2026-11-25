@@ -138,7 +138,7 @@ export default function Recipes({state,api}){
                     {extracted.freeCombo
                       ? <div style={{color:C.accent}}>Die KI hat keine Herkunft oder keinen gebräuchlichen Namen genannt – das ist kein Klassiker, sondern eine freie Kombination. Bitte prüfen.</div>
                       : <div>{extracted.bekanntAls&&extracted.bekanntAls!==extracted.name?"Bekannt als „"+extracted.bekanntAls+"“ · ":""}Herkunft: {extracted.origin}</div>}
-                    {extracted.genutzt.length>0&&<div><span style={{color:C.ok}}>nutzt {extracted.genutzt.length} Zutat{extracted.genutzt.length===1?"":"en"} aus dem Haushaltsbuch</span>: {extracted.genutzt.join(", ")}</div>}
+                    {extracted.genutzt.length>0&&<div><span style={{color:C.ok}}>nutzt {extracted.genutzt.length} Zutat{extracted.genutzt.length===1?"":"en"} aus dem Vorrat</span>: {extracted.genutzt.join(", ")}</div>}
                     {extracted.fehlt.length>0&&<div><span style={{color:C.accent}}>fehlt evtl.</span>: {extracted.fehlt.join(", ")}</div>}
                   </div>
                 )}

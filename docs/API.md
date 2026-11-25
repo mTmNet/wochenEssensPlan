@@ -9,7 +9,7 @@ Die App ruft die KI nie direkt auf. Alle Anfragen gehen an die Vercel-Function `
 | Feld | Typ | Bedeutung |
 |---|---|---|
 | `system` | string, optional | Systemanweisung (Rolle, Ausgabeformat) |
-| `messages` | Array, Pflicht | Verlauf mit `role` (`user` oder `assistant`) und `content`. `content` ist ein String oder eine Liste von Teilen: `{type:"text", text}` oder `{type:"image", source:{media_type, data}}` (Base64, ohne `data:`-Präfix) |
+| `messages` | Array, Pflicht | Verlauf mit `role` (`user` oder `assistant`) und `content`. `content` ist ein String oder eine Liste von Teilen: `{type:"text", text}` oder `{type:"image", source:{media_type, data}}` (Base64, ohne `data:`-Präfix) oder `{type:"audio", source:{media_type, data}}` (Sprachaufnahme; nur `audio/webm`, `audio/mp4`, `audio/ogg`, `audio/mpeg`, `audio/wav`, `audio/aac`, sonst fällt der Teil weg) |
 | `code` | string, optional | Plan-Code, zählt im Kostendeckel nur, wenn kein gültiger Anmelde-Nachweis mitkommt (siehe unten) |
 | `mode` | `"extract"` oder `"suggest"`, optional | Steuert die Erzeugungsparameter. `extract` (Rezept abschreiben): Temperatur 0,1, maximal 6000 Ausgabe-Token. `suggest` (bekanntes Gericht vorschlagen): Temperatur 0,3, maximal 4000 Token. Fehlt der Wert oder ist er unbekannt, gilt `extract`. |
 

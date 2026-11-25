@@ -15,6 +15,7 @@ node tests/e2e/auth-rules.mjs                     # Anmeldung und Mitglieder-Reg
 node tests/e2e/ablage.mjs                         # Dateiablage (Fotos umziehen, Rückfall ohne Speicher), Datenschutzerklärung und Impressum; mit VITE_FB_API_KEY=TEST
 node tests/e2e/race-v2.mjs                        # Zwei Geräte, Nebenläufigkeit, Beitritt mit falschem Code, Migration
 node tests/e2e/einzelexport.mjs                   # Einzelnes Rezept als Datei (Menü ⋯ der Rezept-Seite), Laden in einem neuen Plan
+VOICE_WAV=… VOICE_WAV2=… node tests/e2e/voice.mjs  # Spracheingabe: Einkaufsliste und Vorrat-Netz, Mikrofon aus einer WAV-Datei; REAL_KI=1 fragt die echte KI
 ```
 
 `walk-v1.mjs` und `race-v1.mjs` beschreiben die Oberfläche von Version 1 (Selektoren, Tab-Namen, globalRecipes)
