@@ -4,7 +4,6 @@ import { BASIC_LABEL } from "../data.js";
 import { splitQty, joinQty, qtyUnits, readQty, applyQty, itemCat, QTY_UNITS } from "../logic/shopping.js";
 import { shopCat } from "../logic/ingredients.js";
 import { useHoldToTalk } from "../voice.js";
-import { addedText } from "../logic/voice.js";
 import Icon from "../components/Icon.jsx";
 
 // MENGENAUSWAHL zu einem Posten: Zahl und Einheit antippen oder frei eintippen; jede Auswahl wird sofort gespeichert.
@@ -51,9 +50,14 @@ const iconSq={minWidth:"52px",padding:"6px 12px",display:"inline-flex",alignItem
 // EINKAUFSLISTE - Eingabe oben, Fortschritt, Abteilungen (abgehakte ans Ende), Block "Vorrat pruefen", Teilen
 export default function Shopping({state,api}){
   const {shopMain,shopBasics,unchecked,shopGroups,hbLink}=state;
-  const {setView,toggleShopItem,editShopItem,removeShopItem,addShopItem,dictateShopping,clearShopping,clearCheckedShopping,forceBuy,shareShopping,showToast}=api;
+  const {setView,toggleShopItem,editShopItem,removeShopItem,addShopItem,dictateShopping,addShopTexts,clearShopping,clearCheckedShopping,forceBuy,shareShopping,showToast}=api;
   // SPRACHE: Mikrofon-Knopf gedrückt halten, sprechen, loslassen -> die KI schreibt die Posten in die Liste
-  const voice=useHoldToTalk({onAudio:async(audio)=>{ const items=await dictateShopping(audio); setQtyOpen(null); showToast(addedText(items)); }});
+  // Erkannte Posten erst zeigen (abwählen, korrigieren), dann mit „Übernehmen“ in die Liste
+  const [heard,setHeard]=useState(null);   // [{text,on}] | null
+  const voice=useHoldToTalk({onAudio:async(audio)=>{ const items=await dictateShopping(audio); setQtyOpen(null); setHeard(items.map(text=>({text,on:true}))); }});
+  const heardOn=heard?heard.filter(h=>h.on&&h.text.trim()):[];
+  const takeHeard=()=>{ const n=addShopTexts(heardOn.map(h=>h.text)); setHeard(null); if(n) showToast(n===1?"1 Posten übernommen.":n+" Posten übernommen."); };
+  const setHeardAt=(i,patch)=>setHeard(prev=>prev.map((h,j)=>j===i?{...h,...patch}:h));
   const [qtyOpen,setQtyOpen]=useState(null);   // {id, top}: Mengenauswahl offen; top = gerade eingetippt, steht unter der Eingabe
   const [customItem,setCustomItem]=useState("");
   const [showBasics,setShowBasics]=useState(false);
@@ -89,16 +93,37 @@ export default function Shopping({state,api}){
             {/* EINGABE OBEN */}
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"9px",display:"flex",gap:"8px",marginBottom:"10px"}}>
               <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." aria-label="Produkt hinzufügen" style={{...input,flex:1,width:"auto"}} />
-              <button {...voice.bind} disabled={voice.phase==="busy"} aria-label="Gedrückt halten und sprechen" title="Gedrückt halten und sprechen" style={{...btn(voice.phase==="rec"?"primary":"dark"),...voice.noSelect,...iconSq,opacity:voice.phase==="busy"?0.5:1}}><Icon name="mic" /></button>
+              <button {...voice.bind} disabled={voice.phase==="busy"} aria-label="Sprechen: gedrückt halten oder antippen" title="Sprechen: gedrückt halten oder antippen" style={{...btn(voice.phase==="rec"?"primary":"dark"),...voice.noSelect,...iconSq,opacity:voice.phase==="busy"?0.5:1}}><Icon name="mic" /></button>
               <button onClick={addCustom} aria-label="Hinzufügen" style={{...btn("dark"),...iconSq}}><Icon name="plus" /></button>
             </div>
             {voice.phase!=="idle"?(
               <div role="status" style={{background:voice.phase==="rec"?C.abg:C.white,border:"1px solid "+(voice.phase==="rec"?C.abgBorder:C.border),borderRadius:"6px",padding:"10px 12px",marginBottom:"10px",fontSize:"14px",color:C.text,lineHeight:"1.5"}}>
-                {voice.phase==="starting"?"Mikrofon geht an…":voice.phase==="rec"?<><b style={{color:C.err}}>●</b> Ich höre zu. Sag, was auf die Liste soll, dann loslassen.</>:"Die KI schreibt die Liste…"}
+                <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                  <div style={{flex:1}}>{voice.phase==="starting"?"Mikrofon geht an…":voice.phase==="rec"?<><b style={{color:C.err}}>●</b> Ich höre zu. Sag, was auf die Liste soll{voice.latched?", dann „Fertig“ tippen.":", dann loslassen."}</>:"Die KI schreibt die Liste…"}</div>
+                  {voice.phase==="rec"&&voice.latched&&<button onClick={voice.finish} style={{...btn("primary"),minHeight:"44px",padding:"8px 16px"}}>Fertig</button>}
+                </div>
                 {voice.phase==="rec"&&<div style={{fontSize:"12px",color:C.muted,marginTop:"4px"}}>Die Aufnahme geht nur zur Erkennung an die KI und wird nicht gespeichert.</div>}
               </div>
-            ):voice.hint&&(
-              <div role="status" style={{fontSize:"13px",color:C.err,margin:"-2px 2px 10px",lineHeight:"1.5"}}>{voice.hint}</div>
+            ):voice.hint?(
+              <div role="status" style={{fontSize:"13px",color:C.err,background:C.errBg,border:"1px solid "+C.errBorder,borderRadius:"6px",padding:"9px 12px",marginBottom:"10px",lineHeight:"1.5"}}>{voice.hint}</div>
+            ):null}
+            {/* ZWISCHENSCHRITT: erkannte Posten prüfen, dann übernehmen */}
+            {heard&&(
+              <div role="group" aria-label="Erkannte Posten" style={{background:C.white,border:"1px solid "+C.accent,borderRadius:"8px",padding:"12px",marginBottom:"10px"}}>
+                <div style={{fontSize:"12px",fontWeight:"700",letterSpacing:"1px",color:C.muted,textTransform:"uppercase",marginBottom:"8px"}}>Verstanden – prüfen und übernehmen</div>
+                {heard.map((h,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"4px 0"}}>
+                    <button onClick={()=>setHeardAt(i,{on:!h.on})} aria-label={h.on?"Nicht übernehmen":"Übernehmen"} aria-pressed={h.on} style={{width:"28px",height:"28px",border:"2px solid "+(h.on?C.accent:C.border),background:h.on?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",borderRadius:"4px",padding:0}}>
+                      {h.on&&<span style={{color:C.onAccent,fontSize:"15px",fontWeight:"800"}}>✓</span>}
+                    </button>
+                    <input value={h.text} onChange={e=>setHeardAt(i,{text:e.target.value})} aria-label={"Posten "+(i+1)} style={{...input,flex:1,width:"auto",opacity:h.on?1:0.5,textDecoration:h.on?"none":"line-through"}} />
+                  </div>
+                ))}
+                <div style={{display:"flex",gap:"8px",marginTop:"10px"}}>
+                  <button onClick={()=>setHeard(null)} style={{...btn("ghost"),flex:1}}>Verwerfen</button>
+                  <button onClick={takeHeard} disabled={!heardOn.length} style={{...btn("primary"),flex:2,opacity:heardOn.length?1:0.5}}>{heardOn.length===1?"1 Posten übernehmen":heardOn.length+" Posten übernehmen"}</button>
+                </div>
+              </div>
             )}
             {topItem&&panel(topItem,true)}
 

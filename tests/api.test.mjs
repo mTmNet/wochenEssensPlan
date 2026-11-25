@@ -77,6 +77,7 @@ test("toGeminiContents: Sprachaufnahme nur in bekannten Tonformaten", () => {
   ]);
   assert.equal(audioMime("Audio/MP4; codecs=mp4a.40.2"), "audio/mp4");
   assert.equal(audioMime(""), "");
+  assert.equal(audioMime("video/mp4"), "audio/mp4", "iPhone");
 });
 
 test("readErrorText: deutsche Meldungen je Status", () => {

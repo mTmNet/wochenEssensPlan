@@ -106,11 +106,11 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   const voice=useHoldToTalk({onAudio:async(audio)=>{ setSpoke(true); await suggestRecipe({ingredients:selNames,audio}); }});
   const micBtn=(inNet)=>(
     <button {...voice.bind} disabled={aiBusy||voice.phase==="busy"} aria-label="Gedrückt halten und sagen, was da ist" style={{...btn(voice.phase==="rec"?"primary":"ghost"),...voice.noSelect,padding:"8px 12px",borderRadius:"6px",borderColor:C.accent,...(inNet?{minHeight:"44px",background:voice.phase==="rec"?C.accent:C.white,fontSize:"13px"}:{width:"100%",marginTop:"10px"}),display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"8px"}}>
-      {voice.phase==="rec"?"● Ich höre zu…":voice.phase==="starting"?"Mikrofon geht an…":(voice.phase==="busy"||aiBusy)&&spoke?"KI sucht…":<><Icon name="mic" size={18} />Halten und sagen, was da ist</>}
+      {voice.phase==="rec"?(voice.latched?"● Fertig? Hier tippen":"● Ich höre zu…"):voice.phase==="starting"?"Mikrofon geht an…":(voice.phase==="busy"||aiBusy)&&spoke?"KI sucht…":<><Icon name="mic" size={18} />Halten und sagen, was da ist</>}
     </button>
   );
   const voiceNote=voice.phase==="rec"
-    ?<div role="status" style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Sag, was da ist, z. B. „Hähnchen, Paprika und Reis“, dann loslassen. Die Aufnahme geht nur zur Erkennung an die KI und wird nicht gespeichert.</div>
+    ?<div role="status" style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Sag, was da ist, z. B. „Hähnchen, Paprika und Reis“, dann {voice.latched?"den Knopf noch einmal tippen":"loslassen"}. Die Aufnahme geht nur zur Erkennung an die KI und wird nicht gespeichert.</div>
     :voice.hint?<div role="status" style={{fontSize:"13px",color:C.err,lineHeight:"1.5"}}>{voice.hint}</div>
     :aiErr&&spoke?<div role="status" style={{fontSize:"13px",color:C.err,lineHeight:"1.5"}}>{aiErr}</div>:null;
 

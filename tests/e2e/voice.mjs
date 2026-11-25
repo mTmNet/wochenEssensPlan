@@ -54,27 +54,44 @@ const ai = async(route)=>{
   await page.click('text=Kochbuch starten');
   await page.waitForSelector('button:text-is("Rezepte")',{timeout:10000});
   await page.click('button:text-matches("^Einkauf")'); await page.waitForTimeout(300);
-  const mic=page.locator('button[aria-label="Gedrückt halten und sprechen"]');
+  const mic=page.locator('button[aria-label="Sprechen: gedrückt halten oder antippen"]');
   check(await mic.isVisible(),'Einkauf: Mikrofon-Knopf neben dem Plus');
-
-  // Zu kurz gedrückt: Hinweis, kein KI-Aufruf
   const box=await mic.boundingBox(); const x=box.x+box.width/2, y=box.y+box.height/2;
-  await page.mouse.move(x,y); await page.mouse.down(); await page.waitForTimeout(150); await page.mouse.up(); await page.waitForTimeout(800);
-  check(aiCalls.length===0 && await page.isVisible('text=/Zu kurz|Jetzt den Knopf gedrückt halten/'),'Kurz getippt: Hinweis, nichts an die KI');
+  const shopNow=()=>Object.values(db.plans?.[code]?.shopping||{});
 
-  // Halten und sprechen
-  await page.mouse.down(); await page.waitForTimeout(600);
-  check(await page.isVisible('text=Ich höre zu'),'Halten: „Ich höre zu“ und Datenschutz-Hinweis');
+  // 1) GEHALTEN: Halten, sprechen, loslassen -> Zwischenschritt, nichts in der Liste; „Verwerfen“ lässt die Liste leer
+  await page.mouse.move(x,y); await page.mouse.down(); await page.waitForTimeout(600);
+  check(await page.isVisible('text=Ich höre zu') && !(await page.isVisible('button:text-is("Fertig")')),'Halten: „Ich höre zu“, kein Fertig-Knopf');
   await page.screenshot({path:OUT+'voice-01-aufnahme.png'});
   await page.waitForTimeout(+process.env.HOLD_MS||8000); await page.mouse.up();
-  await page.waitForTimeout(300);
-  await page.screenshot({path:OUT+'voice-02-ki.png'});
-  await page.waitForSelector('text=/auf der Liste:/',{timeout:30000}).catch(()=>{});
-  const shop=Object.values(db.plans?.[code]?.shopping||{});
+  await page.waitForTimeout(300); await page.screenshot({path:OUT+'voice-02-ki.png'});
+  await page.waitForSelector('text=Verstanden – prüfen und übernehmen',{timeout:30000}).catch(()=>{});
   const a=aiCalls[0]?.messages?.[0]?.content?.find(p=>p.type==='audio');
-  check(aiCalls.length===1 && a && /^audio\/(webm|mp4|ogg)/.test(a.source.media_type) && a.source.data.length>1000,'Eine KI-Anfrage mit Aufnahme',a&&{type:a.source.media_type,len:a.source.data.length});
-  check(shop.length>=3 && shop.every(i=>i.src==='manuell'),'Posten stehen in der Liste (in der Datenbank)',shop.map(i=>i.text));
+  check(aiCalls.length===1 && a && /^audio\/(webm|mp4|ogg)$/.test(a.source.media_type) && a.source.data.length>1000,'Eine KI-Anfrage mit Aufnahme (Format ohne Codec-Zusatz)',a&&{type:a.source.media_type,len:a.source.data.length});
+  const rows=await page.locator('div[aria-label="Erkannte Posten"] input').evaluateAll(els=>els.map(e=>e.value));
+  console.log('  Verstanden:', rows.join(' | '));
+  check(rows.length>=3 && shopNow().length===0,'Zwischenschritt zeigt die Posten, Liste noch leer',rows);
+  await page.screenshot({path:OUT+'voice-03-pruefen.png'});
+  await page.click('button:text-is("Verwerfen")'); await page.waitForTimeout(300);
+  check(shopNow().length===0 && !(await page.isVisible('text=Verstanden – prüfen')),'Verwerfen: nichts übernommen');
+
+  // 2) GETIPPT: kurz tippen, sprechen, „Fertig“ -> Zwischenschritt; einen Posten abwählen, einen ändern, übernehmen
+  await page.mouse.move(x,y); await page.mouse.down(); await page.waitForTimeout(120); await page.mouse.up();
+  await page.waitForSelector('button:text-is("Fertig")',{timeout:5000}).catch(()=>{});
+  check(await page.isVisible('button:text-is("Fertig")'),'Antippen: Aufnahme läuft weiter, Fertig-Knopf da');
+  await page.screenshot({path:OUT+'voice-04-tippen.png'});
+  await page.waitForTimeout(+process.env.HOLD_MS||8000);
+  await page.click('button:text-is("Fertig")');
+  await page.waitForSelector('text=Verstanden – prüfen und übernehmen',{timeout:30000}).catch(()=>{});
+  const inputs=page.locator('div[aria-label="Erkannte Posten"] input');
+  const n=await inputs.count();
+  check(aiCalls.length===2 && n>=3,'Tippen + Fertig: zweite KI-Anfrage, Posten zum Prüfen',n);
+  await page.locator('div[aria-label="Erkannte Posten"] button[aria-pressed]').last().click();
+  await inputs.first().fill('3 l Milch');
+  await page.click('div[aria-label="Erkannte Posten"] button:text-matches("übernehmen$")'); await page.waitForTimeout(400);
+  const shop=shopNow();
   console.log('  Liste:', shop.map(i=>i.text).join(' | '));
+  check(shop.length===n-1 && shop.some(i=>i.text==='3 l Milch') && shop.every(i=>i.src==='manuell'),'Übernehmen: abgewählter Posten fehlt, Änderung übernommen',shop.map(i=>i.text));
   await page.screenshot({path:OUT+'voice-03-liste.png'});
   await browser.close();
 

@@ -10,6 +10,16 @@ export const pickAudioType = (isSupported) => {
   return "";
 };
 
+// Tonformat der fertigen Aufnahme für die KI: manche Browser (iPhone) melden "video/mp4" oder gar nichts, obwohl nur Ton drin ist.
+// Ergebnis ohne Codec-Zusatz, immer "audio/…"; ohne Angabe gilt das beim Start gewählte Format, sonst mp4 (iPhone) bzw. webm.
+export const audioTypeOf = (blobType, picked, isApple = false) => {
+  const t = String(blobType || picked || "").split(";")[0].trim().toLowerCase();
+  if (!t) return isApple ? "audio/mp4" : "audio/webm";
+  if (t === "video/mp4" || t === "audio/x-m4a" || t === "audio/m4a") return "audio/mp4";
+  if (t === "video/webm") return "audio/webm";
+  return t;
+};
+
 // Posten aus der KI-Antwort {items:[...]}: Text kürzen, Leeres und Doppeltes (gleich geschrieben) weglassen, höchstens 40
 export const spokenItems = (parsed) => {
   const list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : []);
