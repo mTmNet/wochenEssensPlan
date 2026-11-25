@@ -8,7 +8,7 @@ const PRIVACY = [
   ["Kurz gesagt", "Kein Konto, keine Werbung, keine Cookies, kein Tracking durch Dritte. Dein Gerät bekommt beim ersten Öffnen eine zufällige Nutzer-ID ohne Namen oder E-Mail-Adresse; nur eingetragene Mitglieder eines Plans sehen seine Daten."],
   ["Was gespeichert wird", "Plan-Code, Vornamen der Mitglieder, Wochenpläne, Einkaufsliste, Rezepte mit Bewertung, Notizen, Kochhistorie und eigene Rezeptfotos. Vom verknüpften Haushaltsbuch liest das Kochbuch nur einen Auszug der Lebensmittel-Einkäufe ohne Beträge."],
   ["Wo", "Bei Google (Firebase) im Rechenzentrum in Belgien, Rezeptfotos als Dateien im Dateispeicher. Der Code ist der Schlüssel zum Beitreten: nur an Menschen weitergeben, die mitplanen sollen."],
-  ["KI-Funktionen", "Nur beim Rezeptimport (Text oder Foto) und bei „Bekanntes Gericht finden“ gehen Text, Foto oder die Liste der vorhandenen Lebensmittel an eine KI-Schnittstelle von Google, auch außerhalb der EU. Dein Name und dein Code gehen nicht mit."],
+  ["KI-Funktionen", "Nur beim Rezeptimport (Text oder Foto), bei „Bekanntes Gericht finden“ und wenn du 🎤 gedrückt hältst (Einkaufsliste, Vorrat) gehen Text, Foto, Sprachaufnahme oder die Liste der vorhandenen Lebensmittel an eine KI-Schnittstelle von Google, auch außerhalb der EU. Sprachaufnahmen werden nicht gespeichert. Dein Name und dein Code gehen nicht mit."],
   ["Deine Rechte", "Das Kochbuch kannst du als PDF speichern. „Plan endgültig löschen“ entfernt alle Daten dieses Plans samt Fotos. Alles Weitere, auch Kontakt und Fristen, steht in der Datenschutzerklärung."],
 ];
 

@@ -3,6 +3,8 @@ import { C, SF, SER, btn, iconBtn, input, chip } from "../theme.js";
 import { BASIC_LABEL } from "../data.js";
 import { splitQty, joinQty, qtyUnits, readQty, applyQty, itemCat, QTY_UNITS } from "../logic/shopping.js";
 import { shopCat } from "../logic/ingredients.js";
+import { useHoldToTalk } from "../voice.js";
+import { addedText } from "../logic/voice.js";
 
 // MENGENAUSWAHL zu einem Posten: Zahl und Einheit antippen oder frei eintippen; jede Auswahl wird sofort gespeichert.
 // Die Menge steht vorn im Text des Postens ("200 g Käse"), wie bei den Zutaten aus Rezepten.
@@ -45,7 +47,9 @@ function QtyPanel({item,onSave,onClose,framed}){
 // EINKAUFSLISTE - Eingabe oben, Fortschritt, Abteilungen (abgehakte ans Ende), Block "Vorrat pruefen", Teilen
 export default function Shopping({state,api}){
   const {shopMain,shopBasics,unchecked,shopGroups,hbLink}=state;
-  const {setView,toggleShopItem,editShopItem,removeShopItem,addShopItem,clearShopping,clearCheckedShopping,forceBuy,shareShopping}=api;
+  const {setView,toggleShopItem,editShopItem,removeShopItem,addShopItem,dictateShopping,clearShopping,clearCheckedShopping,forceBuy,shareShopping,showToast}=api;
+  // SPRACHE: Mikrofon-Knopf gedrückt halten, sprechen, loslassen -> die KI schreibt die Posten in die Liste
+  const voice=useHoldToTalk({onAudio:async(audio)=>{ const items=await dictateShopping(audio); setQtyOpen(null); showToast(addedText(items)); }});
   const [qtyOpen,setQtyOpen]=useState(null);   // {id, top}: Mengenauswahl offen; top = gerade eingetippt, steht unter der Eingabe
   const [customItem,setCustomItem]=useState("");
   const [showBasics,setShowBasics]=useState(false);
@@ -81,14 +85,23 @@ export default function Shopping({state,api}){
             {/* EINGABE OBEN */}
             <div style={{background:C.white,border:"1px solid "+C.border,padding:"9px",display:"flex",gap:"8px",marginBottom:"10px"}}>
               <input value={customItem} onChange={e=>setCustomItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Produkt hinzufügen..." aria-label="Produkt hinzufügen" style={{...input,flex:1,width:"auto"}} />
+              <button {...voice.bind} disabled={voice.phase==="busy"} aria-label="Gedrückt halten und sprechen" title="Gedrückt halten und sprechen" style={{...btn(voice.phase==="rec"?"primary":"ghost"),...voice.noSelect,minWidth:"48px",fontSize:"20px",padding:"6px 12px",borderRadius:"6px",borderColor:C.accent,opacity:voice.phase==="busy"?0.5:1}}>🎤</button>
               <button onClick={addCustom} aria-label="Hinzufügen" style={{...btn("dark"),minWidth:"48px",fontSize:"20px",padding:"6px 14px",borderRadius:"6px"}}>+</button>
             </div>
+            {voice.phase!=="idle"?(
+              <div role="status" style={{background:voice.phase==="rec"?C.abg:C.white,border:"1px solid "+(voice.phase==="rec"?C.abgBorder:C.border),borderRadius:"6px",padding:"10px 12px",marginBottom:"10px",fontSize:"14px",color:C.text,lineHeight:"1.5"}}>
+                {voice.phase==="starting"?"Mikrofon geht an…":voice.phase==="rec"?<><b style={{color:C.err}}>●</b> Ich höre zu. Sag, was auf die Liste soll, dann loslassen.</>:"Die KI schreibt die Liste…"}
+                {voice.phase==="rec"&&<div style={{fontSize:"12px",color:C.muted,marginTop:"4px"}}>Die Aufnahme geht nur zur Erkennung an die KI und wird nicht gespeichert.</div>}
+              </div>
+            ):voice.hint&&(
+              <div role="status" style={{fontSize:"13px",color:C.err,margin:"-2px 2px 10px",lineHeight:"1.5"}}>{voice.hint}</div>
+            )}
             {topItem&&panel(topItem,true)}
 
             {total===0&&shopBasics.length===0?(
               <div style={{textAlign:"center",padding:"48px 24px",color:C.muted}}>
                 <div style={{fontFamily:SER,fontSize:"22px",color:C.text,marginBottom:"10px"}}>Die Einkaufsliste ist leer.</div>
-                <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Trag oben etwas ein, erzeuge die Liste aus dem Vorgemerkten oder füge an einem Rezept „Auf die Einkaufsliste“ die Zutaten hinzu.</div>
+                <div style={{fontSize:"14px",marginBottom:"20px",lineHeight:"1.6"}}>Trag oben etwas ein (oder halte 🎤 gedrückt und sprich), erzeuge die Liste aus dem Vorgemerkten oder füge an einem Rezept „Auf die Einkaufsliste“ die Zutaten hinzu.</div>
                 <button onClick={()=>setView("plan")} style={btn("dark")}>Zum Vorgemerkten</button>
               </div>
             ):(

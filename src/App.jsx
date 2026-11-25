@@ -3,7 +3,8 @@ import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember, activity, storePhoto, removePhoto, photoAsDataUrl, ablage } from "./fb.js";
 import { isDataUrl } from "./ablage.js";
-import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, buildShoppingVoicePrompt, audioMessage, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { spokenItems } from "./logic/voice.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem, cookUse, goneUse, staleUsed } from "./logic/stock.js";
 import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } from "./logic/alias.js";
@@ -549,6 +550,23 @@ export default function App() {
     writePlan({["shopping/"+id]:item},"shopping");
     return id;                                                        // die Ansicht oeffnet dazu die Mengenauswahl
   };
+  // EINKAUFSLISTE PER SPRACHE: Aufnahme -> KI schreibt die Posten -> wie eingetippt in die Liste (ein PATCH fuer alle)
+  const dictateShopping=async(audio)=>{
+    let texts;
+    try{
+      texts=spokenItems(parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildShoppingVoicePrompt(),messages:audioMessage(audio,"Schreibe die Einkaufsliste aus dieser Aufnahme. Antworte ausschließlich mit dem JSON-Objekt.")})));
+    }catch(e){
+      const msg=(e&&e.message)?e.message:"";
+      throw new Error(kiErrText(msg)||"Die KI hat die Aufnahme nicht verstanden. Bitte erneut versuchen oder eintippen.");
+    }
+    if(!texts.length) throw new Error("Nichts verstanden. Bitte deutlich sprechen, z. B. „zwei Liter Milch, Zwiebeln, Butter“.");
+    let order=nextOrder(shoppingRef.current);
+    const patch={}, add={};
+    texts.forEach(txt=>{ const id=newShopId(), item=makeShopItem(txt,{src:"manuell",order:order++}); add[id]=item; patch["shopping/"+id]=item; });
+    setShopping(prev=>({...prev,...add}));
+    writePlan(patch,"shopping");
+    return texts;
+  };
 
   // REZEPTE - einzeln unter recipes/<recKey>; Felder (Bewertung, Notiz, Kochdatum) als Feld-PATCH.
   // Vor dem Feld-PATCH wird geprueft, ob das Rezept auf dem Server noch existiert - sonst entstuende ein Geister-Rezept.
@@ -865,11 +883,17 @@ export default function App() {
       }
       const chosen=Array.isArray(o.ingredients)?o.ingredients.map(x=>String(x||"").trim()).filter(Boolean).slice(0,12):[];
       if(chosen.length) user+="\nAUSGEWÄHLT (im Graph angetippt): "+chosen.join(", ")+".\nDas Gericht MUSS alle ausgewählten Lebensmittel verwenden; sie gehören in \"genutzt\".\n";
+      // GESPROCHEN (Vorrat-Netz, Mikrofon gehalten): die Aufnahme geht in derselben Anfrage mit, die KI hört die Lebensmittel heraus
+      const audio=o.audio&&o.audio.base64?o.audio:null;
+      if(audio) user+="\nGESPROCHEN: In der beigefügten Sprachaufnahme sagt die Person, welche Lebensmittel da sind oder verwendet werden sollen. "+
+        "Das Gericht MUSS diese Lebensmittel verwenden; sie gehören in \"genutzt\", auch wenn sie oben nicht stehen. "+
+        "Schreibe die gehörten Lebensmittel zusätzlich als kurze Namen ins Feld \"gehoert\" (z. B. [\"Hähnchen\",\"Reis\"]). Hörst du keine Lebensmittel, bleibt \"gehoert\" leer und du wählst wie sonst.\n";
       if(wishes.length) user+="\nWünsche: "+wishes.join(" ")+"\n";
       const names=Object.keys(recipes).slice(0,80).map(k=>recName(recipes[k],k));
       if(names.length) user+="\nBitte nicht eines dieser vorhandenen Rezepte wiederholen: "+names.join(", ")+".";
-      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"suggest",system:buildSuggestPrompt(),messages:[{role:"user",content:user}]}));
+      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"suggest",system:buildSuggestPrompt(),messages:audio?audioMessage(audio,user):[{role:"user",content:user}]}));
       setExtracted(suggestionFromAnswer(parsed,{cuisine:o.cuisine,tags}));
+      if(audio){ const heard=spokenItems(parsed&&parsed.gehoert); showToast(heard.length?"Verstanden: "+heard.slice(0,6).join(", ")+(heard.length>6?" …":""):"Keine Lebensmittel verstanden – Vorschlag aus dem Vorrat."); }
       setImportErr("");setView("recipes");
       setTimeout(()=>{ const el=document.getElementById("ki-vorschlag"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },60);
     }catch(e){
@@ -1163,7 +1187,7 @@ export default function App() {
     // Vorgemerkt
     addPick,removePick,movePick,cookedToday,startCooking,undoCookUse,
     // Einkauf
-    buildShoppingFromPicks,addShopItem,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
+    buildShoppingFromPicks,addShopItem,dictateShopping,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
     openRecipe,saveRecipe,deleteRecipe,rateRecipe,noteRecipe,markCooked,uploadImage,resetImage,adoptClassic,adoptStarters,
     // KI

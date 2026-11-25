@@ -1,7 +1,7 @@
 // Hilfsfunktionen der KI-Function: Erzeugungsparameter, Herkunftsprüfung, Drossel, Nachrichtenumwandlung
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pickGeneration, originAllowed, makeRateLimiter, toGeminiContents, readErrorText } from "../api/_shared.js";
+import { pickGeneration, originAllowed, makeRateLimiter, toGeminiContents, readErrorText, audioMime } from "../api/_shared.js";
 
 test("pickGeneration: extract, suggest, unbekannt, fehlend", () => {
   assert.deepEqual(pickGeneration("extract"), { temperature: 0.1, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } });
@@ -62,6 +62,21 @@ test("toGeminiContents: Text und Bild", () => {
     { role: "user", parts: [{ text: "Was ist das?" }, { inlineData: { mimeType: "image/png", data: "QUJD" } }] },
   ]);
   assert.deepEqual(toGeminiContents(undefined), []);
+});
+
+test("toGeminiContents: Sprachaufnahme nur in bekannten Tonformaten", () => {
+  const out = toGeminiContents([{ role: "user", content: [
+    { type: "audio", source: { media_type: "audio/webm;codecs=opus", data: "QUJD" } },
+    { type: "audio", source: { media_type: "audio/mp4", data: "REVG" } },
+    { type: "audio", source: { media_type: "text/html", data: "R0hJ" } },
+  ] }]);
+  assert.deepEqual(out[0].parts, [
+    { inlineData: { mimeType: "audio/webm", data: "QUJD" } },
+    { inlineData: { mimeType: "audio/mp4", data: "REVG" } },
+    { text: "" },
+  ]);
+  assert.equal(audioMime("Audio/MP4; codecs=mp4a.40.2"), "audio/mp4");
+  assert.equal(audioMime(""), "");
 });
 
 test("readErrorText: deutsche Meldungen je Status", () => {

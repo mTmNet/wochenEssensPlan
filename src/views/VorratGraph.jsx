@@ -3,6 +3,7 @@ import { C, SF, SER, micro as label, btn, chip, groupTint } from "../theme.js";
 import { recName, recKey, normalizeRecipe } from "../logic/recipes.js";
 import { graphNodes, netLayout, netDrag, isNetManual, recipeLinks, rankForSelection } from "../logic/graph.js";
 import { goneKey } from "../logic/stock.js";
+import { useHoldToTalk } from "../voice.js";
 
 // NETZ DES VORRATS - je Gruppe ein Mittelpunkt (Kreis in der Farbe der Gruppe), die Produkte haengen als lockerer Haufen daran
 // (kraeftig = wahrscheinlich da, Ring = Dauervorrat, roter Bogen = kippt bald). Keine Emojis, Farben wie am Wochenmarkt.
@@ -99,6 +100,18 @@ export default function VorratGraph({state,api,onPhoto,onList}){
   const cook=async(e)=>{ const k=await ensureKey(e); if(k) startCooking(k); };
   const selNames=[...selected].map(k=>{ const n=nodes.find(x=>x.key===k); return n?n.name:k; });
   const cookFrom=()=>suggestRecipe({ingredients:selNames});
+  // SPRECHEN statt antippen: Mikrofon halten, sagen, was da ist -> die KI sucht daraus ein Gericht (mit der Auswahl, falls eine da ist)
+  const [spoke,setSpoke]=useState(false);
+  const voice=useHoldToTalk({onAudio:async(audio)=>{ setSpoke(true); await suggestRecipe({ingredients:selNames,audio}); }});
+  const micBtn=(inNet)=>(
+    <button {...voice.bind} disabled={aiBusy||voice.phase==="busy"} aria-label="Gedrückt halten und sagen, was da ist" style={{...btn(voice.phase==="rec"?"primary":"ghost"),...voice.noSelect,padding:"8px 12px",borderRadius:"6px",borderColor:C.accent,...(inNet?{minHeight:"44px",background:voice.phase==="rec"?C.accent:C.white,fontSize:"13px"}:{width:"100%",marginTop:"10px"})}}>
+      {voice.phase==="rec"?"● Ich höre zu…":voice.phase==="starting"?"Mikrofon geht an…":(voice.phase==="busy"||aiBusy)&&spoke?"KI sucht…":"🎤 Halten und sagen, was da ist"}
+    </button>
+  );
+  const voiceNote=voice.phase==="rec"
+    ?<div role="status" style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Sag, was da ist, z. B. „Hähnchen, Paprika und Reis“, dann loslassen. Die Aufnahme geht nur zur Erkennung an die KI und wird nicht gespeichert.</div>
+    :voice.hint?<div role="status" style={{fontSize:"13px",color:C.err,lineHeight:"1.5"}}>{voice.hint}</div>
+    :aiErr&&spoke?<div role="status" style={{fontSize:"13px",color:C.err,lineHeight:"1.5"}}>{aiErr}</div>:null;
 
   if(!nodes.length){
     return(
@@ -109,6 +122,8 @@ export default function VorratGraph({state,api,onPhoto,onList}){
           <button onClick={onPhoto} style={{...btn("primary"),letterSpacing:"0.5px",borderRadius:"6px"}}>📷 Speisekammer fotografieren</button>
           <button onClick={onList} style={btn("ghost")}>Zur Liste</button>
         </div>
+        {micBtn(false)}
+        {voiceNote&&<div style={{marginTop:"8px"}}>{voiceNote}</div>}
       </div>
     );
   }
@@ -162,6 +177,11 @@ export default function VorratGraph({state,api,onPhoto,onList}){
         </g>
       </svg>
       {/* Steuerung */}
+      {/* SPRECHEN: oben links im Netz, ohne Scrollen erreichbar; Hinweise darunter */}
+      {!recipe&&!selected.size&&<div style={{position:"absolute",top:"8px",left:"8px",right:"60px",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:"6px",pointerEvents:"none"}}>
+        <div style={{pointerEvents:"auto"}}>{micBtn(true)}</div>
+        {voiceNote&&<div style={{pointerEvents:"auto",background:C.white,border:"1px solid "+C.border,borderRadius:"6px",padding:"8px 10px",maxWidth:"320px"}}>{voiceNote}</div>}
+      </div>}
       <div style={{position:"absolute",top:"8px",right:"8px",display:"flex",flexDirection:"column",gap:"4px"}}>
         {[["+","Vergrößern",()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1.3)],["−","Verkleinern",()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1/1.3)],["⊡","Einpassen",()=>setTf({x:0,y:0,k:1})],...(manualCount>0?[["↺","Anordnung zurücksetzen",()=>resetStockLayout()]]:[])].map(([t,a,f])=>(
           <button key={a} onClick={f} aria-label={a} title={a} style={{width:"36px",height:"36px",background:C.white,border:"1px solid "+C.border,color:C.accent,fontSize:"18px",cursor:"pointer",fontFamily:SF,padding:0,borderRadius:"6px"}}>{t}</button>
@@ -196,7 +216,7 @@ export default function VorratGraph({state,api,onPhoto,onList}){
           </div>
         </>
       ):(
-        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt das Netz seine Zutaten. Punkte lassen sich verschieben, ein Tipp auf den Mittelpunkt klappt die Gruppe zu.</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:"1.5"}}>Punkte antippen oder 🎤 halten und sagen, was da ist, und <b style={{color:C.text}}>daraus kochen</b> lassen – oder unten ein Rezept antippen, dann zeigt das Netz seine Zutaten. Punkte lassen sich verschieben, ein Tipp auf den Mittelpunkt klappt die Gruppe zu.</div>
       )}
       {aiErr&&!recipe&&selected.size>0&&<div style={{flexBasis:"100%",fontSize:"13px",color:C.err}}>{aiErr}</div>}
     </div>
