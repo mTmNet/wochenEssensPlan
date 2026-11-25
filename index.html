@@ -41,19 +41,31 @@
         --c-shade: #171512;
         color-scheme: dark;
       }
+      /* AKZENTFARBE (Menü ⋯ → Farbe). Petrol ist der Grundzustand oben; data-accent am <html> tauscht nur die Akzent-Werte.
+         Die Dunkel-Zeile gilt auch für einzelne Ansichten, die selbst data-theme="dark" tragen. */
+      [data-accent="blau"] { --c-accent: #2F4FA0; --c-abg: #E3E9F7; --c-abg-border: #BFCBEA; --c-on-accent: #FFFFFF; --c-strong: #E3E9F7; --c-on-strong: #2F4FA0; }
+      [data-accent="blau"][data-theme="dark"], [data-accent="blau"] [data-theme="dark"] { --c-accent: #8FA8F0; --c-abg: #26304A; --c-abg-border: #364467; --c-on-accent: #0D1630; --c-strong: #26304A; --c-on-strong: #8FA8F0; }
+      [data-accent="pflaume"] { --c-accent: #7A3B6E; --c-abg: #F2E4EE; --c-abg-border: #DDC0D5; --c-on-accent: #FFFFFF; --c-strong: #F2E4EE; --c-on-strong: #7A3B6E; }
+      [data-accent="pflaume"][data-theme="dark"], [data-accent="pflaume"] [data-theme="dark"] { --c-accent: #D99BCB; --c-abg: #3E2838; --c-abg-border: #5A3A51; --c-on-accent: #2A0F24; --c-strong: #3E2838; --c-on-strong: #D99BCB; }
+      [data-accent="olive"] { --c-accent: #566114; --c-abg: #ECEFD9; --c-abg-border: #D2D8AE; --c-on-accent: #FFFFFF; --c-strong: #ECEFD9; --c-on-strong: #566114; }
+      [data-accent="olive"][data-theme="dark"], [data-accent="olive"] [data-theme="dark"] { --c-accent: #B9C66A; --c-abg: #33361F; --c-abg-border: #4A4E2C; --c-on-accent: #1C1F05; --c-strong: #33361F; --c-on-strong: #B9C66A; }
+      [data-accent="graphit"] { --c-accent: #3A3631; --c-abg: #ECE8E2; --c-abg-border: #D3CDC4; --c-on-accent: #FFFFFF; --c-strong: #ECE8E2; --c-on-strong: #3A3631; }
+      [data-accent="graphit"][data-theme="dark"], [data-accent="graphit"] [data-theme="dark"] { --c-accent: #D8D2C9; --c-abg: #3A3632; --c-abg-border: #524C46; --c-on-accent: #1A1714; --c-strong: #3A3632; --c-on-strong: #D8D2C9; }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { background: var(--c-dark); overscroll-behavior: none; }
       body { font-family: system-ui, -apple-system, sans-serif; }
       #root { min-height: 100vh; background: var(--c-dark); }
     </style>
     <script>
-      // Design (System, Hell, Dunkel) vor dem ersten Bild setzen, damit nichts aufblitzt. Gleiche Logik wie src/themeMode.js.
+      // Design (System, Hell, Dunkel) und Akzentfarbe vor dem ersten Bild setzen, damit nichts aufblitzt. Gleiche Logik wie src/themeMode.js.
       (function(){
         var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
         function apply(){
           var m = "system"; try { m = localStorage.getItem("wochenplan_theme") || "system"; } catch(e) {}
           var dark = m === "dark" || (m !== "light" && mq && mq.matches);
           document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+          var a = ""; try { a = localStorage.getItem("wochenplan_farbe") || ""; } catch(e) {}
+          if (/^(blau|pflaume|olive|graphit)$/.test(a)) document.documentElement.setAttribute("data-accent", a); else document.documentElement.removeAttribute("data-accent");
           var t = document.querySelector('meta[name="theme-color"]'); if (t) t.setAttribute("content", dark ? "#171512" : "#FFFEFB");
         }
         apply();
