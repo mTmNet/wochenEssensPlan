@@ -271,3 +271,14 @@ test("findOpenItem: gleiche Zutat steht schon offen auf der Liste (Menge, Schrei
   assert.equal(findOpenItem(null,"Milch"), null);
   assert.equal(findOpenItem(cur,"  "), null);
 });
+test("findOpenItem: andere Sorte ist kein Doppel (weiße Schokolade neben Schokolade)", () => {
+  const cur={ a:makeShopItem("Schokolade",{now:1,order:1}), b:makeShopItem("Zwiebeln",{now:2,order:2}), c:makeShopItem("2 x Käse",{now:3,order:3}) };
+  assert.equal(findOpenItem(cur,"weiße Schokolade"), null);
+  assert.equal(findOpenItem(cur,"rote Zwiebeln"), null);
+  assert.equal(findOpenItem(cur,"Bergkäse"), null);
+  assert.equal(findOpenItem(cur,"schokolade").text, "Schokolade");
+  assert.equal(findOpenItem(cur,"Kaese").text, "2 x Käse");
+  const cur2={ a:makeShopItem("weiße Schokolade",{now:1,order:1}) };
+  assert.equal(findOpenItem(cur2,"Schokolade"), null);
+  assert.equal(findOpenItem(cur2,"Weisse Schokolade").text, "weiße Schokolade");
+});
