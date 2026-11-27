@@ -56,7 +56,6 @@ export default function App() {
   const [lastSync,setLastSync]       = useState(null);
   const [syncOk,setSyncOk]           = useState(true);
   const [syncErr,setSyncErr]         = useState("");
-  const [cookInfo,setCookInfo]       = useState(null);    // nach "Gekocht": was aus dem Vorrat genommen wurde {key, names, prev, undone}
   const [toast,setToast]             = useState("");      // kurzer Hinweis unten (Zurueck-Taste, geloescht auf anderem Geraet, kopiert)
 
   // VORGEMERKT: plans/<CODE>/picks/<id> = {key, day, createdAt}
@@ -411,9 +410,9 @@ export default function App() {
   };
   // "Wurde heute gekocht" im Rezept: Kochdatum heute, Vormerkung fuer heute weg, Bewertungsdialog
   // KOCHEN VERBRAUCHT: Frisches aus dem Rezept gilt als aufgebraucht, Kaese, Milch, Butter usw. als halb (stock/used/<goneKey>).
-  // Grundvorrat steht nicht im Vorrat, Dauervorrat bleibt. Der Bewertungsdialog zeigt, was abgezogen wurde, mit "Rueckgaengig".
+  // Grundvorrat steht nicht im Vorrat, Dauervorrat bleibt. Das laeuft still, ohne Hinweis; ein falscher Abzug laesst sich im Vorrat mit "ist noch da" korrigieren.
   const takeForCooking=(key)=>{
-    const rec=recipesRef.current[key]; setCookInfo(null); if(!rec) return;
+    const rec=recipesRef.current[key]; if(!rec) return;
     const used=(stockRaw&&stockRaw.used)||{};
     const r=cookUse(rec.ingredients,stock,used,todayISO(),Date.now());
     if(!r.names.length) return;
@@ -422,15 +421,6 @@ export default function App() {
     Object.keys(r.entries).forEach(gk=>{ patch["stock/used/"+gk]=r.entries[gk]; });
     setStockRaw(prev=>{ const u={...(prev.used||{})}; Object.keys(patch).forEach(pk=>{ const gk=pk.slice("stock/used/".length); if(patch[pk]===null) delete u[gk]; else u[gk]=patch[pk]; }); return {...prev,used:u}; });
     writePlan(patch,"stock");
-    setCookInfo({key,names:r.names,prev:r.prev,undone:false});
-  };
-  const undoCookUse=()=>{
-    if(!cookInfo||cookInfo.undone) return;
-    const patch={};
-    Object.keys(cookInfo.prev||{}).forEach(gk=>{ patch["stock/used/"+gk]=cookInfo.prev[gk]||null; });
-    setStockRaw(prev=>{ const u={...(prev.used||{})}; Object.keys(cookInfo.prev||{}).forEach(gk=>{ if(cookInfo.prev[gk]) u[gk]=cookInfo.prev[gk]; else delete u[gk]; }); return {...prev,used:u}; });
-    writePlan(patch,"stock");
-    setCookInfo(prev=>prev?{...prev,undone:true}:prev);
   };
   const cookedToday=(key)=>{
     const rec=recipesRef.current[key]; if(!rec) return;
@@ -1186,7 +1176,7 @@ export default function App() {
   const state={
     code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,aliasBusy,aliasErr,settings,household,
     picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopBasics,shopGroups,unchecked,classics:CLASSICS,
-    syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,cookInfo,
+    syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,
     importState:{importErr,extracting,extracted,savedMsg},cookbookImport,
     // Rahmen und Dialoge
     view,codeCopied,editShopId,editShopText,
@@ -1195,7 +1185,7 @@ export default function App() {
   };
   const api={
     // Vorgemerkt
-    addPick,removePick,movePick,cookedToday,startCooking,undoCookUse,
+    addPick,removePick,movePick,cookedToday,startCooking,
     // Einkauf
     buildShoppingFromPicks,addShopItem,dictateShopping,addShopTexts,toggleShopItem,editShopItem,removeShopItem,clearShopping,clearCheckedShopping,addRecipeToShopping,markIngredientPresent,forceBuy,shareShopping,
     // Rezepte
