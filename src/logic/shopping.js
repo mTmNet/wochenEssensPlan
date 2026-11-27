@@ -2,7 +2,7 @@
 // src "plan" = aus "Einkaufsliste aus dem Plan", "manuell" = Handeingabe oder "+" am Rezept
 // basic = Grundvorrat (Block "Vorrat prüfen"), forceBuy = trotzdem kaufen, slots = Plan-Zellen, aus denen der Posten per "+" kam
 import { SHOP_ORDER, SHOP_CAT_ALIAS } from "../data.js";
-import { shopCat, ingKey, parseIng, fmtIng, aggregateIngs, scaleIng, isBasicText } from "./ingredients.js";
+import { shopCat, ingKey, parseIng, fmtIng, aggregateIngs, scaleIng, isBasicText, fold } from "./ingredients.js";
 
 // Firebase-sicherer Schluessel: Zeit (Basis 36) + Zufall, sortiert sich zeitlich
 export const newShopId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -38,13 +38,15 @@ export const orphanIds = (shopping) => {
 export const checkedIds = (shopping) => shoppingList(shopping).filter(x=>x.checked).map(x=>x.id);
 export const nextOrder = (shopping) => shoppingList(shopping).reduce((m,x)=>Math.max(m,x.order||0),0)+1;
 // Offene Posten der eigentlichen Liste (Grundvorrat zaehlt nicht)
-// Steht dieselbe Zutat schon offen auf der Liste? Verglichen wird nur der Name (Menge und Einheit egal, "2 l Milch" = "Milch").
+// Steht genau dieser Name schon offen auf der Liste? Verglichen wird der ganze Name ohne Menge und Einheit
+// ("2 l Milch" = "Milch", Gross/Klein und Umlaut-Schreibweise egal). Sorten bleiben verschieden:
+// "weiße Schokolade" ist nicht "Schokolade", "rote Zwiebeln" nicht "Zwiebeln".
 // Abgehakte Posten und der Grundvorrat-Block zaehlen nicht: dort ist erneutes Eintragen gewollt. Liefert den Posten oder null.
-const nameKey = (k) => String(k||"").split("|")[0];
+const exactName = (text) => fold(parseIng(String(text||"")).name).replace(/\([^)]*\)/g," ").replace(/[^a-z0-9]+/g," ").trim();
 export const findOpenItem = (shopping, text) => {
-  const n=nameKey(ingKey(text));
+  const n=exactName(text);
   if(!n) return null;
-  return shoppingList(shopping).find(x=>isListed(x)&&!x.checked&&nameKey(x.key||ingKey(x.text))===n)||null;
+  return shoppingList(shopping).find(x=>isListed(x)&&!x.checked&&exactName(x.text)===n)||null;
 };
 export const uncheckedCount = (shopping) => shoppingList(shopping).filter(x=>isListed(x)&&!x.checked).length;
 // Zellen (Altbestand), deren Zutaten schon per "+" in der Liste sind
