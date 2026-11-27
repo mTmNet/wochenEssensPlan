@@ -67,7 +67,9 @@ const mockAi = async(route)=>{
     // Namen zuordnen: einfache Regel im Mock (erstes Wort), ein paar feste Faelle, Spuelmittel = kein Lebensmittel
     const FIX = {'Jogh Natur':'Joghurt','Vollmilch 3,5%':'Milch','Lachsfilet TK':'Lachs','Eier 10er Bio':'Eier','Bratwurst':'Bratwurst','Honig':'Honig','Spülmittel':null,'Kokosmilch':'Kokosmilch','Haferflocken kernig':'Haferflocken','Butter':'Butter','Avocado':'Avocado'};
     const raws = String(body.messages?.[0]?.content||'').split('\n').filter(l=>l.startsWith('- ')).map(l=>l.slice(2));
-    text = JSON.stringify({zuordnung: raws.map(r=>({roh:r, name: r in FIX ? FIX[r] : r.split(' ')[0]}))});
+    // Sorte mit Grundzutat (wie die echte KI): Paprika rot -> Rote Paprika (Paprika), Tellerlinsen -> Tellerlinsen (Linsen)
+    const SORT = {'Paprika rot 3er':['Rote Paprika','Paprika'],'Tellerlinsen':['Tellerlinsen','Linsen'],'Rote Linsen':['Rote Linsen','Linsen'],'Hähnchenbrustfilet':['Hähnchenbrust','Hähnchenbrust'],'Möhren 1kg':['Karotten','Karotten']};
+    text = JSON.stringify({zuordnung: raws.map(r=>r==='Jogh Natur' ? {roh:r,name:'Joghurt',grund:'Joghurt',frage:['Naturjoghurt','Griechischer Joghurt']} : r in SORT ? {roh:r,name:SORT[r][0],grund:SORT[r][1]} : ({roh:r, name: r in FIX ? FIX[r] : r.split(' ')[0]}))});
   } else if(String(body.system||'').includes('Speisekammer')){
     text = JSON.stringify({items:[{name:'Kokosmilch',gruppe:'Konserven'},{name:'Rote Linsen',gruppe:'Trockenwaren'},{name:'Kichererbsen',gruppe:'Konserven'},{name:'Spülmittel',gruppe:'Sonstiges'}]});
   } else if(body.mode==='suggest'){
@@ -221,7 +223,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.waitForTimeout(1500);
   const aliasCalls = aiCalls.filter(c=>String(c.system||'').includes('Kassenbons'));
   const alias = plan().stock?.alias||{};
-  check(aliasCalls.length===1 && Object.keys(alias).length===1 && alias.bratwurst?.name==='Bratwurst' && alias.bratwurst.src==='ki', 'Normieren: ein KI-Aufruf nur fuer den einzigen unklaren Namen (Bratwurst), Ergebnis unter stock/alias', {calls:aliasCalls.length, alias, sent:aliasCalls[0]?.messages?.[0]?.content});
+  const sent0 = String(aliasCalls[0]?.messages?.[0]?.content||'');
+  check(aliasCalls.length>=1 && aliasCalls.length<=2 && alias.bratwurst?.name==='Bratwurst' && alias.bratwurst.src==='ki' && alias.bratwurst.v===2 && alias.paprika_er?.name==='Rote Paprika' && !/Zwiebeln 1kg|Kokosmilch|Bananen/.test(sent0), 'Normieren: KI bekommt Unklares und Namen mit Sorte (Paprika rot -> Rote Paprika), schlichte Treffer nicht', {calls:aliasCalls.length, keys:Object.keys(alias), sent:aliasCalls.map(c=>c.messages?.[0]?.content)});
   // Hand-Korrektur: "Lachsfilet" (Regel) -> "Lachs", gilt fuer die Rohbezeichnung "Lachsfilet TK"
   await page.click('button[aria-label="Lachsfilet: Name zuordnen"]'); await page.waitForTimeout(200);
   await page.fill('div[role="dialog"] input[aria-label="Zutatenname"]', 'Lachs');
@@ -267,8 +270,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button:has-text("3 Übernehmen")'); await page.waitForTimeout(600);
   const own2 = Object.values(plan().stock?.items||{});
   check(own2.length===4 && own2.filter(i=>i.src==='foto').length===3 && !own2.some(i=>i.name==='Spülmittel'), 'Foto: 3 Positionen uebernommen (Spuelmittel abgewaehlt)', own2.map(i=>i.name));
-  await openRow('Linsen');
-  check(await page.isVisible('text=Kichererbsen') && await page.isVisible('text=aus: Rote Linsen') && own2.some(i=>i.name==='Kichererbsen Dose'), 'Vorrat: Foto-Positionen in der Liste (Name im Dialog geaendert, Rote Linsen als Linsen mit Herkunft)');
+  await page.waitForSelector('button[aria-label="Rote Linsen: Name zuordnen"]',{timeout:5000}).catch(()=>{});
+  check(await page.isVisible('text=Kichererbsen') && (await page.locator('button[aria-label="Rote Linsen: Name zuordnen"]').count())===1 && (await page.locator('button[aria-label="Tellerlinsen: Name zuordnen"]').count())===1 && own2.some(i=>i.name==='Kichererbsen Dose'), 'Vorrat: Foto-Positionen in der Liste (Name im Dialog geaendert), Rote Linsen und Tellerlinsen als eigene Sorten', await page.locator('button[aria-label$=": Name zuordnen"]').allTextContents());
   await page.click('button[aria-label="Kichererbsen: aufgebraucht, streichen"]'); await page.waitForTimeout(400);
   check(Object.values(plan().stock.items).length===3 && !(plan().hb.gone&&Object.keys(plan().hb.gone).length), 'x bei eigener Position (Kichererbsen aus dem Foto) loescht nur den Eintrag, kein gone-Marker');
   await page.click('button[aria-label="Bananen: aufgebraucht, streichen"]'); await page.waitForTimeout(400);
@@ -280,6 +283,15 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   check(!!fresh && fresh.src==='check' && fresh.date===T && await page.isVisible('text=Haushaltsbuch + bestätigt') && (await page.locator('div:has(> div button[aria-label="Butter: Name zuordnen"]) span[data-level]').first().textContent())==='ist da', 'Vorrat: Haken schreibt stock/items fuer Butter mit heutigem Datum (100 %)', fresh);
   check((await page.locator('button[aria-label="Butter auffrischen: ist noch da"]').count())===0, 'Vorrat: bei "ist da" gibt es keinen Haken mehr');
   await shot('05-vorrat');
+  // Nachfragen: Die KI war bei "Jogh Natur" unsicher -> "genauer?" an der Zeile, Vorschlaege im Dialog, Tipp ordnet zu (Hand, Sorte)
+  const genauer = page.locator('div:has(> div > button[aria-label="Joghurt: Name zuordnen"]) span', {hasText:'genauer?'});
+  check((await genauer.count())===1, 'Vorrat: unsichere Zuordnung zeigt "genauer?" an der Zeile', plan().stock.alias.jogh);
+  await page.click('button[aria-label="Joghurt: Name zuordnen"]'); await page.waitForTimeout(200);
+  await shot('05c-vorrat-genauer');
+  check(await page.isVisible('text=Die KI war sich nicht sicher') && await page.isVisible('div[role="dialog"] button:text-is("Griechischer Joghurt")'), 'Vorrat: Dialog zeigt die Vorschlaege der KI');
+  await page.click('div[role="dialog"] button:text-is("Naturjoghurt")'); await page.waitForTimeout(500);
+  const av = plan().stock.alias.jogh;
+  check(av?.name==='Naturjoghurt' && av.src==='hand' && av.v===2 && (await page.locator('button[aria-label="Naturjoghurt: Name zuordnen"]').count())===1 && !(await page.isVisible('text=Die KI war sich nicht sicher')), 'Vorrat: Vorschlag angetippt -> Zeile heisst Naturjoghurt, Zuordnung von Hand mit Sorte', av);
   // GRAPH: Umschalter, Wolken, Rezeptkanten, Auswahl, Wolke zuklappen, Daraus kochen (KI)
   await page.click('button:text-is("Netz")'); await page.waitForTimeout(500);
   const G = 'svg[data-testid="vorrat-graph"]';
@@ -298,8 +310,8 @@ const svgImg = (label)=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" hei
   await page.click('button[aria-label="Rezept ausblenden"]'); await page.waitForTimeout(200);
   check((await page.locator(G+' path[data-edge="present"]').count())===0, 'Graph: Rezept ausgeblendet, keine Kanten');
   await page.click(G+' g[aria-label="Kokosmilch auswählen"]'); await page.waitForTimeout(200);
-  await page.click(G+' g[aria-label="Linsen auswählen"]'); await page.waitForTimeout(300);
-  check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('text=Kokosmilch, Linsen') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
+  await page.click(G+' g[aria-label="Tellerlinsen auswählen"]'); await page.waitForTimeout(300);
+  check(await page.isVisible('text=2 ausgewählt') && await page.isVisible('text=Kokosmilch, Tellerlinsen') && await page.isVisible('button:has-text("DARAUS KOCHEN")') && await page.isVisible('text=Rezepte mit der Auswahl'), 'Graph: zwei Punkte ausgewaehlt, Leiste mit Daraus kochen, Rezepte zur Auswahl');
   await page.click(G+' g[aria-label="Gruppe Gemüse zuklappen"] text'); await page.waitForTimeout(300);
   check((await page.locator(G+' g[aria-label="Gruppe Gemüse aufklappen"]').count())===1 && (await page.locator(G+' g[aria-label="Zwiebeln auswählen"]').count())===0, 'Graph: Wolke Gemuese zugeklappt, ihre Punkte verborgen');
   // Emoji auf den Punkten, Verschieben eines Punkts (Lage im Plan), Zuruecksetzen

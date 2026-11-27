@@ -3,11 +3,11 @@ import { C, SF } from "./theme.js";
 import { CUISINE_LIST, CATS, TAGS, BASIC_LABEL } from "./data.js";
 import { fbGet, fbPatch, hbLoad, HB_CODE_RE, CODE_RE, randCode, normCode, fbDelete, ensureMember, dropMember, activity, storePhoto, removePhoto, photoAsDataUrl, ablage } from "./fb.js";
 import { isDataUrl } from "./ablage.js";
-import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildAliasPrompt, buildShoppingVoicePrompt, audioMessage, parseJsonBlock, compressImageToBase64 } from "./ai.js";
+import { callAI, kiErrText, buildExtractPrompt, buildSuggestPrompt, buildPantryPrompt, buildSortPrompt, buildShoppingVoicePrompt, audioMessage, parseJsonBlock, compressImageToBase64 } from "./ai.js";
 import { spokenItems } from "./logic/voice.js";
 import { makeRecipePDF, makeCookbookPDF } from "./pdf.js";
 import { buildStock, learnHalfLives, ingStatus, pickFoodCat, goneKey, guessGroup, STOCK_GROUPS, hbRawNames, shopStockId, shopStockItem, cookUse, goneUse, staleUsed } from "./logic/stock.js";
-import { vocabulary, resolveName, unmappedNames, parseAliasAnswer, aliasKey } from "./logic/alias.js";
+import { vocabulary, resolveName, unmappedNames, parseSortAnswer, aliasKey, recentHidden } from "./logic/alias.js";
 import { todayISO } from "./logic/weeks.js";
 import { pickList, pickItems, newPickId } from "./logic/picks.js";
 import { recKey, recName, recCat, normalizeRecipe, normalizeRecipes, addCooked, starterRecipes, ghostKeys } from "./logic/recipes.js";
@@ -1112,11 +1112,28 @@ export default function App() {
   const stock=useMemo(()=>buildStock({book:hbBook,cat:hbLink&&hbLink.cat,gone:hbLink&&hbLink.gone,items:stockRaw.items,perm:stockRaw.perm,used:stockRaw.used,learned,resolve}),[hbBook,hbLink,stockRaw,learned,resolve]);
   // Rohnamen ohne Zuordnung (Haushaltsbuch + eigene Positionen) - die gehen gebuendelt an die KI, jede nur einmal je Sitzung
   const rawNames=useMemo(()=>{ const own=Object.values(stockRaw.items||{}).map(i=>i&&i.name).filter(Boolean); return [...new Set([...hbRawNames(hbBook,hbLink&&hbLink.cat),...own])]; },[hbBook,hbLink,stockRaw.items]);
-  const unmapped=useMemo(()=>unmappedNames(rawNames,{alias:aliasMap,vocab}),[rawNames,aliasMap,vocab]);
-  // Zuordnung speichern: stock/alias/<aliasKey(roh)> = {name, src, at}; name "" = kein Lebensmittel
+  // resort: alte KI-Zuordnungen ohne Sorte gehen einmal neu an die KI (Kevin, 27.11.2026); Hand-Zuordnungen bleiben
+  const unmapped=useMemo(()=>unmappedNames(rawNames,{alias:aliasMap,vocab,resort:true}),[rawNames,aliasMap,vocab]);
+  // Liste "kein Lebensmittel" verblasst: letzter Einkauf je Rohname (Haushaltsbuch und eigene Positionen)
+  const hiddenRecent=useMemo(()=>{
+    const last={}; const put=(raw,d)=>{ const k=aliasKey(raw); if(k&&d&&(!last[k]||d>last[k])) last[k]=d; };
+    if(hbBook&&hbBook.entries) Object.values(hbBook.entries).forEach(e=>{ if(e&&Array.isArray(e.items)) e.items.forEach(it=>{ if(it&&it.name) put(it.name,e.date); }); });
+    Object.values(stockRaw.items||{}).forEach(it=>{ if(it&&it.name) put(it.name,it.date); });
+    return recentHidden(aliasMap,last);
+  },[hbBook,stockRaw.items,aliasMap]);
+  // Zuordnung speichern: stock/alias/<aliasKey(roh)> = {name, src, at, raw}; name "" = kein Lebensmittel.
+  // Mit Sorte (Wert als Objekt {name, base, ask}): v 2, base = Grundzutat, ask = Vorschlaege, alt = bisheriger Schluessel der Zeile
   const writeAliases=(map,src)=>{
     const now=Date.now(), patch={}, add={};
-    Object.keys(map).forEach(raw=>{ const k=aliasKey(raw); if(!k) return; const e={name:map[raw],src,at:now,raw:String(raw).slice(0,80)}; add[k]=e; patch["stock/alias/"+k]=e; });
+    Object.keys(map).forEach(raw=>{
+      const k=aliasKey(raw); if(!k) return; const val=map[raw];
+      const e={name:typeof val==="string"?val:val.name,src,at:now,raw:String(raw).slice(0,80)};
+      if(val&&typeof val==="object"){
+        e.v=2; if(val.base) e.base=val.base; if(val.ask) e.ask=val.ask;
+        const old=resolve(raw); const alt=old&&old.key; if(alt) e.alt=alt;
+      }
+      add[k]=e; patch["stock/alias/"+k]=e;
+    });
     if(!Object.keys(add).length) return;
     setStockRaw(prev=>({...prev,alias:{...(prev.alias||{}),...add}}));
     writePlan(patch,"stock");
@@ -1127,8 +1144,8 @@ export default function App() {
     setAliasBusy(true); setAliasErr("");
     try{
       const user="Bezeichnungen:\n"+list.map(n=>"- "+n).join("\n")+"\n\nAntworte für jede Bezeichnung genau einmal, \"roh\" exakt wie oben.";
-      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildAliasPrompt(vocab.slice(0,400).map(v=>v.name)),messages:[{role:"user",content:user}]}));
-      const map=parseAliasAnswer(parsed,list,vocab);
+      const parsed=parseJsonBlock(await callAI({code:codeRef.current,mode:"extract",system:buildSortPrompt(vocab.slice(0,400).map(v=>v.name)),messages:[{role:"user",content:user}]}));
+      const map=parseSortAnswer(parsed,list,vocab);
       writeAliases(map,"ki");
       const n=Object.keys(map).length;
       if(n) showToast(n===1?"1 Produktname zugeordnet.":n+" Produktnamen zugeordnet.");
@@ -1147,7 +1164,8 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[unmapped,screen]);
   // Hand-Korrektur aus der Vorratsliste: alle Rohnamen einer Zeile auf einen Namen ("" = kein Lebensmittel) oder zuruecksetzen
-  const setAlias=(raws,name)=>{ const map={}; (raws||[]).forEach(r=>{ map[r]=name; }); writeAliases(map,"hand"); };
+  // base (optional): Grundzutat der Sorte, z. B. aus einem Vorschlag der KI ("Parmesan" bleibt Käse fuer die Rezepte)
+  const setAlias=(raws,name,base)=>{ const map={}; (raws||[]).forEach(r=>{ map[r]=name&&base!==undefined?{name,base}:name; }); writeAliases(map,"hand"); };
   const clearAlias=(raws,keys)=>{
     const patch={}; const ks=[...(raws||[]).map(aliasKey),...(keys||[])].filter(Boolean); if(!ks.length) return;
     ks.forEach(k=>{ patch["stock/alias/"+k]=null; });
@@ -1184,7 +1202,7 @@ export default function App() {
 
   // ZUSTAND (state) UND AKTIONEN (api) fuer die Ansichten - Namen aus Bauplan Abschnitt 12.
   const state={
-    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,aliasBusy,aliasErr,settings,household,
+    code:activeCode,userName,participants,hbLink,hbBook,hbLoading,hbErr,stock,learned,stockRaw,vocab,unmapped,hiddenRecent,aliasBusy,aliasErr,settings,household,
     picks,today:todayISO(),recipes,images,shopping,shopList,shopMain,shopBasics,shopGroups,unchecked,classics:CLASSICS,
     syncOk,syncErr,lastSync,fontZoom,aiBusy,aiErr,toast,isLocalDev,cookInfo,
     importState:{importErr,extracting,extracted,savedMsg},cookbookImport,

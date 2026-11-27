@@ -29,7 +29,7 @@ export const SHELF = [
   ["sellerie",14,7,false],["ingwer",21,14,false],["kohl",21,10,false],["weisskohl",21,10,false],["rotkohl",21,10,false],["lauch",10,7,true],
   ["paprika",7,null,true],["zucchini",7,null,true],["tomaten",6,null,true],["gurke",7,null,true],["aubergine",7,null,true],["fenchel",7,null,true],
   ["brokkoli",5,null,true],["blumenkohl",7,null,true],["spinat",3,null,true],["salat",4,null,true],["rucola",3,null,true],
-  ["champignons",4,null,true],["pilze",4,null,true],["avocado",4,null,true],["fruehlingszwiebeln",5,null,true],
+  ["champignons",4,null,true],["pilze",4,null,true],["avocado",4,null,true],["fruehlingszwiebeln",5,null,true],["lauchzwiebeln",5,null,true],["schalotten",30,14,false],
   ["petersilie",5,null,true],["basilikum",4,null,true],["koriander",4,null,true],["dill",4,null,true],["schnittlauch",4,null,true],
   ["minze",4,null,true],["kraeuter",4,null,true],["salbei",5,null,true],
   // Obst

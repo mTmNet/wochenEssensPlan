@@ -81,7 +81,8 @@ export const normKey = (t) => {
 };
 // Zwei Woerter passen: gleich, Plural/Bon-Kuerzel ("tomate"/"tomaten", "jogh"/"joghurt"),
 // Kompositum-Kopf ("kirschtomaten"/"tomaten") oder lange gemeinsame Vorsilbe ("haehnchenbrust"/"haehnchenbrustfilet")
-const TOK_NOMATCH = new Set(["lauch|knoblauch","lauch|schnittlauch"]);
+// Lauch- und Fruehlingszwiebeln sind keine Zwiebeln im Rezept
+const TOK_NOMATCH = new Set(["lauch|knoblauch","lauch|schnittlauch",...["zwiebel","zwiebeln"].flatMap(z=>["lauchzwiebel","lauchzwiebeln","fruehlingszwiebel","fruehlingszwiebeln"].map(l=>z+"|"+l))]);
 export const tokMatch = (a,b) => {
   if(a===b) return true;
   const [s,l] = a.length<=b.length?[a,b]:[b,a];

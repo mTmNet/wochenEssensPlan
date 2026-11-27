@@ -64,6 +64,19 @@ export const buildAliasPrompt = (vocabNames) =>
   "3. Kein Lebensmittel (Reinigung, Drogerie, Tierbedarf, Pfand): null. "+
   "Antworte NUR mit JSON ohne Markdown: {\"zuordnung\":[{\"roh\":\"Bezeichnung wie angefragt\",\"name\":\"Tomaten\"},{\"roh\":\"Spülmittel\",\"name\":null}]}";
 
+// SORTE UND GRUNDZUTAT: Kassenbon-Bezeichnungen so genau wie sinnvoll benennen ("Cocktailtomaten", "Parmesan") und der Grundzutat
+// der Rezepte zuordnen ("Tomaten", "Käse"); bei Unklarem bis zu drei Vorschlaege zum Antippen. Ersetzt buildAliasPrompt.
+export const buildSortPrompt = (vocabNames) =>
+  "Du benennst Bezeichnungen von Kassenbons und Einkaufslisten für den Vorrat eines Kochbuchs, so genau wie für das Kochen sinnvoll. "+
+  "VOKABULAR (Zutatennamen aus den Rezepten): "+(vocabNames||[]).join(", ")+". "+
+  "Für jede Bezeichnung: name = die Sorte, kurz und gebräuchlich (1 bis 3 Wörter, Mehrzahl wie in Rezepten üblich), ohne Marke, Menge, Größe, Bio, Packung oder Fettstufe. "+
+  "Die Sorte bleibt, wenn sie beim Kochen einen Unterschied macht: \"Bio Cherrytomaten 250g\" -> \"Cocktailtomaten\", \"Fleischtomaten\", \"Parmesan\", \"Bergkäse\", \"Schalotten\", \"Rote Zwiebeln\", \"Lauchzwiebeln\", \"Weiße Schokolade\". "+
+  "Steht die Sorte im Vokabular, nimm genau diese Schreibweise. Ist es nur das Grundprodukt (\"Speisezwiebeln 2kg\", \"Vollmilch 3,5%\"), nimm den einfachen Namen (\"Zwiebeln\", \"Milch\"). "+
+  "grund = die allgemeine Zutat, die ein Rezept dafür verlangen würde, möglichst aus dem Vokabular (Cocktailtomaten -> Tomaten, Parmesan -> Käse, Schalotten -> Zwiebeln, Rote Zwiebeln -> Zwiebeln, Lauchzwiebeln -> Frühlingszwiebeln); ist name schon allgemein, ist grund gleich name. "+
+  "Ist die Bezeichnung abgekürzt oder mehrdeutig und du bist dir nicht sicher, nimm deinen besten Vorschlag als name und gib in frage 2 oder 3 mögliche Sorten an (z. B. \"KAESE GER.\" -> frage [\"Parmesan\",\"Emmentaler\",\"Gouda\"]); sonst lass frage weg. "+
+  "Kein Lebensmittel (Reinigung, Drogerie, Tierbedarf, Pfand, Tüten): name null. "+
+  "Antworte NUR mit JSON ohne Markdown: {\"zuordnung\":[{\"roh\":\"Bezeichnung wie angefragt\",\"name\":\"Cocktailtomaten\",\"grund\":\"Tomaten\"},{\"roh\":\"KAESE GER.\",\"name\":\"Käse\",\"grund\":\"Käse\",\"frage\":[\"Parmesan\",\"Emmentaler\"]},{\"roh\":\"Spülmittel\",\"name\":null}]}";
+
 // EINKAUFSLISTE PER SPRACHE: aus der Aufnahme die Posten in der Schreibweise der Liste ("Menge zuerst")
 export const buildShoppingVoicePrompt = () =>
   "Du hörst eine kurze Sprachaufnahme auf Deutsch: Jemand diktiert, was auf die Einkaufsliste soll. Schreibe daraus die Posten. "+

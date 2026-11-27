@@ -39,8 +39,8 @@ export default function Vorrat({state,api}){
   const visible=stock.filter(s=>!s.permanent&&s.p>=STOCK_MIN);
   const goneCount=hbLink&&hbLink.gone?Object.keys(hbLink.gone).length:0;
   const learnedCount=Object.keys(learned||{}).length;
-  // Zuordnungen "kein Lebensmittel" (Name leer) - zum Wiedereinblenden; aeltere Eintraege ohne Rohname zeigen den Schluessel
-  const hidden=Object.keys((stockRaw&&stockRaw.alias)||{}).map(k=>{ const e=stockRaw.alias[k]; return e&&typeof e==="object"&&e.name===""?{key:k,label:(e.raw||k.replace(/_/g," "))}:null; }).filter(Boolean);
+  // Zuordnungen "kein Lebensmittel" (Name leer) - zum Wiedereinblenden; nur, was in den letzten 7 Tagen gekauft oder ausgeblendet wurde (recentHidden)
+  const hidden=state.hiddenRecent||[];
   const fades=fadeTable();
   const doConnect=async()=>{ if(await connectHb(hbInput)) setHbInput(""); };
   const doAdd=()=>{ const n=name.trim(); if(!n) return; addStockItem(n,group||guessGroup(n)); setName(""); setGroup(""); showToast("„"+n+"“ im Vorrat."); };
@@ -75,7 +75,7 @@ export default function Vorrat({state,api}){
       <div style={{display:"flex",alignItems:"center",gap:"4px",padding:"4px 2px 4px 14px",minHeight:"44px",boxSizing:"border-box"}}>
         <div style={{flex:1,minWidth:0}}>
           <button onClick={()=>setRename({item:s,value:s.name})} title="Name zuordnen" aria-label={s.name+": Name zuordnen"} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:SF,fontSize:"15px",lineHeight:1.25,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</button>
-          <div style={{fontSize:"13px",color:C.muted,lineHeight:1.25,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[grp,s.permanent?"immer da":left].filter(Boolean).join(" · ")}{s.unsorted&&<span style={{color:C.accent}}> · nicht einsortiert</span>}</div>
+          <div style={{fontSize:"13px",color:C.muted,lineHeight:1.25,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[grp,s.permanent?"immer da":left].filter(Boolean).join(" · ")}{s.unsorted&&<span style={{color:C.accent}}> · nicht einsortiert</span>}{!s.unsorted&&s.ask&&<span style={{color:C.accent}}> · genauer?</span>}</div>
         </div>
         {!s.permanent&&<span data-level={lv.label} style={{fontSize:"13px",fontWeight:"700",color:TONE[lv.tone],flexShrink:0,textAlign:"right",whiteSpace:"nowrap"}}>{lv.label}</span>}
         {!s.permanent&&lv.min>=0.85&&<span aria-hidden="true" style={{minWidth:"34px",flexShrink:0}}/>}
@@ -220,8 +220,8 @@ export default function Vorrat({state,api}){
       {help&&<div style={{padding:"4px 14px 12px",fontSize:"14px",color:C.muted,lineHeight:"1.5"}}>
         <div style={{marginBottom:"6px"}}><span style={{color:C.text,fontWeight:"700"}}>Verblasst nach:</span> {fades.map(f=>f.labels.join(", ")+" "+f.days+" Tage").join(" · ")}.</div>
         <div style={{marginBottom:"6px"}}>Rechts steht, wie sicher etwas noch da ist: „ist da“, „vermutlich da“, „eventuell da“, „eher nicht mehr da“. Danach gilt es als aufgebraucht und verschwindet aus der Liste.</div>
-        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte für Gruppen; frische Zutaten haben eigene Werte (Kartoffeln und Zwiebeln halten länger, Hackfleisch ist nach zwei bis drei Tagen fraglich). Wird ein Produkt erneut gekauft, gekocht oder mit × gestrichen, lernt die App daraus, wie schnell ihr es verbraucht. „Gekocht“ nimmt die Zutaten aus dem Vorrat: Frisches wie Hackfleisch, Fisch oder Salat ganz, Käse, Milch, Butter oder Zwiebeln zum Teil; Dauervorrat bleibt. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen; der Haken erscheint erst, wenn ein Produkt nicht mehr sicher da ist. × heißt „aufgebraucht“. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (zum Beispiel Cocktailtomaten zu Tomaten), „Kein Lebensmittel“ und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
-        <div>Namen werden auf die Zutaten deiner Rezepte gebracht („Bio Strauchtomaten 500g“ → „Tomaten“): erst nach Regeln, Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
+        <div style={{marginBottom:"6px"}}>Die Tage sind Startwerte für Gruppen; frische Zutaten haben eigene Werte (Kartoffeln und Zwiebeln halten länger, Hackfleisch ist nach zwei bis drei Tagen fraglich). Wird ein Produkt erneut gekauft, gekocht oder mit × gestrichen, lernt die App daraus, wie schnell ihr es verbraucht. „Gekocht“ nimmt die Zutaten aus dem Vorrat: Frisches wie Hackfleisch, Fisch oder Salat ganz, Käse, Milch, Butter oder Zwiebeln zum Teil; Dauervorrat bleibt. ✓ heißt „ist noch da“ und lässt das Verblassen neu beginnen; der Haken erscheint erst, wenn ein Produkt nicht mehr sicher da ist. × heißt „aufgebraucht“. Namen vom Kassenbon ordnet die KI möglichst genau zu (Cocktailtomaten, Parmesan, Schalotten) und merkt sich die Grundzutat: Verlangt ein Rezept Zwiebeln, zählen auch Schalotten und rote Zwiebeln. Steht „genauer?“ an einer Zeile, war sie sich nicht sicher; ein Tipp auf den Namen zeigt Vorschläge. Unter ⋯ stehen die Herkunft sowie „Einsortieren“ (Namen ändern oder Zeilen zusammenlegen), „Kein Lebensmittel“ (steht danach noch 7 Tage unten zum Wiedereinblenden) und „Dauervorrat“ (verblasst nie). Grundvorrat wie Salz, Öl und Mehl zählt immer als vorhanden.</div>
+        <div>Namen vom Kassenbon werden bereinigt („Bio Cherrytomaten 250g“ → „Cocktailtomaten“): Eindeutiges nach Regeln, Sorten und Unklares ordnet die KI zu. Über ⋯ und „Einsortieren“ lässt sich eine Zuordnung ändern.</div>
       </div>}
     </div>}
 
@@ -232,6 +232,10 @@ export default function Vorrat({state,api}){
           {(rename.item.raws||[]).length?<>Auf dem Kassenbon: <b style={{color:C.text}}>{(rename.item.raws||[]).join(", ")}</b>. </>:null}
           Zu welcher Zutat aus deinen Rezepten gehört das? Gleiche Namen werden zu einer Zeile. Die Zuordnung gilt ab jetzt für alle Teilnehmer.
         </div>
+        {rename.item.ask&&rename.item.ask.length>0&&<div style={{marginBottom:"10px"}}>
+          <div style={{fontSize:"13px",color:C.muted,marginBottom:"6px"}}>Die KI war sich nicht sicher. Ist es eines davon?</div>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>{rename.item.ask.map(a=>(<button key={a} onClick={()=>{ setAlias(rename.item.raws&&rename.item.raws.length?rename.item.raws:[rename.item.name],a,rename.item.base||""); showToast("Zugeordnet: "+a); setRename(null); }} style={{...chip(false),minHeight:"36px",padding:"6px 12px",borderRadius:"6px"}}>{a}</button>))}</div>
+        </div>}
         <input value={rename.value} onChange={e=>setRename(r=>({...r,value:e.target.value}))} list="vokabular" placeholder="Zutatenname, z. B. Tomaten" aria-label="Zutatenname" autoFocus style={{...input,marginBottom:"10px"}} />
         <datalist id="vokabular">{(vocab||[]).slice(0,300).map(v=><option key={v.key} value={v.name} />)}</datalist>
         <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>

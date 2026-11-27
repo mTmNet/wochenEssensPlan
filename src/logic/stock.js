@@ -5,7 +5,7 @@ import { fold, normKey, tokMatch, isBasic, parseIng } from "./ingredients.js";
 import { daysSince } from "./weeks.js";
 import { cookedCount } from "./recipes.js";
 import { nameGroup } from "./foodIcon.js";
-import { freshEntry, freshP, cookLeft } from "./shelf.js";
+import { freshEntry, freshP, cookLeft, shelfOf } from "./shelf.js";
 
 export { fold };
 
@@ -46,9 +46,10 @@ export const fadeTable = () => {
 };
 // STARTWERTE JE PRODUKT (src/logic/shelf.js): Verbrauchs-Halbwertszeit hl (Tabelle, sonst Gruppe) und Haltbarkeit s in Tagen (0 = keine).
 // Die Haltbarkeit gilt nur fuer Frisches (Gruppenzeit bis 10 Tage), Dosen und Tiefkuehlware bleiben bei der Gruppe.
-export const productStart = (key, sub) => {
+// base (optional): Grundzutat einer Sorte ("Schalotten" -> zwiebeln), falls die Sorte selbst nicht in der Tabelle steht
+export const productStart = (key, sub, base) => {
   const gh = halfLife(sub);
-  const e = freshEntry(key, gh);
+  const e = freshEntry(key, gh) || (base ? freshEntry(base, gh) : null);
   return {hl:(e&&e.hl)||gh, s:e?e.s:0};
 };
 // Wahrscheinlichkeit nach age Tagen: verbraucht (Halbwertszeit) mal verdorben (Haltbarkeit)
@@ -80,8 +81,17 @@ export const goneKey = (key) => String(key||"").replace(/\s+/g,"_").replace(/[.#
 const resolved = (resolve, raw) => {
   if(!resolve) { const key=normKey(raw); return key?{name:raw,key}:undefined; }
   const r = resolve(raw); if(r===null) return null;
-  return r&&r.key ? {name:r.name,key:r.key,src:r.src} : undefined;
+  return r&&r.key ? r : undefined;
 };
+// Woerter fuer den Rezeptabgleich (Sorte ohne Farbe) und die Grundzutat einer Sorte
+const matchToks = (r) => r.toks || r.key.split(" ");
+const baseToks = (r) => r.base ? r.base.split(" ") : undefined;
+// Nach einer Neusortierung (Tomaten -> Cocktailtomaten) gelten Streichen und Kochen vom alten Schluessel weiter, wenn sie aelter sind
+const altGone = (g, r) => { if(!r.alt) return undefined; const d=g[goneKey(r.alt)]; return d&&(!r.at||new Date(d+"T12:00:00").getTime()<=r.at+86400000)?d:undefined; };
+const altUsed = (u, r) => { if(!r.alt) return undefined; const e=u[goneKey(r.alt)]; return e&&(!r.at||!(e.at>r.at))?e:undefined; };
+const learnedOf = (learned, r) => (learned&&(learned[r.key]||(r.alt&&learned[r.alt])))||null;
+// Spaeteres Datum gewinnt (zwei Streichungen fuer dieselbe Zeile)
+const laterDay = (a,b) => !a?b:!b?a:(a>b?a:b);
 // EINKAUF OHNE HAUSHALTSBUCH: Ein abgehakter Posten der Einkaufsliste gilt als heute gekauft (nur wenn kein Haushaltsbuch verbunden ist).
 // Der Schluessel haengt am Posten (stock/items/ek_<Posten-Id>): zwei Geraete, die gleichzeitig abhaken, schreiben denselben Eintrag.
 export const shopStockId = (shopId) => "ek_"+String(shopId||"").replace(/[.#$\[\]\/\s]/g,"");
@@ -119,9 +129,10 @@ export const hbStock = (book,cat,gone,learned,resolve,used) => {
       const r = resolved(resolve,it.name); if(!r) return;
       const key = r.key;
       if(!key||isBasic(key)) return;
-      const start = productStart(key,it.sub);
-      const hl = (learned&&learned[key]&&learned[key].hl)||start.hl;
-      const uf = usedFactor(used&&used[goneKey(key)], e.date);
+      const start = productStart(key,it.sub,r.base);
+      const lr = learnedOf(learned,r);
+      const hl = (lr&&lr.hl)||start.hl;
+      const uf = usedFactor(used&&used[goneKey(key)], e.date) * usedFactor(used&&altUsed(used,r), e.date);
       if(!uf) return;
       const p = stockP(age,hl,start.s)*uf;
       const prev = map[key];
@@ -129,15 +140,19 @@ export const hbStock = (book,cat,gone,learned,resolve,used) => {
       const last = prev&&prev.last>e.date?prev.last:e.date;
       const newest = !prev||last!==prev.last;
       const raws = prev?prev.raws:[]; if(!raws.includes(it.name)) raws.push(it.name);
-      map[key] = {key,toks:key.split(" "),p:prev?1-(1-prev.p)*(1-p):p,name:r.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,shelf:newest?start.s:prev.shelf,src:"hb",learnedN:learned&&learned[key]?learned[key].n:0,raws,unsorted:prev?prev.unsorted:r.src===""};
+      const ask = (prev&&prev.ask)||r.ask;
+      map[key] = {key,toks:matchToks(r),...(r.base?{base:r.base,btoks:baseToks(r)}:{}),...(ask?{ask}:{}),p:prev?1-(1-prev.p)*(1-p):p,name:r.name,sub:newest?(it.sub||""):prev.sub,last,hl:newest?hl:prev.hl,shelf:newest?start.s:prev.shelf,src:"hb",learnedN:lr?lr.n:0,raws,unsorted:prev?prev.unsorted:r.src==="",gd:laterDay(prev&&prev.gd,altGone(gone||{},r))};
     });
   });
   const g = gone||{};
   return Object.values(map)
-    .filter(s=>{ const d=g[goneKey(s.key)]; return !d||s.last>d; })
-    .map(s=>{ const age=Math.max(0,(now-new Date(s.last+"T12:00:00").getTime())/86400000); return {...s,left:Math.max(0,Math.round(goneDays(s.hl,s.shelf)-age))}; })
+    .filter(s=>{ const d=laterDay(g[goneKey(s.key)],s.gd); return !d||s.last>d; })
+    .map(({gd,...s})=>{ const age=Math.max(0,(now-new Date(s.last+"T12:00:00").getTime())/86400000); return {...s,left:Math.max(0,Math.round(goneDays(s.hl,s.shelf)-age))}; })
     .sort((a,b)=>b.p-a.p);
 };
+// Die Rezeptzutat ist so allgemein wie die Grundzutat einer Sorte: jedes Rezeptwort gleich oder Mehrzahl, keine Zusammensetzung
+const baseWord = (a,b) => { if(a===b) return true; const [x,y]=a.length<=b.length?[a,b]:[b,a]; return x.length>=4&&y.startsWith(x)&&y.length-x.length<=2; };
+const baseFits = (toks, s) => !!(s.btoks&&s.btoks.length&&toks.every(a=>s.btoks.some(b=>baseWord(a,b))));
 // Status einer Rezeptzutat: {name, basic, p, src}
 export const ingStatus = (ing,stock) => {
   const name = parseIng(ing).name;
@@ -146,7 +161,8 @@ export const ingStatus = (ing,stock) => {
   if(isBasic(key)) return {name,basic:true,p:1,src:""};
   const toks = key.split(" ");
   let best = 0, src = "", left, skey = "";
-  stock.forEach(s=>{ if(s.p>best&&toks.some(a=>s.toks.some(b=>tokMatch(a,b)))){ best=s.p; src=s.name; left=s.left; skey=s.key; } });
+  // Sorte passt direkt ("Cocktailtomaten" fuer "Tomaten") oder ueber ihre Grundzutat ("Schalotten" fuer "Zwiebeln", nicht fuer "Bergkäse")
+  stock.forEach(s=>{ if(s.p>best&&(toks.some(a=>s.toks.some(b=>tokMatch(a,b)))||baseFits(toks,s))){ best=s.p; src=s.name; left=s.left; skey=s.key; } });
   return {name,basic:false,p:best,src,left,key:skey};
 };
 // Punktzahl (Bauplan Abschnitt 7): Abdeckung*100 + Bewertung*4 + min(gekocht,5)*3 - 25 wenn in den letzten 7 Tagen gekocht.
@@ -187,7 +203,7 @@ const dayDiff = (a,b) => (new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/86400
 export const learnHalfLives = (book,cat,gone,now,resolve,{items,used}={}) => {
   const out = {};
   const ts = now===undefined?Date.now():now;
-  const dates = {}, subs = {}, checks = {};
+  const dates = {}, subs = {}, checks = {}, bases = {};
   const inYear = (date) => { const age=(ts-new Date(date+"T12:00:00").getTime())/86400000; return age>-2&&age<=365; };
   const buy = (key,date,sub) => { (dates[key]=dates[key]||new Set()).add(date); if(!subs[key]&&sub) subs[key]=sub; };
   if(book&&book.entries&&cat) Object.values(book.entries).forEach(e=>{
@@ -199,6 +215,7 @@ export const learnHalfLives = (book,cat,gone,now,resolve,{items,used}={}) => {
       const r = resolved(resolve,it.name); if(!r) return;
       const key = r.key;
       if(!key||isBasic(key)) return;
+      if(r.base) bases[key]=r.base;
       buy(key,e.date,it.sub||"");
     });
   });
@@ -207,6 +224,7 @@ export const learnHalfLives = (book,cat,gone,now,resolve,{items,used}={}) => {
     if(it.src!=="einkauf"&&it.src!=="check") return;
     const r = resolved(resolve,it.name); if(!r) return;
     const key = r.key; if(!key||isBasic(key)) return;
+    if(r.base) bases[key]=r.base;
     if(it.src==="einkauf") buy(key,it.date,it.sub||guessGroup(it.name));
     else if(!checks[key]||it.date>checks[key]) checks[key]=it.date;
   });
@@ -215,7 +233,7 @@ export const learnHalfLives = (book,cat,gone,now,resolve,{items,used}={}) => {
   Object.keys(u).forEach(gk=>{ const e=u[gk]; if(e&&isDay(e.from)&&inYear(e.from)){ const key=gk.replace(/_/g," "); if(!isBasic(key)) buy(key,e.from,e.sub||""); } });
   Object.keys(dates).forEach(key=>{
     const ds = [...dates[key]].sort();
-    const prior = productStart(key,subs[key]||guessGroup(key)).hl;
+    const prior = productStart(key,subs[key]||guessGroup(key),bases[key]).hl;
     const ends = [];
     const gd = g[goneKey(key)]; if(isDay(gd)) ends.push(gd);
     const ue = u[goneKey(key)]; if(ue&&isDay(ue.d)&&Number(ue.f||0)===0) ends.push(ue.d);
@@ -247,12 +265,13 @@ export const buildStock = ({book,cat,gone,items,perm,learned,now,resolve,used}={
     const r=resolved(resolve,it.name); if(!r) return;
     const key=r.key; if(!key||isBasic(key)) return;
     const date=/^\d{4}-\d{2}-\d{2}$/.test(it.date)?it.date:new Date(ts).toISOString().slice(0,10);
-    const gd=g[goneKey(key)]; if(gd&&date<=gd) return;
+    const gd=laterDay(g[goneKey(key)],altGone(g,r)); if(gd&&date<=gd) return;
     const age=Math.max(0,(ts-new Date(date+"T12:00:00").getTime())/86400000);
     if(age>HB_DAYS) return;
-    const start=productStart(key,it.sub||guessGroup(it.name));
-    const hl=(learned&&learned[key]&&learned[key].hl)||start.hl;
-    const uf=usedFactor(used&&used[goneKey(key)],date,it.createdAt);
+    const start=productStart(key,it.sub||guessGroup(it.name),r.base);
+    const lr=learnedOf(learned,r);
+    const hl=(lr&&lr.hl)||start.hl;
+    const uf=usedFactor(used&&used[goneKey(key)],date,it.createdAt)*usedFactor(used&&altUsed(used,r),date,it.createdAt);
     if(!uf) return;
     const p=stockP(age,hl,start.s)*uf;
     const prev=map[key];
@@ -260,7 +279,7 @@ export const buildStock = ({book,cat,gone,items,perm,learned,now,resolve,used}={
       const raws=prev.raws||[]; if(!raws.includes(it.name)) raws.push(it.name);
       map[key]={...prev,p:1-(1-prev.p)*(1-p),last:date>prev.last?date:prev.last,hl:date>prev.last?hl:prev.hl,shelf:date>prev.last?start.s:prev.shelf,srcs:[...new Set([...prev.srcs,it.src||"hand"])],ownIds:[...prev.ownIds,id],raws};
     }else{
-      map[key]={key,toks:key.split(" "),p,name:r.name,sub:it.sub||guessGroup(r.name),last:date,hl,shelf:start.s,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:learned&&learned[key]?learned[key].n:0,raws:[it.name],unsorted:r.src===""};
+      map[key]={key,toks:matchToks(r),...(r.base?{base:r.base,btoks:baseToks(r)}:{}),...(r.ask?{ask:r.ask}:{}),p,name:r.name,sub:it.sub||guessGroup(r.name),last:date,hl,shelf:start.s,src:it.src||"hand",srcs:[it.src||"hand"],ownIds:[id],learnedN:lr?lr.n:0,raws:[it.name],unsorted:r.src===""};
     }
   });
   Object.keys(perm||{}).forEach(gk=>{
@@ -268,7 +287,7 @@ export const buildStock = ({book,cat,gone,items,perm,learned,now,resolve,used}={
     const r=resolved(resolve,pm.name); if(!r) return;
     const key=r.key; if(!key||isBasic(key)) return;
     const prev=map[key];
-    map[key]=prev?{...prev,permanent:true,p:1,permKey:gk}:{key,toks:key.split(" "),p:1,name:r.name,sub:pm.sub||guessGroup(r.name),last:"",hl:Infinity,src:"perm",srcs:["perm"],ownIds:[],permanent:true,learnedN:0,raws:[pm.name],permKey:gk};
+    map[key]=prev?{...prev,permanent:true,p:1,permKey:gk}:{key,toks:matchToks(r),...(r.base?{base:r.base,btoks:baseToks(r)}:{}),p:1,name:r.name,sub:pm.sub||guessGroup(r.name),last:"",hl:Infinity,src:"perm",srcs:["perm"],ownIds:[],permanent:true,learnedN:0,raws:[pm.name],permKey:gk};
   });
   return Object.values(map)
     .map(s=>{ if(s.permanent) return {...s,left:Infinity}; const age=Math.max(0,(ts-new Date(s.last+"T12:00:00").getTime())/86400000); return {...s,left:Math.max(0,Math.round(goneDays(s.hl,s.shelf)-age))}; })
@@ -292,11 +311,14 @@ export const cookUse = (ingredients, stock, used, day, now) => {
     const key = normKey(parseIng(String(ing||"")).name);
     if(!key||isBasic(key)) return;
     const toks = key.split(" ");
-    const hits = (stock||[]).filter(s=>s&&!s.permanent&&s.p>=STOCK_MIN&&s.toks.some(b=>toks.some(a=>cookWord(a,b))));
-    const hit = hits.length===1?hits[0]:hits.find(s=>s.key===key);
+    const live = (stock||[]).filter(s=>s&&!s.permanent&&s.p>=STOCK_MIN);
+    const hits = live.filter(s=>s.toks.some(b=>toks.some(a=>cookWord(a,b))));
+    let hit = hits.length===1?hits[0]:hits.find(s=>s.key===key);
+    // Sonst ueber die Grundzutat ("Zwiebeln" nimmt die Schalotten); bei mehreren Sorten die, die am sichersten da ist
+    if(!hit&&!hits.length){ const bh=live.filter(s=>baseFits(toks,s)&&!Object.keys(entries).includes(goneKey(s.key))).sort((a,b)=>b.p-a.p); hit=bh[0]; }
     if(!hit) return;
     const gk = goneKey(hit.key); if(!gk||entries[gk]) return;
-    const left = cookLeft(hit.key,hit.sub);
+    const left = cookLeft(shelfOf(hit.key)||!hit.base?hit.key:hit.base,hit.sub);
     const old = u[gk];
     // Wurde seit dem letzten Abzug nicht neu gekauft, wird weiter abgezogen (zweimal halb = ein Viertel)
     const still = old&&isDay(old.d)&&!(hit.last>old.d);
